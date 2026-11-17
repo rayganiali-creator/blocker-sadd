@@ -7,6 +7,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -54,6 +55,8 @@ data class BlockingSessionEntity(
     val ruleScope: String = "all",
     val status: String = "active",
     val endedReason: String? = null,
+    /** مقدار SystemClock.elapsedRealtime() موقع شروع (H-6)؛ ۰ یعنی نامشخص. */
+    val startElapsedMs: Long = 0,
 )
 
 @Entity(tableName = "schedules")
@@ -90,6 +93,13 @@ interface BlockedAppDao {
     @Update
     suspend fun update(entity: BlockedAppEntity)
 
+    // M-16: آپدیت مستقیم به‌جای read-then-write (جلوگیری از lost update).
+    @Query("UPDATE blocked_apps SET enabled = :enabled WHERE packageName = :packageName")
+    suspend fun setEnabled(packageName: String, enabled: Boolean)
+
+    @Query("UPDATE blocked_apps SET delaySeconds = :delaySeconds WHERE packageName = :packageName")
+    suspend fun setDelay(packageName: String, delaySeconds: Int?)
+
     @Query("DELETE FROM blocked_apps WHERE packageName = :packageName")
     suspend fun delete(packageName: String)
 }
@@ -120,6 +130,13 @@ interface BlockedWebsiteDao {
 
     @Update
     suspend fun update(entity: BlockedWebsiteEntity)
+
+    // M-16: آپدیت مستقیم به‌جای read-then-write.
+    @Query("UPDATE blocked_websites SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: Long, enabled: Boolean)
+
+    @Query("UPDATE blocked_websites SET delaySeconds = :delaySeconds WHERE id = :id")
+    suspend fun setDelay(id: Long, delaySeconds: Int?)
 
     @Query("DELETE FROM blocked_websites WHERE id = :id")
     suspend fun delete(id: Long)
@@ -153,6 +170,13 @@ interface KeywordRuleDao {
     @Update
     suspend fun update(entity: KeywordRuleEntity)
 
+    // M-16: آپدیت مستقیم به‌جای read-then-write.
+    @Query("UPDATE keyword_rules SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: Long, enabled: Boolean)
+
+    @Query("UPDATE keyword_rules SET delaySeconds = :delaySeconds WHERE id = :id")
+    suspend fun setDelay(id: Long, delaySeconds: Int?)
+
     @Query("DELETE FROM keyword_rules WHERE id = :id")
     suspend fun delete(id: Long)
 }
@@ -162,8 +186,13 @@ interface BlockingSessionDao {
     @Query("SELECT * FROM blocking_sessions WHERE status = 'active' AND endEpochMs > :nowMs ORDER BY endEpochMs DESC LIMIT 1")
     suspend fun getActive(nowMs: Long): BlockingSessionEntity?
 
-    @Query("SELECT * FROM blocking_sessions WHERE status = 'active' AND endEpochMs > :nowMs ORDER BY endEpochMs DESC LIMIT 1")
-    fun observeActive(nowMs: Long): Flow<BlockingSessionEntity?>
+    /**
+     * H-4: بدون پارامتر زمان — nowMs فریز شده در Flow، سشن منقضی را برای
+     * همیشه «فعال» نشان می‌داد. فقط status خوانده می‌شود؛ انقضا را
+     * مصرف‌کننده با SessionCalculator چک می‌کند.
+     */
+    @Query("SELECT * FROM blocking_sessions WHERE status = 'active' ORDER BY endEpochMs DESC LIMIT 1")
+    fun observeActive(): Flow<BlockingSessionEntity?>
 
     @Query("SELECT * FROM blocking_sessions WHERE id = :id")
     suspend fun getById(id: Long): BlockingSessionEntity?
@@ -173,6 +202,20 @@ interface BlockingSessionDao {
 
     @Insert
     suspend fun insert(entity: BlockingSessionEntity): Long
+
+    /**
+     * H-9: شروع اتمی در یک تراکنش — چک سشن فعال و insert با هم انجام
+     * می‌شوند تا دو شروع هم‌زمان دو سشن فعال نسازند. ‎-1‎ یعنی سشن فعال هست.
+     */
+    @Transaction
+    suspend fun insertIfNoActive(entity: BlockingSessionEntity, nowMs: Long): Long {
+        if (getActive(nowMs) != null) return -1L
+        return insert(entity)
+    }
+
+    /** H-5: سشن‌های active ولی منقضی‌شده را به expired تبدیل می‌کند. */
+    @Query("UPDATE blocking_sessions SET status = 'expired', endedReason = 'expired' WHERE status = 'active' AND endEpochMs <= :nowMs")
+    suspend fun expireOld(nowMs: Long): Int
 
     @Query("UPDATE blocking_sessions SET endEpochMs = :newEnd WHERE id = :id")
     suspend fun updateEnd(id: Long, newEnd: Long)
@@ -200,6 +243,10 @@ interface ScheduleDao {
 
     @Update
     suspend fun update(entity: ScheduleEntity)
+
+    // M-16: آپدیت مستقیم به‌جای read-then-write.
+    @Query("UPDATE schedules SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: Long, enabled: Boolean)
 
     @Query("DELETE FROM schedules WHERE id = :id")
     suspend fun delete(id: Long)
