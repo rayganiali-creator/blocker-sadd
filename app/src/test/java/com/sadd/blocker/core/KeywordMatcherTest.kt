@@ -72,8 +72,43 @@ class KeywordMatcherTest {
     }
 
     @Test
+    fun zwnjCompoundWordDoesNotMatchSingleWordRule() {
+        // H-3 — مهم‌ترین رگرسیون این دور: «فوت‌بال» یک کلمه مرکب است.
+        assertFalse(KeywordMatcher.matches("فوت‌بال", "فوت"))
+        assertFalse(KeywordMatcher.matches("من فوت‌بال بازی می‌کنم", "فوت"))
+        assertFalse(KeywordMatcher.matches("می‌روم", "روم"))
+        assertFalse(KeywordMatcher.matches("می‌روم", "می"))
+    }
+
+    @Test
+    fun zwnjPhraseMatchesAcrossSpaceOrZwnj() {
+        // عبارت چندکلمه‌ای: مرز داخلی می‌تواند فاصله یا نیم‌فاصله باشد.
+        assertTrue(KeywordMatcher.matches("می‌روم", "می روم"))
+        assertTrue(KeywordMatcher.matches("می روم", "می‌روم"))
+        assertTrue(KeywordMatcher.matches("می روم", "می روم"))
+        assertTrue(KeywordMatcher.matches("می‌روم", "می‌روم"))
+    }
+
+    @Test
+    fun punctuationAdjacentWordMatches() {
+        // M-1: کلمه چسبیده به علائم نگارشی مچ می‌شود.
+        assertTrue(KeywordMatcher.matches("رفتم فوت، دیدم", "فوت"))
+        assertTrue(KeywordMatcher.matches("(فوت) آمد", "فوت"))
+        assertTrue(KeywordMatcher.matches("«فوت»؟", "فوت"))
+        assertTrue(KeywordMatcher.matches("فوت!", "فوت"))
+    }
+
+    @Test
     fun normalizeHostStripsSchemePathPortAndWww() {
         assertEquals("example.com", KeywordMatcher.normalizeHost("https://www.example.com:443/path?q=1"))
         assertEquals("example.com", KeywordMatcher.normalizeHost("HTTP://EXAMPLE.COM/"))
+    }
+
+    @Test
+    fun normalizeHostStripsTrailingDotsAndRejectsAt() {
+        // M-2
+        assertEquals("example.com", KeywordMatcher.normalizeHost("example.com."))
+        assertEquals("example.com", KeywordMatcher.normalizeHost(".example.com."))
+        assertEquals("user@example.com", KeywordMatcher.normalizeHost("user@example.com"))
     }
 }
