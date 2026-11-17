@@ -39,6 +39,11 @@ data class BlockingSession(
     val ruleScope: String = "all",
     val status: String = "active",
     val endedReason: String? = null,
+    /**
+     * مقدار `SystemClock.elapsedRealtime()` موقع شروع سشن (H-6: راستی‌آزمایی
+     * در برابر عقب کشیدن ساعت سیستم). ۰ یعنی نامشخص (سشن‌های قدیمی).
+     */
+    val startElapsedRealtimeMs: Long = 0,
 )
 
 /** زمان‌بندی تکرارشونده. */
@@ -72,4 +77,8 @@ object SessionDurations {
         3L * 60L * 60L * 1000L,
         8L * 60L * 60L * 1000L,
     )
+
+    /** مرزهای مجاز مدت دلخواه (۳۰ ثانیه تا ۹۰ روز) — L-11. */
+    const val MIN_MS = 30_000L
+    const val MAX_MS = 90L * 24L * 60L * 60L * 1000L
 }
