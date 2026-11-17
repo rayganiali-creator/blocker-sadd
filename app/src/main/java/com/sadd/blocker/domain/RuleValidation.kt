@@ -33,11 +33,24 @@ object RuleValidation {
         if (host.length > MAX_HOST_LENGTH) {
             return Check(false, "دامنه خیلی طولانی است.")
         }
-        if (host.contains(' ') || host.contains('/')) {
+        // M-2: «user@example.com» یا کاراکترهای غیرمجاز دامنه رد می‌شوند.
+        if (host.contains(' ') || host.contains('/') || host.contains('@') ||
+            host.contains('\\') || host.contains('?') || host.contains('#') ||
+            host.contains('%') || host.contains('_') || host.contains(':')
+        ) {
             return Check(false, "دامنه معتبر نیست.")
         }
         if (!host.contains('.')) {
             return Check(false, "دامنه باید نقطه داشته باشد (مثل example.com).")
+        }
+        // هر برچسب (label) باید غیرخالی باشد و با خط‌تیره شروع/تمام نشود؛
+        // TLD حداقل ۲ کاراکتر است.
+        val labels = host.split('.')
+        if (labels.any { it.isEmpty() || it.startsWith('-') || it.endsWith('-') }) {
+            return Check(false, "دامنه معتبر نیست.")
+        }
+        if (labels.last().length < 2) {
+            return Check(false, "دامنه معتبر نیست.")
         }
         return Check(true)
     }
