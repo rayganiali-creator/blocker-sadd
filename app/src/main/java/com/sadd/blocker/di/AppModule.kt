@@ -2,17 +2,21 @@ package com.sadd.blocker.di
 
 import android.content.Context
 import androidx.room.Room
+import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.data.db.AppDatabase
 import com.sadd.blocker.data.db.BlockedAppDao
 import com.sadd.blocker.data.db.BlockedWebsiteDao
 import com.sadd.blocker.data.db.BlockingSessionDao
 import com.sadd.blocker.data.db.KeywordRuleDao
+import com.sadd.blocker.data.db.MIGRATION_1_2
 import com.sadd.blocker.data.db.ScheduleDao
 import com.sadd.blocker.data.repository.RoomBlockedAppRepository
 import com.sadd.blocker.data.repository.RoomKeywordRepository
+import com.sadd.blocker.data.repository.RoomRestoreTransaction
 import com.sadd.blocker.data.repository.RoomScheduleRepository
 import com.sadd.blocker.data.repository.RoomSessionRepository
 import com.sadd.blocker.data.repository.RoomWebsiteRepository
+import com.sadd.blocker.domain.repository.RestoreTransaction
 import com.sadd.blocker.domain.repository.BlockedAppRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
 import com.sadd.blocker.domain.repository.ScheduleRepository
@@ -40,6 +44,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(context, AppDatabase::class.java, "blocker.db")
+            .addMigrations(MIGRATION_1_2)
             // عمداً بدون fallbackToDestructiveMigration: قانون کاربر با آپدیت پاک نشود.
             .build()
     }
@@ -110,8 +115,12 @@ object AppModule {
     }
 
     @Provides
-    fun provideEndSessionUseCase(repo: SessionRepository): EndSessionUseCase {
-        return EndSessionUseCase(repo)
+    fun provideEndSessionUseCase(
+        repo: SessionRepository,
+        settingsStore: SettingsStore,
+    ): EndSessionUseCase {
+        // SettingsStore درگاه PinGate است: بررسی PIN در UseCase انجام می‌شود (H-1).
+        return EndSessionUseCase(repo, settingsStore)
     }
 
     @Provides
@@ -120,12 +129,18 @@ object AppModule {
     }
 
     @Provides
+    fun provideRestoreTransaction(db: AppDatabase): RestoreTransaction {
+        return RoomRestoreTransaction(db)
+    }
+
+    @Provides
     fun provideRestoreBackupUseCase(
         apps: BlockedAppRepository,
         websites: WebsiteRepository,
         keywords: KeywordRepository,
         schedules: ScheduleRepository,
+        transaction: RestoreTransaction,
     ): RestoreBackupUseCase {
-        return RestoreBackupUseCase(apps, websites, keywords, schedules)
+        return RestoreBackupUseCase(apps, websites, keywords, schedules, transaction)
     }
 }
