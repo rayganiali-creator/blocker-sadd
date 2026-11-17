@@ -12,8 +12,30 @@ class PersianNormalizerTest {
     }
 
     @Test
-    fun zwnjBecomesSpaceForComparison() {
-        assertEquals("می خواهم", PersianNormalizer.normalize("می‌خواهم"))
+    fun zwnjPreservedAsJoinerNotSpace() {
+        // رفع H-3: نیم‌فاصله چسباننده کلمه است، نه جداکننده.
+        // رفتار قبلی (تبدیل به فاصله) عمداً عوض شد چون «فوت‌بال» را
+        // به‌اشتباه با «فوت» مچ می‌کرد.
+        assertEquals("می‌خواهم", PersianNormalizer.normalize("می‌خواهم"))
+        assertEquals("فوت‌بال", PersianNormalizer.normalize("فوت‌بال"))
+    }
+
+    @Test
+    fun canonicalTurnsZwnjIntoSpaceForDedupe() {
+        assertEquals("می خواهم", PersianNormalizer.canonical("می‌خواهم"))
+        assertEquals("فوت بال", PersianNormalizer.canonical("فوت‌بال"))
+    }
+
+    @Test
+    fun punctuationBecomesSpace() {
+        // M-1: کلمه چسبیده به علائم نگارشی، همان کلمه است.
+        assertEquals("فوت دیدم", PersianNormalizer.normalize("فوت، دیدم"))
+        assertEquals("فوت آمد", PersianNormalizer.normalize("(فوت) آمد"))
+    }
+
+    @Test
+    fun loneZwnjIsEmpty() {
+        assertEquals("", PersianNormalizer.normalize("‌"))
     }
 
     @Test
