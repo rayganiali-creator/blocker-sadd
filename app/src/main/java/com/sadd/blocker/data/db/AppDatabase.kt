@@ -21,6 +21,8 @@ import androidx.room.RoomDatabase
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun blockedAppDao(): BlockedAppDao
+    abstract fun blockedWebsiteDao(): BlockedWebsiteDao
     abstract fun keywordRuleDao(): KeywordRuleDao
     abstract fun sessionDao(): BlockingSessionDao
+    abstract fun scheduleDao(): ScheduleDao
 }
