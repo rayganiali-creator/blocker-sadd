@@ -3,9 +3,17 @@ package com.sadd.blocker.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
-import com.sadd.blocker.data.db.BlockingSessionDao
-import com.sadd.blocker.data.db.BlockingSessionEntity
-import com.sadd.blocker.data.db.KeywordRuleDao
+import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.system.PermissionHealthChecker
+import com.sadd.blocker.domain.TimeFormat
+import com.sadd.blocker.domain.model.BlockMode
+import com.sadd.blocker.domain.repository.BlockedAppRepository
+import com.sadd.blocker.domain.repository.KeywordRepository
+import com.sadd.blocker.domain.repository.SessionRepository
+import com.sadd.blocker.domain.repository.WebsiteRepository
+import com.sadd.blocker.domain.usecase.EndSessionUseCase
+import com.sadd.blocker.domain.usecase.StartSessionResult
+import com.sadd.blocker.domain.usecase.StartSessionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,70 +26,126 @@ import javax.inject.Inject
 data class DashboardUiState(
     val sessionActive: Boolean = false,
     val remainingText: String = "",
-    val activeRulesCount: Int = 0,
+    val remainingMs: Long = 0L,
+    val totalMs: Long = 0L,
     val strict: Boolean = false,
+    val blockMode: BlockMode = BlockMode.NORMAL,
+    val appsCount: Int = 0,
+    val websitesCount: Int = 0,
+    val keywordsCount: Int = 0,
+    val activeRulesCount: Int = 0,
+    val missingPermissions: Int = 0,
+    val message: String? = null,
 )
 
 /**
- * ViewModel داشبورد — اسکلت فاز ۱.
- * باقی‌مانده سشن هر ثانیه از endEpochMs محاسبه می‌شود (نه تایمر در حافظه).
+ * ViewModel داشبورد — فاز ۲.
+ * باقی‌مانده سشن هر ثانیه از endEpochMs محاسبه می‌شود (نه تایمر در حافظه)؛
+ * تعداد قوانین و سلامت مجوزها از Room و سیستم خوانده می‌شوند، نه نمایشی.
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val sessionDao: BlockingSessionDao,
-    private val keywordRuleDao: KeywordRuleDao,
+    private val sessionRepository: SessionRepository,
+    private val appRepository: BlockedAppRepository,
+    private val websiteRepository: WebsiteRepository,
+    private val keywordRepository: KeywordRepository,
+    private val startSessionUseCase: StartSessionUseCase,
+    private val endSessionUseCase: EndSessionUseCase,
+    private val permissionHealth: PermissionHealthChecker,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+    private var tickCount = 0
 
     init {
         viewModelScope.launch {
+            settingsStore.blockMode.collect { mode ->
+                _uiState.update { it.copy(blockMode = mode) }
+            }
+        }
+        viewModelScope.launch {
             while (true) {
+                tickCount++
                 refresh()
                 delay(1000)
             }
         }
     }
 
-    private suspend fun refresh() {
-        val active = sessionDao.getActive()
-        val rules = keywordRuleDao.getEnabled().size
-        val remaining = if (active != null) {
-            SessionCalculator.remainingMs(active.endEpochMs, System.currentTimeMillis())
-        } else {
-            0L
-        }
-        _uiState.update {
-            it.copy(
-                sessionActive = active != null && remaining > 0,
-                remainingText = formatRemaining(remaining),
-                activeRulesCount = rules,
-                strict = active?.strict ?: false,
-            )
+    fun refreshPermissions() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(missingPermissions = permissionHealth.missingCount()) }
         }
     }
 
-    /** شروع سریع سشن ۱ ساعته (Normal). جزئیات کامل در فاز ۵. */
-    fun startQuickSession() {
+    fun startSession(durationMs: Long) {
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            sessionDao.insert(
-                BlockingSessionEntity(
-                    startEpochMs = now,
-                    endEpochMs = now + 60L * 60L * 1000L,
-                    strict = false,
-                ),
-            )
+            val strict = _uiState.value.blockMode == BlockMode.STRICT
+            val result = startSessionUseCase.execute(durationMs, strict)
+            if (result is StartSessionResult.Started) {
+                _uiState.update { it.copy(message = "سشن ${TimeFormat.durationLabel(durationMs)} شروع شد.") }
+            }
+            if (result is StartSessionResult.AlreadyActive) {
+                _uiState.update { it.copy(message = "یک سشن فعال وجود دارد؛ اول آن را پایان بده.") }
+            }
+            if (result is StartSessionResult.InvalidDuration) {
+                _uiState.update { it.copy(message = result.reason) }
+            }
             refresh()
         }
     }
 
-    private fun formatRemaining(ms: Long): String {
-        val totalSeconds = ms / 1000
-        val h = totalSeconds / 3600
-        val m = (totalSeconds % 3600) / 60
-        val s = totalSeconds % 60
-        return "%02d:%02d:%02d".format(h, m, s)
+    fun endSession() {
+        viewModelScope.launch {
+            val ended = endSessionUseCase.execute("user")
+            if (ended) {
+                _uiState.update { it.copy(message = "سشن پایان یافت.") }
+            }
+            refresh()
+        }
+    }
+
+    fun dismissMessage() {
+        _uiState.update { it.copy(message = null) }
+    }
+
+    private suspend fun refresh() {
+        val now = System.currentTimeMillis()
+        val active = sessionRepository.getActive(now)
+        val remaining = if (active != null) {
+            SessionCalculator.remainingMs(active.endEpochMs, now)
+        } else {
+            0L
+        }
+        val total = if (active != null) {
+            active.endEpochMs - active.startEpochMs
+        } else {
+            0L
+        }
+        val apps = appRepository.countEnabled()
+        val websites = websiteRepository.countEnabled()
+        val keywords = keywordRepository.countEnabled()
+        // سلامت مجوزها (شامل فراخوانی سیستمی VpnService.prepare) فقط هر ۱۰ ثانیه چک می‌شود.
+        val missing = if (tickCount % 10 == 1) {
+            permissionHealth.missingCount()
+        } else {
+            _uiState.value.missingPermissions
+        }
+        _uiState.update {
+            it.copy(
+                sessionActive = active != null && remaining > 0,
+                remainingText = TimeFormat.formatRemainingMs(remaining),
+                remainingMs = remaining,
+                totalMs = total,
+                strict = active?.strict ?: false,
+                appsCount = apps,
+                websitesCount = websites,
+                keywordsCount = keywords,
+                activeRulesCount = apps + websites + keywords,
+                missingPermissions = missing,
+            )
+        }
     }
 }
