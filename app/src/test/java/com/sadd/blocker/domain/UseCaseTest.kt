@@ -7,16 +7,21 @@ import com.sadd.blocker.data.FakeSessionRepository
 import com.sadd.blocker.data.FakeWebsiteRepository
 import com.sadd.blocker.domain.model.BlockedWebsite
 import com.sadd.blocker.domain.model.KeywordRule
+import com.sadd.blocker.domain.model.Schedule
+import com.sadd.blocker.domain.repository.PinCheckResult
+import com.sadd.blocker.domain.repository.PinGate
 import com.sadd.blocker.domain.usecase.AddKeywordResult
 import com.sadd.blocker.domain.usecase.AddKeywordRuleUseCase
 import com.sadd.blocker.domain.usecase.AddWebsiteResult
 import com.sadd.blocker.domain.usecase.AddWebsiteUseCase
+import com.sadd.blocker.domain.usecase.EndSessionResult
 import com.sadd.blocker.domain.usecase.EndSessionUseCase
 import com.sadd.blocker.domain.usecase.ExtendSessionUseCase
 import com.sadd.blocker.domain.usecase.RestoreBackupUseCase
 import com.sadd.blocker.domain.usecase.RestoreResult
 import com.sadd.blocker.domain.usecase.StartSessionResult
 import com.sadd.blocker.domain.usecase.StartSessionUseCase
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -93,13 +98,61 @@ class UseCaseTest {
         val now = 1_700_000_000_000L
         val end = EndSessionUseCase(repo)
         val extend = ExtendSessionUseCase(repo)
-        assertFalse(end.execute("user", now))
+        assertTrue(end.execute("user", null, now) is EndSessionResult.NoActive)
         assertNull(extend.execute(now))
         StartSessionUseCase(repo).execute(3_600_000L, false, now)
         val newEnd = extend.execute(now)
         assertEquals(now + 3_600_000L + 15L * 60L * 1000L, newEnd)
-        assertTrue(end.execute("user", now))
+        assertTrue(end.execute("user", null, now) is EndSessionResult.Ended)
         assertNull(repo.getActive(now))
+    }
+
+    @Test
+    fun strictSessionEndRequiresPinInUseCase() = runBlocking {
+        // H-1: پایان سشن Strict فقط با PIN درست — در UseCase، نه ViewModel.
+        val repo = FakeSessionRepository()
+        val gate = object : PinGate {
+            override suspend fun isPinSet(): Boolean = true
+            override suspend fun verify(pin: String): PinCheckResult {
+                return if (pin == "1234") PinCheckResult.Ok else PinCheckResult.Wrong(4)
+            }
+        }
+        val now = 1_700_000_000_000L
+        StartSessionUseCase(repo).execute(3_600_000L, true, now)
+        val end = EndSessionUseCase(repo, gate)
+        assertTrue(end.execute("user", null, now) is EndSessionResult.PinRequired)
+        assertTrue(end.execute("user", "0000", now) is EndSessionResult.WrongPin)
+        assertTrue(repo.getActive(now) != null)
+        assertTrue(end.execute("user", "1234", now) is EndSessionResult.Ended)
+        assertNull(repo.getActive(now))
+    }
+
+    @Test
+    fun nonStrictSessionEndsWithoutPin() = runBlocking {
+        val repo = FakeSessionRepository()
+        val gate = object : PinGate {
+            override suspend fun isPinSet(): Boolean = true
+            override suspend fun verify(pin: String): PinCheckResult = PinCheckResult.Wrong(4)
+        }
+        val now = 1_700_000_000_000L
+        StartSessionUseCase(repo).execute(3_600_000L, false, now)
+        val end = EndSessionUseCase(repo, gate)
+        assertTrue(end.execute("user", null, now) is EndSessionResult.Ended)
+    }
+
+    @Test
+    fun concurrentStartsCreateOnlyOneActiveSession() = runBlocking {
+        // H-9: دو شروع هم‌زمان → فقط یکی Started.
+        val repo = FakeSessionRepository()
+        val useCase = StartSessionUseCase(repo)
+        val now = 1_700_000_000_000L
+        val first = async { useCase.execute(3_600_000L, false, now) }
+        val second = async { useCase.execute(3_600_000L, false, now) }
+        val results = listOf(first.await(), second.await())
+        assertEquals(1, results.count { it is StartSessionResult.Started })
+        assertEquals(1, results.count { it is StartSessionResult.AlreadyActive })
+        // فقط یک سشن فعال در ریپو هست (دومی یتیم نمانده).
+        assertTrue(repo.getActive(now) != null)
     }
 
     @Test
@@ -145,5 +198,58 @@ class UseCaseTest {
         )
         assertTrue(restore.execute("not json") is RestoreResult.Failed)
         assertTrue(restore.execute("{\"version\":9}") is RestoreResult.Failed)
+    }
+
+    @Test
+    fun restoreDedupesSchedules() = runBlocking {
+        // M-3: ایمپورت دوباره همان فایل، زمان‌بندی‌ها را دوبرابر نمی‌کند.
+        val schedules = FakeScheduleRepository()
+        val restore = RestoreBackupUseCase(
+            FakeBlockedAppRepository(),
+            FakeWebsiteRepository(),
+            FakeKeywordRepository(),
+            schedules,
+        )
+        val json = BackupCodec.encode(
+            BackupData(
+                apps = emptyList(),
+                websites = emptyList(),
+                keywords = emptyList(),
+                schedules = listOf(
+                    Schedule(daysOfWeek = "SAT", startMinute = 480, endMinute = 600),
+                    Schedule(daysOfWeek = "SAT", startMinute = 480, endMinute = 600),
+                ),
+            ),
+            0L,
+        )
+        val result = restore.execute(json)
+        val summary = (result as RestoreResult.Restored).summary
+        assertEquals(1, summary.schedulesAdded)
+        assertEquals(1, summary.skipped)
+        assertEquals(1, schedules.list().size)
+        val again = restore.execute(json) as RestoreResult.Restored
+        assertEquals(0, again.summary.schedulesAdded)
+        assertEquals(1, schedules.list().size)
+    }
+
+    @Test
+    fun addKeywordCanonicalDedupe() = runBlocking {
+        // «می‌روم» و «می روم» یک قانون‌اند (dedupe با فرم هم‌ارز).
+        val repo = FakeKeywordRepository()
+        val useCase = AddKeywordRuleUseCase(repo)
+        assertTrue(useCase.execute("می‌روم", "عمومی") is AddKeywordResult.Added)
+        assertTrue(useCase.execute("می روم", "عمومی") is AddKeywordResult.Duplicate)
+        assertEquals(1, repo.list().size)
+    }
+
+    @Test
+    fun addWebsiteRejectsUserAtAndTrailingDotNormalizes() = runBlocking {
+        // M-2
+        val repo = FakeWebsiteRepository()
+        val useCase = AddWebsiteUseCase(repo)
+        assertTrue(useCase.execute("user@example.com", true) is AddWebsiteResult.Invalid)
+        val added = useCase.execute("example.com.", true)
+        assertTrue(added is AddWebsiteResult.Added)
+        assertEquals("example.com", (added as AddWebsiteResult.Added).site.host)
     }
 }
