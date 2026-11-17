@@ -1,0 +1,17 @@
+<!-- سیلوئت تک‌رنگ خرس «سد» برای آیکون themed (لانچرهای اندروید ۱۳+).
+     فقط یک رنگ؛ سیستم آن را با رنگ تم لانچر می‌کشد. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M32,34a12,12 0 1,1 0.1,0Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M76,34a12,12 0 1,1 0.1,0Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M54,58a29,29 0 1,1 0.1,0Z" />
+</vector>
