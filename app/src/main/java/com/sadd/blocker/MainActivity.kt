@@ -25,6 +25,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.sadd.blocker.data.datastore.AppTheme
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.ui.screens.AboutScreen
 import com.sadd.blocker.ui.screens.AppsScreen
@@ -56,8 +57,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val darkTheme by settingsStore.darkTheme.collectAsStateWithLifecycle(initialValue = true)
-            BlockerTheme(darkTheme = darkTheme) {
+            val theme by settingsStore.theme.collectAsStateWithLifecycle(initialValue = AppTheme.DARK)
+            BlockerTheme(theme = theme) {
                 BlockerNav()
             }
         }
