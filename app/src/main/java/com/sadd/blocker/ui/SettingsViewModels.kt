@@ -3,9 +3,11 @@ package com.sadd.blocker.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.PinCrypto
+import com.sadd.blocker.data.datastore.AppTheme
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.DelayOptions
+import com.sadd.blocker.domain.repository.PinCheckResult
 import com.sadd.blocker.domain.repository.BlockedAppRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
 import com.sadd.blocker.domain.repository.WebsiteRepository
@@ -136,7 +138,7 @@ data class PinUiState(
 )
 
 data class ThemeUiState(
-    val darkTheme: Boolean = true,
+    val theme: AppTheme = AppTheme.DARK,
 )
 
 @HiltViewModel
@@ -149,15 +151,15 @@ class ThemeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            settingsStore.darkTheme.collect { dark ->
-                _uiState.update { it.copy(darkTheme = dark) }
+            settingsStore.theme.collect { theme ->
+                _uiState.update { it.copy(theme = theme) }
             }
         }
     }
 
-    fun setDarkTheme(dark: Boolean) {
+    fun setTheme(theme: AppTheme) {
         viewModelScope.launch {
-            settingsStore.setDarkTheme(dark)
+            settingsStore.setTheme(theme)
         }
     }
 }
@@ -201,9 +203,26 @@ class PinViewModel @Inject constructor(
     /** تغییر PIN — نیازمند PIN فعلی. */
     fun changePin(oldPin: String, newPin: String, confirmPin: String) {
         viewModelScope.launch {
-            if (!settingsStore.checkPin(oldPin)) {
-                _uiState.update { it.copy(message = "PIN فعلی اشتباه است.") }
-                return@launch
+            when (val check = settingsStore.verify(oldPin)) {
+                is PinCheckResult.Ok -> Unit
+                is PinCheckResult.Wrong -> {
+                    _uiState.update {
+                        it.copy(message = "PIN فعلی اشتباه است. ${check.attemptsLeft} تلاش باقی مانده است.")
+                    }
+                    return@launch
+                }
+                is PinCheckResult.Locked -> {
+                    val seconds = ((check.lockedUntilMs - System.currentTimeMillis()) / 1000)
+                        .coerceAtLeast(1)
+                    _uiState.update {
+                        it.copy(message = "PIN موقتاً قفل است؛ $seconds ثانیه دیگر دوباره تلاش کن.")
+                    }
+                    return@launch
+                }
+                is PinCheckResult.NotSet -> {
+                    _uiState.update { it.copy(message = "PIN تنظیم نشده است.") }
+                    return@launch
+                }
             }
             setPin(newPin, confirmPin)
         }
@@ -212,9 +231,26 @@ class PinViewModel @Inject constructor(
     /** حذف PIN — نیازمند PIN فعلی. */
     fun removePin(oldPin: String) {
         viewModelScope.launch {
-            if (!settingsStore.checkPin(oldPin)) {
-                _uiState.update { it.copy(message = "PIN فعلی اشتباه است.") }
-                return@launch
+            when (val check = settingsStore.verify(oldPin)) {
+                is PinCheckResult.Ok -> Unit
+                is PinCheckResult.Wrong -> {
+                    _uiState.update {
+                        it.copy(message = "PIN فعلی اشتباه است. ${check.attemptsLeft} تلاش باقی مانده است.")
+                    }
+                    return@launch
+                }
+                is PinCheckResult.Locked -> {
+                    val seconds = ((check.lockedUntilMs - System.currentTimeMillis()) / 1000)
+                        .coerceAtLeast(1)
+                    _uiState.update {
+                        it.copy(message = "PIN موقتاً قفل است؛ $seconds ثانیه دیگر دوباره تلاش کن.")
+                    }
+                    return@launch
+                }
+                is PinCheckResult.NotSet -> {
+                    _uiState.update { it.copy(message = "PIN تنظیم نشده است.") }
+                    return@launch
+                }
             }
             settingsStore.clearPin()
             _uiState.update { it.copy(message = "PIN حذف شد.") }
