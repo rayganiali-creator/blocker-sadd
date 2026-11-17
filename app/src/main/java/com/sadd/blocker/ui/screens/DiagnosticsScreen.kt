@@ -1,8 +1,16 @@
 package com.sadd.blocker.ui.screens
 
+import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.VpnService
+import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,6 +58,15 @@ fun DiagnosticsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
+    // VPN: تایید از طریق دیالوگ سیستمی VpnService.prepare است، نه صفحه VPN Settings.
+    val vpnPrepareLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { viewModel.refresh() }
+    // اعلان‌ها: درخواست مستقیم runtime permission (اندروید ۱۳+)، نه فقط تنظیمات.
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { viewModel.refresh() }
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -78,7 +95,32 @@ fun DiagnosticsScreen(
             SectionTitle("مجوزها")
         }
         items(uiState.permissions, key = { it.key }) { permission ->
-            SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            // باز کردن مجوز: VPN و اعلان مسیر سیستمی خودشان را دارند؛ بقیه صفحه تنظیمات.
+            val openPermission = {
+                when (permission.key) {
+                    "vpn" -> {
+                        val prepareIntent = VpnService.prepare(context)
+                        if (prepareIntent == null) {
+                            Toast.makeText(context, "VPN لوکال آماده است.", Toast.LENGTH_SHORT).show()
+                            viewModel.refresh()
+                        } else {
+                            vpnPrepareLauncher.launch(prepareIntent)
+                        }
+                    }
+                    "notification" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            openSettingsPage(context, permission)
+                        }
+                    }
+                    else -> openSettingsPage(context, permission)
+                }
+            }
+            SaddCard(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .clickable { openPermission() },
+            ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -115,16 +157,7 @@ fun DiagnosticsScreen(
                     Spacer(Modifier.height(SaddSpacing.Small))
                     SaddButton(
                         text = "رفتن به تنظیمات",
-                        onClick = {
-                            val intent = Intent(permission.settingsAction)
-                            if (permission.key == "notification") {
-                                intent.putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                            }
-                            if (permission.settingsUri != null) {
-                                intent.data = Uri.parse(permission.settingsUri)
-                            }
-                            runCatching { context.startActivity(intent) }
-                        },
+                        onClick = openPermission,
                         style = SaddButtonStyle.SECONDARY,
                     )
                 }
@@ -148,6 +181,38 @@ fun DiagnosticsScreen(
                 }
             }
             Spacer(Modifier.height(SaddSpacing.Large))
+        }
+    }
+}
+
+/**
+ * باز کردن صفحه تنظیمات مربوط به یک مجوز.
+ * باگ قبلی: خطای startActivity بی‌صدا با runCatching خالی قورت داده می‌شد و
+ * کاربر فقط می‌دید «هیچ اتفاقی نمی‌افتد». حالا FLAG_ACTIVITY_NEW_TASK اضافه
+ * شده، در صورت شکست Toast نشان داده می‌شود و fallback به صفحه اطلاعات اپ است.
+ */
+private fun openSettingsPage(context: Context, permission: PermissionStatus) {
+    val intent = Intent(permission.settingsAction).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (permission.key == "notification") {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        }
+        permission.settingsUri?.let { data = Uri.parse(it) }
+    }
+    val opened = runCatching { context.startActivity(intent) }.isSuccess
+    if (!opened) {
+        Toast.makeText(
+            context,
+            "صفحه تنظیمات باز نشد؛ از تنظیمات گوشی اقدام کن",
+            Toast.LENGTH_LONG,
+        ).show()
+        runCatching {
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+            )
         }
     }
 }
