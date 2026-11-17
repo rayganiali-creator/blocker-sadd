@@ -27,17 +27,24 @@ def check_file(path):
         if FUN_RE.match(line):
             # Is this an expression-body fun? Look for '=' before any '{' on the
             # declaration (may span lines until '{' or '=' at depth 0).
+            # '=' داخل پرانتز (مقدار پیش‌فرض پارامتر) نشانه بدنه عبارتی نیست؛
+            # فقط '=' در عمق پرانتز صفر شمرده می‌شود.
             decl = line
             j = i
             brace_seen = False
             eq_seen = False
+            paren_depth = 0
             while j < len(lines):
                 decl += lines[j] if j != i else ''
                 for ch in lines[j]:
-                    if ch == '{':
+                    if ch == '(':
+                        paren_depth += 1
+                    elif ch == ')':
+                        paren_depth -= 1
+                    elif ch == '{':
                         brace_seen = True
                         break
-                    if ch == '=' and not brace_seen:
+                    elif ch == '=' and paren_depth == 0 and not brace_seen:
                         eq_seen = True
                 if brace_seen or eq_seen or lines[j].rstrip().endswith(('=', '{')):
                     break
