@@ -6,7 +6,9 @@ import com.sadd.blocker.data.system.InstalledAppInfo
 import com.sadd.blocker.data.system.InstalledAppsProvider
 import com.sadd.blocker.domain.model.BlockedApp
 import com.sadd.blocker.domain.repository.BlockedAppRepository
+import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.domain.usecase.AddBlockedAppUseCase
+import com.sadd.blocker.domain.usecase.StrictSessionGuard
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,10 +38,13 @@ class AppsViewModel @Inject constructor(
     private val repository: BlockedAppRepository,
     private val addUseCase: AddBlockedAppUseCase,
     private val installedAppsProvider: InstalledAppsProvider,
+    sessionRepository: SessionRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AppsUiState())
     val uiState: StateFlow<AppsUiState> = _uiState.asStateFlow()
+    private val strictGuard = StrictSessionGuard(sessionRepository)
+    private var lastRemoved: BlockedApp? = null
 
     init {
         viewModelScope.launch {
@@ -84,6 +89,11 @@ class AppsViewModel @Inject constructor(
 
     fun setEnabled(packageName: String, enabled: Boolean) {
         viewModelScope.launch {
+            // H-2: در سشن Strict نمی‌توان قانون فعال را غیرفعال کرد.
+            if (!enabled && strictGuard.isStrictSessionActive()) {
+                _uiState.update { it.copy(message = "در سشن Strict فعال نمی‌توان قانون را غیرفعال کرد.") }
+                return@launch
+            }
             repository.setEnabled(packageName, enabled)
         }
     }
@@ -96,7 +106,25 @@ class AppsViewModel @Inject constructor(
 
     fun remove(packageName: String) {
         viewModelScope.launch {
+            val current = _uiState.value.blocked.firstOrNull { it.packageName == packageName }
+            // H-2: در سشن Strict نمی‌توان قانون فعال را حذف کرد.
+            if (current?.enabled == true && strictGuard.isStrictSessionActive()) {
+                _uiState.update { it.copy(message = "در سشن Strict فعال نمی‌توان قانون فعال را حذف کرد.") }
+                return@launch
+            }
+            lastRemoved = current
             repository.remove(packageName)
+            _uiState.update { it.copy(message = "«${current?.label ?: packageName}» حذف شد.") }
+        }
+    }
+
+    /** بازگردانی آخرین قانون حذف‌شده (M-12: undo). */
+    fun undoRemove() {
+        viewModelScope.launch {
+            val removed = lastRemoved ?: return@launch
+            lastRemoved = null
+            repository.add(removed)
+            _uiState.update { it.copy(message = "«${removed.label}» برگردانده شد.") }
         }
     }
 
