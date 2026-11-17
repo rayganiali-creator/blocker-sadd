@@ -1,16 +1,7 @@
 package com.sadd.blocker.ui.screens
 
-import android.Manifest
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.net.VpnService
-import android.os.Build
-import android.provider.Settings
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,7 +31,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.sadd.blocker.data.system.PermissionStatus
 import com.sadd.blocker.ui.DiagnosticsViewModel
 import com.sadd.blocker.ui.theme.SaddSpacing
 
@@ -59,14 +49,8 @@ fun DiagnosticsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    // VPN: تایید از طریق دیالوگ سیستمی VpnService.prepare است، نه صفحه VPN Settings.
-    val vpnPrepareLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { viewModel.refresh() }
-    // اعلان‌ها: درخواست مستقیم runtime permission (اندروید ۱۳+)، نه فقط تنظیمات.
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { viewModel.refresh() }
+    // لانچرهای سیستمی درخواست مجوز — منطق باز کردن در PermissionIntents.kt است.
+    val launchers = rememberPermissionLaunchers { viewModel.refresh() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -88,35 +72,29 @@ fun DiagnosticsScreen(
                 "اگر مجوزی قطع شود، بلاک همان بخش از کار می‌افتد.",
                 onBack = onBack,
             )
-            SaddButton(
-                text = "به‌روزرسانی وضعیت",
-                onClick = { viewModel.refresh() },
-                style = SaddButtonStyle.SECONDARY,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
+            ) {
+                SaddButton(
+                    text = "به‌روزرسانی وضعیت",
+                    onClick = { viewModel.refresh() },
+                    style = SaddButtonStyle.SECONDARY,
+                    modifier = Modifier.weight(1f),
+                )
+                SaddButton(
+                    text = "راه‌اندازی دوباره",
+                    onClick = { onNavigate("onboarding") },
+                    style = SaddButtonStyle.SECONDARY,
+                    modifier = Modifier.weight(1f),
+                )
+            }
             SectionTitle("مجوزها")
         }
         items(uiState.permissions, key = { it.key }) { permission ->
-            // باز کردن مجوز: VPN و اعلان مسیر سیستمی خودشان را دارند؛ بقیه صفحه تنظیمات.
+            // باز کردن مجوز — منطق مشترک در PermissionIntents.kt است.
             val openPermission = {
-                when (permission.key) {
-                    "vpn" -> {
-                        val prepareIntent = VpnService.prepare(context)
-                        if (prepareIntent == null) {
-                            Toast.makeText(context, "VPN لوکال آماده است.", Toast.LENGTH_SHORT).show()
-                            viewModel.refresh()
-                        } else {
-                            vpnPrepareLauncher.launch(prepareIntent)
-                        }
-                    }
-                    "notification" -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else {
-                            openSettingsPage(context, permission)
-                        }
-                    }
-                    else -> openSettingsPage(context, permission)
-                }
+                requestPermission(context, permission, launchers) { viewModel.refresh() }
             }
             SaddCard(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
@@ -182,38 +160,6 @@ fun DiagnosticsScreen(
                 }
             }
             Spacer(Modifier.height(SaddSpacing.Large))
-        }
-    }
-}
-
-/**
- * باز کردن صفحه تنظیمات مربوط به یک مجوز.
- * باگ قبلی: خطای startActivity بی‌صدا با runCatching خالی قورت داده می‌شد و
- * کاربر فقط می‌دید «هیچ اتفاقی نمی‌افتد». حالا FLAG_ACTIVITY_NEW_TASK اضافه
- * شده، در صورت شکست Toast نشان داده می‌شود و fallback به صفحه اطلاعات اپ است.
- */
-private fun openSettingsPage(context: Context, permission: PermissionStatus) {
-    val intent = Intent(permission.settingsAction).apply {
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (permission.key == "notification") {
-            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-        }
-        permission.settingsUri?.let { data = Uri.parse(it) }
-    }
-    val opened = runCatching { context.startActivity(intent) }.isSuccess
-    if (!opened) {
-        Toast.makeText(
-            context,
-            "صفحه تنظیمات باز نشد؛ از تنظیمات گوشی اقدام کن",
-            Toast.LENGTH_LONG,
-        ).show()
-        runCatching {
-            context.startActivity(
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-            )
         }
     }
 }
