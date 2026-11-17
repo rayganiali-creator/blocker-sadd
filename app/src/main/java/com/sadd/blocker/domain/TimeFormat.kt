@@ -1,8 +1,11 @@
 package com.sadd.blocker.domain
 
+import java.util.Locale
+
 /**
  * قالب‌بندی زمان — خالص Kotlin.
- * ارقام لاتین استفاده می‌شوند (همان‌طور که در موکاپ‌های تاییدشده آمده است).
+ * ارقام لاتین استفاده می‌شوند (همان‌طور که در موکاپ‌های تاییدشده آمده است)؛
+ * همه formatها Locale.US صریح دارند تا در لوکال fa ارقام بومی نشوند (L-1).
  */
 object TimeFormat {
 
@@ -12,14 +15,14 @@ object TimeFormat {
         val h = totalSeconds / 3600
         val m = (totalSeconds % 3600) / 60
         val s = totalSeconds % 60
-        return "%02d:%02d:%02d".format(h, m, s)
+        return "%02d:%02d:%02d".format(Locale.US, h, m, s)
     }
 
     /** دقیقه از نیمه‌شب به‌صورت HH:MM. */
     fun formatMinuteOfDay(minute: Int): String {
         val h = minute / 60
         val m = minute % 60
-        return "%02d:%02d".format(h, m)
+        return "%02d:%02d".format(Locale.US, h, m)
     }
 
     /** تجزیه "HH:MM" به دقیقه از نیمه‌شب؛ نامعتبر null برمی‌گرداند. */
