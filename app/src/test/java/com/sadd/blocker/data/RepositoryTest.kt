@@ -89,6 +89,52 @@ class RepositoryTest {
     }
 
     @Test
+    fun expiredSessionTransitionsToHistory() = runBlocking {
+        // H-5: سشن منقضی‌شده به expired تبدیل می‌شود و در تاریخچه دیده می‌شود.
+        val repo = FakeSessionRepository()
+        val now = 1_700_000_000_000L
+        repo.start(
+            com.sadd.blocker.domain.model.BlockingSession(
+                startEpochMs = now,
+                endEpochMs = now + 3_600_000L,
+                strict = false,
+            ),
+        )
+        assertNull(repo.getActive(now + 3_600_001L))
+        assertEquals(1, repo.history().size)
+        assertEquals("expired", repo.history()[0].status)
+        assertEquals("expired", repo.history()[0].endedReason)
+    }
+
+    @Test
+    fun startIfNoActiveReturnsMinusOneWhenActive() = runBlocking {
+        // H-9
+        val repo = FakeSessionRepository()
+        val now = 1_700_000_000_000L
+        val session = com.sadd.blocker.domain.model.BlockingSession(
+            startEpochMs = now,
+            endEpochMs = now + 3_600_000L,
+        )
+        assertTrue(repo.startIfNoActive(session, now) > 0)
+        assertEquals(-1L, repo.startIfNoActive(session, now))
+    }
+
+    @Test
+    fun expireOldReturnsCount() = runBlocking {
+        val repo = FakeSessionRepository()
+        val now = 1_700_000_000_000L
+        repo.start(
+            com.sadd.blocker.domain.model.BlockingSession(
+                startEpochMs = now,
+                endEpochMs = now + 1_000L,
+            ),
+        )
+        assertEquals(0, repo.expireOld(now))
+        assertEquals(1, repo.expireOld(now + 2_000L))
+        assertEquals(0, repo.expireOld(now + 2_000L))
+    }
+
+    @Test
     fun schedulesCrud() = runBlocking {
         val repo = FakeScheduleRepository()
         val id = repo.add(Schedule(daysOfWeek = "SAT", startMinute = 480, endMinute = 600))
