@@ -62,6 +62,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3:1.3.0")
     implementation("androidx.compose.material:material-icons-extended")
+    // Material Components (XML) — provides Theme.Material3.DayNight.NoActionBar,
+    // the parent of Theme.Blocker in values/themes.xml (Compose Material3 alone
+    // does not define XML themes; without this, AAPT linking fails).
+    implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.navigation:navigation-compose:2.8.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.5")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.5")
