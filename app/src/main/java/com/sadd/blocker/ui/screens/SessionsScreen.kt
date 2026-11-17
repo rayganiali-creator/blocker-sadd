@@ -11,63 +11,97 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sadd.blocker.domain.JalaliDate
 import com.sadd.blocker.ui.SessionsViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.sadd.blocker.ui.theme.SaddSpacing
+
+/** برچسب فارسی وضعیت سشن. */
+private fun sessionStatusLabel(status: String): String {
+    return when (status) {
+        "active" -> "فعال"
+        "ended" -> "پایان‌یافته"
+        "expired" -> "منقضی‌شده"
+        else -> status
+    }
+}
+
+/** برچسب فارسی دلیل پایان سشن. */
+private fun endedReasonLabel(reason: String?): String {
+    return when (reason) {
+        "user" -> "توسط کاربر"
+        "expired" -> "انقضا"
+        "permission-revoked" -> "لغو مجوز"
+        null -> ""
+        else -> reason
+    }
+}
 
 /**
- * سشن‌های فعال — فاز ۲.
+ * سشن‌های فعال.
  * باقی‌مانده زنده از endEpochMs، تمدید ۱۵ دقیقه‌ای، پایان سشن؛
  * پایان سشن Strict وقتی PIN تنظیم شده باشد فقط با PIN درست انجام می‌شود.
- * شروع سشن از داشبورد انجام می‌شود؛ زمان‌بندی خودکار در فاز ۵ وصل می‌شود.
+ * تاریخ‌ها جلالی‌اند. شروع سشن از داشبورد انجام می‌شود؛
+ * زمان‌بندی خودکار در فاز ۵ وصل می‌شود.
+ * تیکر فقط وقتی صفحه دیده می‌شود می‌دود.
  */
 @Composable
 fun SessionsScreen(
     viewModel: SessionsViewModel = hiltViewModel(),
     onNavigate: (String) -> Unit = {},
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    var pinText by remember { mutableStateOf("") }
-    val dateFormat = remember { SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US) }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var pinText by rememberSaveable { mutableStateOf("") }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> viewModel.setTicking(true)
+                Lifecycle.Event.ON_PAUSE -> viewModel.setTicking(false)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     if (uiState.pinRequired) {
         AlertDialog(
             onDismissRequest = { viewModel.cancelPinDialog() },
-            title = { Text("پایان سشن Strict") },
+            title = { Text("پایان سشن Strict", fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     Text("این سشن Strict است. برای پایان آن PIN را وارد کن.")
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
+                    Spacer(Modifier.height(SaddSpacing.Medium))
+                    SaddTextField(
                         value = pinText,
                         onValueChange = { pinText = it },
-                        label = { Text("PIN") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        label = "PIN",
                         modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation(),
                     )
                 }
             },
@@ -80,57 +114,65 @@ fun SessionsScreen(
                 ) { Text("تایید و پایان") }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.cancelPinDialog() }) { Text("لغو") }
+                TextButton(
+                    onClick = {
+                        viewModel.cancelPinDialog()
+                        pinText = ""
+                    },
+                ) { Text("لغو") }
             },
         )
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = SaddSpacing.Large),
     ) {
         item {
-            ScreenHeader("سشن‌های فعال", "بلاک فقط وسط سشن فعال کار می‌کند.")
+            SaddTopBar("سشن‌های فعال", "بلاک فقط وسط سشن فعال کار می‌کند.")
             MessageBar(message = uiState.message, onDismiss = { viewModel.dismissMessage() })
         }
         if (uiState.active == null) {
-            item { EmptyState("سشنی فعال نیست. از داشبورد یک سشن شروع کن.") }
+            item { EmptyState("سشنی فعال نیست. از داشبورد یک سشن شروع کن.", icon = Icons.Filled.Timer) }
         } else {
-            val active = uiState.active!! // else branch guarantees non-null
+            val active = uiState.active!!
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                SaddCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
                         Text(
                             "سشن فعال",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
                             "باقی‌مانده: ${uiState.remainingText}",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            "شروع: ${dateFormat.format(Date(active.startEpochMs))}",
+                            "شروع: ${JalaliDate.formatDateTime(active.startEpochMs)}",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         Text(
-                            "پایان: ${dateFormat.format(Date(active.endEpochMs))}",
+                            "پایان: ${JalaliDate.formatDateTime(active.endEpochMs)}",
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         if (active.strict) {
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(SaddSpacing.Small))
                             AssistChip(onClick = {}, label = { Text("Strict — سخت‌گیرانه") })
                         }
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(SaddSpacing.Medium))
                         Row {
-                            Button(onClick = { viewModel.extendSession() }) {
-                                Text("تمدید ۱۵ دقیقه")
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            OutlinedButton(onClick = { viewModel.requestEndSession() }) {
-                                Text("پایان سشن")
-                            }
+                            SaddButton(
+                                text = "تمدید ۱۵ دقیقه",
+                                onClick = { viewModel.extendSession() },
+                            )
+                            Spacer(Modifier.width(SaddSpacing.Small))
+                            SaddButton(
+                                text = "پایان سشن",
+                                onClick = { viewModel.requestEndSession() },
+                                style = SaddButtonStyle.SECONDARY,
+                            )
                         }
                     }
                 }
@@ -140,22 +182,24 @@ fun SessionsScreen(
             item { SectionTitle("تاریخچه سشن‌ها") }
         }
         items(uiState.history, key = { it.id }) { session ->
-            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            val reason = endedReasonLabel(session.endedReason)
+            SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                     Text(
-                        "${dateFormat.format(Date(session.startEpochMs))} تا ${dateFormat.format(Date(session.endEpochMs))}",
+                        "${JalaliDate.formatDateTime(session.startEpochMs)} تا ${JalaliDate.formatDateTime(session.endEpochMs)}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "وضعیت: ${session.status}" +
-                            (if (session.endedReason != null) " (${session.endedReason})" else "") +
+                        "وضعیت: ${sessionStatusLabel(session.status)}" +
+                            (if (reason.isNotEmpty()) " ($reason)" else "") +
                             (if (session.strict) " — Strict" else ""),
                         style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         }
-        item { Spacer(Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(SaddSpacing.Large)) }
     }
 }
