@@ -42,6 +42,12 @@ class RuleValidationTest {
         assertFalse(RuleValidation.validateWebsite("example").ok)
         assertFalse(RuleValidation.validateWebsite("exa mple.com").ok)
         assertFalse(RuleValidation.validateWebsite("http://").ok)
+        // M-2
+        assertFalse(RuleValidation.validateWebsite("user@example.com").ok)
+        assertFalse(RuleValidation.validateWebsite("example.c").ok)
+        assertFalse(RuleValidation.validateWebsite("-example.com").ok)
+        assertFalse(RuleValidation.validateWebsite("example..com").ok)
+        assertTrue(RuleValidation.validateWebsite("example.com.").ok)
     }
 
     @Test
