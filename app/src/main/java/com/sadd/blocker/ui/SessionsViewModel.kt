@@ -3,18 +3,18 @@ package com.sadd.blocker.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
-import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.domain.model.BlockingSession
 import com.sadd.blocker.domain.repository.SessionRepository
+import com.sadd.blocker.domain.usecase.EndSessionResult
 import com.sadd.blocker.domain.usecase.EndSessionUseCase
 import com.sadd.blocker.domain.usecase.ExtendSessionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -30,30 +30,44 @@ data class SessionsUiState(
 )
 
 /**
- * ViewModel سشن‌ها — فاز ۲.
+ * ViewModel سشن‌ها — فاز ۲ + رفع H-1 و M-5.
  * پایان سشن Strict وقتی PIN تنظیم شده باشد، فقط با PIN درست انجام می‌شود؛
- * در غیر این صورت UI باید PIN بخواهد (pinRequired در state).
+ * بررسی PIN در UseCase است (مسیر واحد پایان — داشبورد و اینجا یکی‌اند).
+ * تیکر فقط وقتی صفحه دیده می‌شود می‌دود ([setTicking]).
  */
 @HiltViewModel
 class SessionsViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val endSessionUseCase: EndSessionUseCase,
     private val extendSessionUseCase: ExtendSessionUseCase,
-    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SessionsUiState())
     val uiState: StateFlow<SessionsUiState> = _uiState.asStateFlow()
     private var tickCount = 0
+    private var tickerJob: Job? = null
 
     init {
-        viewModelScope.launch {
+        setTicking(true)
+    }
+
+    /** تیکر شمارش معکوس را روشن/خاموش می‌کند (M-5: فقط وقتی صفحه دیده می‌شود). */
+    fun setTicking(active: Boolean) {
+        tickerJob?.cancel()
+        tickerJob = null
+        if (!active) return
+        tickerJob = viewModelScope.launch {
             while (true) {
                 tickCount++
                 refresh()
                 delay(1000)
             }
         }
+    }
+
+    override fun onCleared() {
+        tickerJob?.cancel()
+        super.onCleared()
     }
 
     fun extendSession() {
@@ -69,26 +83,56 @@ class SessionsViewModel @Inject constructor(
     /** درخواست پایان سشن. اگر Strict + PIN باشد، اول pinRequired می‌شود. */
     fun requestEndSession() {
         viewModelScope.launch {
-            val active = _uiState.value.active
-            if (active == null) return@launch
-            val pinSet = settingsStore.pinSet.first()
-            if (active.strict && pinSet) {
-                _uiState.update { it.copy(pinRequired = true) }
-                return@launch
+            when (val result = endSessionUseCase.execute("user")) {
+                is EndSessionResult.Ended -> {
+                    _uiState.update { it.copy(message = "سشن پایان یافت.") }
+                }
+                is EndSessionResult.PinRequired -> {
+                    _uiState.update { it.copy(pinRequired = true) }
+                }
+                is EndSessionResult.WrongPin -> {
+                    _uiState.update {
+                        it.copy(message = "PIN اشتباه است. ${result.attemptsLeft} تلاش باقی مانده است.")
+                    }
+                }
+                is EndSessionResult.Locked -> {
+                    val seconds = ((result.lockedUntilMs - System.currentTimeMillis()) / 1000)
+                        .coerceAtLeast(1)
+                    _uiState.update {
+                        it.copy(message = "PIN موقتاً قفل است؛ $seconds ثانیه دیگر دوباره تلاش کن.")
+                    }
+                }
+                is EndSessionResult.NoActive -> Unit
             }
-            endNow("user")
+            refresh()
         }
     }
 
     /** پایان سشن با PIN (فقط وقتی pinRequired است). */
     fun endSessionWithPin(pin: String) {
         viewModelScope.launch {
-            if (!settingsStore.checkPin(pin)) {
-                _uiState.update { it.copy(message = "PIN اشتباه است.") }
-                return@launch
+            when (val result = endSessionUseCase.execute("user", pin)) {
+                is EndSessionResult.Ended -> {
+                    _uiState.update { it.copy(pinRequired = false, message = "سشن پایان یافت.") }
+                }
+                is EndSessionResult.WrongPin -> {
+                    _uiState.update {
+                        it.copy(message = "PIN اشتباه است. ${result.attemptsLeft} تلاش باقی مانده است.")
+                    }
+                }
+                is EndSessionResult.Locked -> {
+                    val seconds = ((result.lockedUntilMs - System.currentTimeMillis()) / 1000)
+                        .coerceAtLeast(1)
+                    _uiState.update {
+                        it.copy(
+                            pinRequired = false,
+                            message = "PIN موقتاً قفل است؛ $seconds ثانیه دیگر دوباره تلاش کن.",
+                        )
+                    }
+                }
+                else -> Unit
             }
-            _uiState.update { it.copy(pinRequired = false) }
-            endNow("user")
+            refresh()
         }
     }
 
@@ -98,14 +142,6 @@ class SessionsViewModel @Inject constructor(
 
     fun dismissMessage() {
         _uiState.update { it.copy(message = null) }
-    }
-
-    private suspend fun endNow(reason: String) {
-        val ended = endSessionUseCase.execute(reason)
-        if (ended) {
-            _uiState.update { it.copy(message = "سشن پایان یافت.") }
-        }
-        refresh()
     }
 
     private suspend fun refresh() {
