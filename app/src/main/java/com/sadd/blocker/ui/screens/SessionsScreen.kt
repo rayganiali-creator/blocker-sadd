@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
@@ -94,7 +95,7 @@ fun SessionsScreen(
         if (uiState.active == null) {
             item { EmptyState("سشنی فعال نیست. از داشبورد یک سشن شروع کن.") }
         } else {
-            val active = uiState.active
+            val active = uiState.active!! // else branch guarantees non-null
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
