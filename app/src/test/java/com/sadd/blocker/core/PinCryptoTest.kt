@@ -21,7 +21,18 @@ class PinCryptoTest {
         assertFalse(PinCrypto.isValidPin("123456789"))
         assertFalse(PinCrypto.isValidPin("12a4"))
         assertFalse(PinCrypto.isValidPin(""))
-        assertFalse(PinCrypto.isValidPin("۱۲۳۴"))
+    }
+
+    @Test
+    fun persianAndArabicDigitsAreAcceptedAsPin() {
+        // L-2: ارقام فارسی/عربی همان PIN با ارقام لاتین‌اند.
+        assertTrue(PinCrypto.isValidPin("۱۲۳۴"))
+        assertTrue(PinCrypto.isValidPin("١٢٣٤"))
+        assertEquals("1234", PinCrypto.normalizeDigits("۱۲۳۴"))
+        assertEquals("1234", PinCrypto.normalizeDigits("١٢٣٤"))
+        val salt = PinCrypto.generateSaltHex()
+        val hash = PinCrypto.hashPin("1234", salt)
+        assertTrue(PinCrypto.verifyPin("۱۲۳۴", salt, hash))
     }
 
     @Test
@@ -50,10 +61,22 @@ class PinCryptoTest {
     }
 
     @Test
-    fun hashIsSha256Hex() {
+    fun hashIsPbkdf2Hex() {
+        // H-8: خروجی PBKDF2 با ۲۵۶ بیت، ۶۴ کاراکتر hex است.
         val salt = PinCrypto.generateSaltHex()
         val hash = PinCrypto.hashPin("1234", salt)
         assertEquals(64, hash.length)
         assertTrue(hash.all { it in '0'..'9' || it in 'a'..'f' })
+    }
+
+    @Test
+    fun legacySha256HashVerifiesForMigration() {
+        // هش‌های قدیمی نسخه ۱ موقع مهاجرت به PBKDF2 قابل بررسی‌اند.
+        val salt = PinCrypto.generateSaltHex()
+        val legacyHash = PinCrypto.hashPinLegacy("9876", salt)
+        assertTrue(PinCrypto.verifyPinLegacy("9876", salt, legacyHash))
+        assertFalse(PinCrypto.verifyPinLegacy("9877", salt, legacyHash))
+        // هش قدیمی با تابع جدید تأیید نمی‌شود (الگوریتم عوض شده).
+        assertFalse(PinCrypto.verifyPin("9876", salt, legacyHash))
     }
 }
