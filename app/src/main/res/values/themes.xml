@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Blocker" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#071224</item>
-        <item name="android:statusBarColor">#071224</item>
+    <!-- تم روز/شب Material 3؛ پس‌زمینه اسپلش از رنگ متناسب با تم می‌آید
+         تا در تم روشن فلش سرمه‌ای دیده نشود (M-6). -->
+    <style name="Theme.Blocker" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+        <item name="android:statusBarColor">@color/splash_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:navigationBarColor">@color/splash_background</item>
     </style>
 </resources>
