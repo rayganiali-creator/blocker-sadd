@@ -4,12 +4,15 @@ import com.sadd.blocker.domain.BackupCodec
 import com.sadd.blocker.domain.BackupDecodeResult
 import com.sadd.blocker.domain.repository.BlockedAppRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
+import com.sadd.blocker.domain.repository.RestoreTransaction
 import com.sadd.blocker.domain.repository.ScheduleRepository
 import com.sadd.blocker.domain.repository.WebsiteRepository
 
 /**
  * ریستور بکاپ — خالص Kotlin.
  * فقط آیتم‌های معتبر و غیرتکراری اضافه می‌شوند؛ نتیجه شمارش دقیق می‌دهد.
+ * کل ریستور در یک تراکنش انجام می‌شود (M-3) تا کرش وسط راه،
+ * ریستور نصفه نسازد. زمان‌بندی‌ها هم dedupe می‌شوند (M-3).
  */
 data class RestoreSummary(
     val appsAdded: Int,
@@ -30,6 +33,7 @@ class RestoreBackupUseCase(
     private val websites: WebsiteRepository,
     private val keywords: KeywordRepository,
     private val schedules: ScheduleRepository,
+    private val transaction: RestoreTransaction? = null,
 ) {
     suspend fun execute(json: String): RestoreResult {
         val decoded = BackupCodec.decode(json)
@@ -37,6 +41,15 @@ class RestoreBackupUseCase(
             return RestoreResult.Failed(decoded.reason)
         }
         val success = decoded as BackupDecodeResult.Success
+        val run = transaction ?: object : RestoreTransaction {
+            override suspend fun <T> run(block: suspend () -> T): T = block()
+        }
+        return run.run {
+            restore(success)
+        }
+    }
+
+    private suspend fun restore(success: BackupDecodeResult.Success): RestoreResult {
         val data = success.data
         var appsAdded = 0
         var websitesAdded = 0
@@ -68,9 +81,24 @@ class RestoreBackupUseCase(
                 skipped++
             }
         }
+        val existingSchedules = schedules.list().toMutableList()
         for (schedule in data.schedules) {
-            schedules.add(schedule)
-            schedulesAdded++
+            val duplicate = existingSchedules.any {
+                it.daysOfWeek == schedule.daysOfWeek &&
+                    it.startMinute == schedule.startMinute &&
+                    it.endMinute == schedule.endMinute &&
+                    it.strict == schedule.strict &&
+                    it.ruleScope == schedule.ruleScope
+            }
+            if (!duplicate) {
+                schedules.add(schedule)
+                // لیست دیده‌شده را به‌روز کن تا تکراری داخل همان فایل هم
+                // گرفته شود (لیست کهنه، دومی را دوباره اضافه می‌کرد).
+                existingSchedules.add(schedule)
+                schedulesAdded++
+            } else {
+                skipped++
+            }
         }
         return RestoreResult.Restored(
             RestoreSummary(appsAdded, websitesAdded, keywordsAdded, schedulesAdded, skipped, notes),
