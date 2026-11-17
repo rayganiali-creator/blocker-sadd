@@ -7,46 +7,84 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.sadd.blocker.domain.model.DelayOptions
+import com.sadd.blocker.ui.theme.SaddRadius
+import com.sadd.blocker.ui.theme.SaddSpacing
 
-/** سرتیتر هر صفحه؛ onBack فقط در صفحه‌های ثانویه داده می‌شود. */
+/** نوع پیام: موفقیت / خطا / اطلاع. */
+enum class MessageType {
+    SUCCESS, ERROR, INFO,
+}
+
+/** سرتیتر هر صفحه؛ onBack فقط در صفحه‌های ثانویه داده می‌شود (فلش RTL-درست). */
 @Composable
-fun ScreenHeader(title: String, subtitle: String? = null, onBack: (() -> Unit)? = null) {
+fun SaddTopBar(title: String, subtitle: String? = null, onBack: (() -> Unit)? = null) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = SaddSpacing.Small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "بازگشت")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "بازگشت")
             }
         }
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             if (subtitle != null) {
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
+}
+
+/** نام قدیمی سرتیتر — برای سازگاری، همان SaddTopBar است. */
+@Composable
+fun ScreenHeader(title: String, subtitle: String? = null, onBack: (() -> Unit)? = null) {
+    SaddTopBar(title = title, subtitle = subtitle, onBack = onBack)
 }
 
 @Composable
@@ -55,45 +93,242 @@ fun SectionTitle(text: String) {
         text,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+        modifier = Modifier.padding(top = SaddSpacing.Large, bottom = SaddSpacing.Small),
     )
 }
 
+/** کارت مشترک «سد»: شعاع 16dp، elevation حداقلی، سطح تم. */
 @Composable
-fun EmptyState(text: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(16.dp),
-        )
+fun SaddCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    if (onClick != null) {
+        Card(
+            modifier = modifier,
+            shape = RoundedCornerShape(SaddRadius.Card),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            onClick = onClick,
+        ) {
+            content()
+        }
+    } else {
+        Card(
+            modifier = modifier,
+            shape = RoundedCornerShape(SaddRadius.Card),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        ) {
+            content()
+        }
     }
 }
 
-/** نوار پیام (موفقیت/خطا) بالای صفحه؛ با ضربدر بسته می‌شود. */
+enum class SaddButtonStyle {
+    PRIMARY, SECONDARY, GHOST,
+}
+
+/** دکمه مشترک «سد»: اصلی / ثانویه (outlined) / شبح (text). */
 @Composable
-fun MessageBar(message: String?, onDismiss: () -> Unit) {
-    if (message == null) return
+fun SaddButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    style: SaddButtonStyle = SaddButtonStyle.PRIMARY,
+    enabled: Boolean = true,
+) {
+    val shape = RoundedCornerShape(SaddRadius.Button)
+    when (style) {
+        SaddButtonStyle.PRIMARY -> Button(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            shape = shape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) {
+            Text(text)
+        }
+        SaddButtonStyle.SECONDARY -> OutlinedButton(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            shape = shape,
+        ) {
+            Text(text)
+        }
+        SaddButtonStyle.GHOST -> TextButton(
+            onClick = onClick,
+            modifier = modifier,
+            enabled = enabled,
+            shape = shape,
+        ) {
+            Text(text)
+        }
+    }
+}
+
+/** فیلد متنی مشترک «سد» با شعاع 12dp. */
+@Composable
+fun SaddTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String,
+    singleLine: Boolean = true,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    leadingIcon: @Composable (() -> Unit)? = null,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = modifier,
+        singleLine = singleLine,
+        keyboardOptions = keyboardOptions,
+        visualTransformation = visualTransformation,
+        leadingIcon = leadingIcon,
+        shape = RoundedCornerShape(SaddRadius.Button),
+    )
+}
+
+/** دیالوگ مشترک با دکمه‌های صریح تایید/لغو. */
+@Composable
+fun SaddDialog(
+    title: String,
+    text: String,
+    confirmText: String,
+    cancelText: String = "لغو",
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = { Text(text) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(confirmText) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(cancelText) }
+        },
+    )
+}
+
+/** حالت خالی با آیکون. */
+@Composable
+fun EmptyState(text: String, icon: ImageVector? = null) {
+    SaddCard(
+        modifier = Modifier.fillMaxWidth().padding(vertical = SaddSpacing.Small),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(SaddSpacing.Small))
+            }
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * نوار پیام بالای صفحه با نوع (موفقیت/خطا/اطلاع) و بستن خودکار بعد از ۴ ثانیه.
+ * بستن دستی با ضربدر هم ممکن است.
+ */
+@Composable
+fun MessageBar(message: String?, type: MessageType = MessageType.INFO, onDismiss: () -> Unit) {
+    LaunchedEffect(message) {
+        if (message == null) {
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.delay(4000)
+        onDismiss()
+    }
+    if (message == null) {
+        return
+    }
+    val containerColor = when (type) {
+        MessageType.SUCCESS -> MaterialTheme.colorScheme.primaryContainer
+        MessageType.ERROR -> MaterialTheme.colorScheme.errorContainer
+        MessageType.INFO -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = when (type) {
+        MessageType.SUCCESS -> MaterialTheme.colorScheme.onPrimaryContainer
+        MessageType.ERROR -> MaterialTheme.colorScheme.onErrorContainer
+        MessageType.INFO -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val icon = when (type) {
+        MessageType.SUCCESS -> Icons.Filled.CheckCircle
+        MessageType.ERROR -> Icons.Filled.Warning
+        MessageType.INFO -> Icons.Filled.Info
+    }
     Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        modifier = Modifier.fillMaxWidth().padding(bottom = SaddSpacing.Small),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(SaddRadius.Button),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Icon(icon, contentDescription = null, tint = contentColor)
+            Spacer(Modifier.width(SaddSpacing.Small))
             Text(
                 message,
                 style = MaterialTheme.typography.bodyMedium,
+                color = contentColor,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Filled.Close, contentDescription = "بستن پیام")
+                Icon(Icons.Filled.Close, contentDescription = "بستن پیام", tint = contentColor)
             }
         }
+    }
+}
+
+/**
+ * اثر Snackbar برای پیام‌های ViewModel در صفحه‌های قوانین:
+ * پیام «… حذف شد.» دکمه «بازگردانی» می‌گیرد که undoRemove را صدا می‌زند؛
+ * بقیه پیام‌ها بدون اکشن نشان داده می‌شوند.
+ */
+@Composable
+fun MessageSnackbarEffect(
+    message: String?,
+    snackbarHostState: SnackbarHostState,
+    onUndo: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    LaunchedEffect(message) {
+        if (message == null) {
+            return@LaunchedEffect
+        }
+        val actionLabel = if (message.endsWith("حذف شد.")) "بازگردانی" else null
+        val result = snackbarHostState.showSnackbar(
+            message = message,
+            actionLabel = actionLabel,
+            duration = SnackbarDuration.Long,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            onUndo()
+        }
+        onDismiss()
     }
 }
 
@@ -104,17 +339,21 @@ fun DelayChip(delaySeconds: Int?, onClick: () -> Unit) {
     AssistChip(onClick = onClick, label = { Text(label) })
 }
 
-/** دیالوگ انتخاب تاخیر یک قانون. */
+/**
+ * دیالوگ انتخاب تاخیر یک قانون (رفع M-19):
+ * رادیو فقط انتخاب را عوض می‌کند؛ دکمه «تایید» اعمال می‌کند، «لغو» رد می‌کند.
+ */
 @Composable
 fun DelayPickerDialog(
     currentDelay: Int?,
     onConfirm: (Int?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    var selected by rememberSaveable { mutableStateOf(currentDelay) }
     val options: List<Int?> = listOf(null) + DelayOptions.VALUES
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("تاخیر این قانون") },
+        title = { Text("تاخیر این قانون", fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 for (option in options) {
@@ -130,22 +369,26 @@ fun DelayPickerDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(
-                            selected = currentDelay == option,
-                            onClick = { onConfirm(option) },
+                            selected = selected == option,
+                            onClick = { selected = option },
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(SaddSpacing.Small))
                         Text(label, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(SaddSpacing.Small))
                 Text(
                     "تاخیر یعنی بعد از تشخیص، چند ثانیه فرصت فکر کردن داری.",
                     style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("بستن") }
+            TextButton(onClick = { onConfirm(selected) }) { Text("تایید") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("لغو") }
         },
     )
 }
@@ -159,5 +402,28 @@ fun InfoRow(label: String, value: String) {
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** ردیف برچسب + توضیح + سوییچ. */
+@Composable
+fun SaddSwitchRow(
+    label: String,
+    description: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+            if (description != null) {
+                Text(description, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
