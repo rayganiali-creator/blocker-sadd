@@ -35,6 +35,7 @@ import com.sadd.blocker.ui.screens.DelayScreen
 import com.sadd.blocker.ui.screens.DiagnosticsScreen
 import com.sadd.blocker.ui.screens.KeywordsScreen
 import com.sadd.blocker.ui.screens.ModesScreen
+import com.sadd.blocker.ui.screens.OnboardingScreen
 import com.sadd.blocker.ui.screens.PinScreen
 import com.sadd.blocker.ui.screens.SchedulingScreen
 import com.sadd.blocker.ui.screens.SessionsScreen
@@ -58,8 +59,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val theme by settingsStore.theme.collectAsStateWithLifecycle(initialValue = AppTheme.DARK)
+            // مقصد شروع به راه‌اندازی وابسته است؛ null یعنی هنوز از DataStore خوانده نشده
+            // و نباید با مقدار پیش‌فرض اشتباه (ویزارد برای کاربر قدیمی) گراف ساخته شود.
+            val onboardingDone by settingsStore.onboardingDone
+                .collectAsStateWithLifecycle<Boolean?>(initialValue = null)
             BlockerTheme(theme = theme) {
-                BlockerNav()
+                if (onboardingDone != null) {
+                    BlockerNav(onboardingDone = onboardingDone == true)
+                }
             }
         }
     }
@@ -68,7 +75,7 @@ class MainActivity : ComponentActivity() {
 private data class BottomDestination(val route: String, val label: String)
 
 @Composable
-fun BlockerNav() {
+fun BlockerNav(onboardingDone: Boolean) {
     val navController = rememberNavController()
     val bottomDestinations = listOf(
         BottomDestination("dashboard", "داشبورد"),
@@ -79,10 +86,12 @@ fun BlockerNav() {
     )
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-                for (destination in bottomDestinations) {
+            val navBackStackEntry by navController.currentBackStackEntryAsState()
+            val currentDestination = navBackStackEntry?.destination
+            // ویزارد راه‌اندازی تمام‌صفحه است؛ نوار پایین روی آن نشان داده نمی‌شود.
+            if (currentDestination?.route != "onboarding") {
+                NavigationBar {
+                    for (destination in bottomDestinations) {
                     val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
                     NavigationBarItem(
                         selected = selected,
@@ -106,17 +115,28 @@ fun BlockerNav() {
                         },
                         label = { Text(destination.label) },
                     )
+                    }
                 }
             }
         },
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = "dashboard",
+            startDestination = if (onboardingDone) "dashboard" else "onboarding",
             modifier = Modifier.padding(padding),
         ) {
             composable("dashboard") {
                 DashboardScreen(onNavigate = { navController.navigate(it) })
+            }
+            composable("onboarding") {
+                OnboardingScreen(
+                    onFinish = {
+                        navController.navigate("dashboard") {
+                            popUpTo("onboarding") { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                )
             }
             composable("apps") {
                 AppsScreen(onNavigate = { navController.navigate(it) })
