@@ -1,5 +1,6 @@
 package com.sadd.blocker.ui
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
@@ -11,10 +12,12 @@ import com.sadd.blocker.domain.repository.BlockedAppRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
 import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.domain.repository.WebsiteRepository
+import com.sadd.blocker.domain.usecase.EndSessionResult
 import com.sadd.blocker.domain.usecase.EndSessionUseCase
 import com.sadd.blocker.domain.usecase.StartSessionResult
 import com.sadd.blocker.domain.usecase.StartSessionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,12 +39,18 @@ data class DashboardUiState(
     val activeRulesCount: Int = 0,
     val missingPermissions: Int = 0,
     val message: String? = null,
+    /** پایان سشن Strict نیازمند PIN است (H-1). */
+    val endPinRequired: Boolean = false,
 )
 
 /**
- * ViewModel داشبورد — فاز ۲.
+ * ViewModel داشبورد — فاز ۲ + رفع H-1 و M-5.
  * باقی‌مانده سشن هر ثانیه از endEpochMs محاسبه می‌شود (نه تایمر در حافظه)؛
  * تعداد قوانین و سلامت مجوزها از Room و سیستم خوانده می‌شوند، نه نمایشی.
+ *
+ * تیکر فقط وقتی صفحه دیده می‌شود می‌دود (M-5): صفحه با
+ * [setTicking] آن را در onResume روشن و در onPause خاموش می‌کند.
+ * تعداد قوانین با Flow تغییرمحور خوانده می‌شود، نه در هر تیک.
  */
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
@@ -58,6 +67,7 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
     private var tickCount = 0
+    private var tickerJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -65,13 +75,51 @@ class DashboardViewModel @Inject constructor(
                 _uiState.update { it.copy(blockMode = mode) }
             }
         }
+        // تعداد قوانین: فقط موقع تغییر جدول به‌روز می‌شود، نه هر ثانیه.
         viewModelScope.launch {
+            appRepository.observe().collect { list ->
+                val enabled = list.count { it.enabled }
+                _uiState.update {
+                    it.copy(appsCount = enabled, activeRulesCount = enabled + it.websitesCount + it.keywordsCount)
+                }
+            }
+        }
+        viewModelScope.launch {
+            websiteRepository.observe().collect { list ->
+                val enabled = list.count { it.enabled }
+                _uiState.update {
+                    it.copy(websitesCount = enabled, activeRulesCount = it.appsCount + enabled + it.keywordsCount)
+                }
+            }
+        }
+        viewModelScope.launch {
+            keywordRepository.observe().collect { list ->
+                val enabled = list.count { it.enabled }
+                _uiState.update {
+                    it.copy(keywordsCount = enabled, activeRulesCount = it.appsCount + it.websitesCount + enabled)
+                }
+            }
+        }
+        setTicking(true)
+    }
+
+    /** تیکر شمارش معکوس را روشن/خاموش می‌کند (M-5: فقط وقتی صفحه دیده می‌شود). */
+    fun setTicking(active: Boolean) {
+        tickerJob?.cancel()
+        tickerJob = null
+        if (!active) return
+        tickerJob = viewModelScope.launch {
             while (true) {
                 tickCount++
                 refresh()
                 delay(1000)
             }
         }
+    }
+
+    override fun onCleared() {
+        tickerJob?.cancel()
+        super.onCleared()
     }
 
     fun refreshPermissions() {
@@ -83,7 +131,11 @@ class DashboardViewModel @Inject constructor(
     fun startSession(durationMs: Long) {
         viewModelScope.launch {
             val strict = _uiState.value.blockMode == BlockMode.STRICT
-            val result = startSessionUseCase.execute(durationMs, strict)
+            val result = startSessionUseCase.execute(
+                durationMs,
+                strict,
+                nowElapsedMs = SystemClock.elapsedRealtime(),
+            )
             if (result is StartSessionResult.Started) {
                 _uiState.update { it.copy(message = "سشن ${TimeFormat.durationLabel(durationMs)} شروع شد.") }
             }
@@ -97,14 +149,67 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun endSession() {
+    /**
+     * درخواست پایان سشن — مسیر واحد پایان (H-1): بررسی PIN در UseCase
+     * انجام می‌شود، نه در ViewModel؛ داشبورد و صفحه سشن‌ها یکی‌اند.
+     */
+    fun requestEndSession() {
         viewModelScope.launch {
-            val ended = endSessionUseCase.execute("user")
-            if (ended) {
-                _uiState.update { it.copy(message = "سشن پایان یافت.") }
+            when (val result = endSessionUseCase.execute("user")) {
+                is EndSessionResult.Ended -> {
+                    _uiState.update { it.copy(message = "سشن پایان یافت.") }
+                }
+                is EndSessionResult.PinRequired -> {
+                    _uiState.update { it.copy(endPinRequired = true) }
+                }
+                is EndSessionResult.WrongPin -> {
+                    _uiState.update {
+                        it.copy(message = "PIN اشتباه است. ${result.attemptsLeft} تلاش باقی مانده است.")
+                    }
+                }
+                is EndSessionResult.Locked -> {
+                    val seconds = ((result.lockedUntilMs - System.currentTimeMillis()) / 1000)
+                        .coerceAtLeast(1)
+                    _uiState.update {
+                        it.copy(message = "PIN موقتاً قفل است؛ $seconds ثانیه دیگر دوباره تلاش کن.")
+                    }
+                }
+                is EndSessionResult.NoActive -> Unit
             }
             refresh()
         }
+    }
+
+    /** پایان سشن Strict با PIN (فقط وقتی endPinRequired است). */
+    fun confirmEndSession(pin: String) {
+        viewModelScope.launch {
+            when (val result = endSessionUseCase.execute("user", pin)) {
+                is EndSessionResult.Ended -> {
+                    _uiState.update { it.copy(endPinRequired = false, message = "سشن پایان یافت.") }
+                }
+                is EndSessionResult.WrongPin -> {
+                    _uiState.update {
+                        it.copy(message = "PIN اشتباه است. ${result.attemptsLeft} تلاش باقی مانده است.")
+                    }
+                }
+                is EndSessionResult.Locked -> {
+                    val seconds = ((result.lockedUntilMs - System.currentTimeMillis()) / 1000)
+                        .coerceAtLeast(1)
+                    _uiState.update {
+                        it.copy(
+                            endPinRequired = false,
+                            message = "PIN موقتاً قفل است؛ $seconds ثانیه دیگر دوباره تلاش کن.",
+                        )
+                    }
+                }
+                else -> Unit
+            }
+            refresh()
+        }
+    }
+
+    fun cancelEndPin() {
+        _uiState.update { it.copy(endPinRequired = false) }
     }
 
     fun dismissMessage() {
@@ -124,9 +229,6 @@ class DashboardViewModel @Inject constructor(
         } else {
             0L
         }
-        val apps = appRepository.countEnabled()
-        val websites = websiteRepository.countEnabled()
-        val keywords = keywordRepository.countEnabled()
         // سلامت مجوزها (شامل فراخوانی سیستمی VpnService.prepare) فقط هر ۱۰ ثانیه چک می‌شود.
         val missing = if (tickCount % 10 == 1) {
             permissionHealth.missingCount()
@@ -140,10 +242,6 @@ class DashboardViewModel @Inject constructor(
                 remainingMs = remaining,
                 totalMs = total,
                 strict = active?.strict ?: false,
-                appsCount = apps,
-                websitesCount = websites,
-                keywordsCount = keywords,
-                activeRulesCount = apps + websites + keywords,
                 missingPermissions = missing,
             )
         }
