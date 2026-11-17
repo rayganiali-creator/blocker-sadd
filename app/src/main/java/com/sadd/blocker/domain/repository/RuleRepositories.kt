@@ -50,9 +50,49 @@ interface SessionRepository {
     suspend fun getActive(nowMs: Long): BlockingSession?
     fun observeActive(): Flow<BlockingSession?>
     suspend fun start(session: BlockingSession): Long
+
+    /**
+     * شروع اتمی (H-9): فقط وقتی سشن فعالی نیست insert می‌کند؛
+     * اگر سشن فعال باشد ‎-1‎ برمی‌گرداند. پیاده‌سازی Room این را در
+     * یک تراکنش انجام می‌دهد تا دو شروع هم‌زمان دو سشن فعال نسازند.
+     */
+    suspend fun startIfNoActive(session: BlockingSession, nowMs: Long): Long
     suspend fun end(id: Long, reason: String)
+
+    /**
+     * سشن‌های منقضی‌شده (status=active ولی endEpochMs گذشته) را به
+     * expired تبدیل می‌کند (H-5)؛ تعداد به‌روز شده را برمی‌گرداند.
+     * هر getActive باید اول این را صدا بزند تا تاریخچه درست بماند.
+     */
+    suspend fun expireOld(nowMs: Long): Int
     suspend fun updateEnd(id: Long, newEndEpochMs: Long)
     suspend fun history(limit: Int = 50): List<BlockingSession>
+}
+
+/** نتیجه بررسی PIN (H-8: شمارنده تلاش + قفل موقت تصاعدی). */
+sealed class PinCheckResult {
+    object Ok : PinCheckResult()
+    /** PIN اشتباه است؛ attemptsLeft تعداد تلاش باقی‌مانده تا قفل است. */
+    data class Wrong(val attemptsLeft: Int) : PinCheckResult()
+    /** PIN تا lockedUntilMs قفل است. */
+    data class Locked(val lockedUntilMs: Long) : PinCheckResult()
+    /** اصلاً PIN تنظیم نشده است. */
+    object NotSet : PinCheckResult()
+}
+
+/** درگاه بررسی PIN برای UseCaseها — پیاده‌سازی در SettingsStore است. */
+interface PinGate {
+    suspend fun isPinSet(): Boolean
+    suspend fun verify(pin: String): PinCheckResult
+}
+
+/**
+ * تراکنش برای ریستور بکاپ (M-3): همه writeهای ریستور باید اتمی باشند تا
+ * کرش وسط راه، ریستور نصفه نسازد. پیاده‌سازی Room از withTransaction
+ * استفاده می‌کند؛ پیاده‌سازی تستی بلاک را مستقیم اجرا می‌کند.
+ */
+interface RestoreTransaction {
+    suspend fun <T> run(block: suspend () -> T): T
 }
 
 interface ScheduleRepository {
