@@ -26,17 +26,26 @@ class AddKeywordRuleUseCase(private val repo: KeywordRepository) {
         if (!check.ok) {
             return AddKeywordResult.Invalid(check.error ?: "ورودی نامعتبر است.")
         }
-        val normalized = PersianNormalizer.normalize(rawText)
-        if (repo.countByNormalized(normalized) > 0) {
+        // dedupe با فرم هم‌ارز (canonical): «می‌روم» و «می روم» یک قانون‌اند.
+        // متن ذخیره‌شده (normalizedText) همان فرم هم‌ارز است تا ایندکس یکتا
+        // هم از تکراری جلوگیری کند؛ تطابق whole-word موقع match با
+        // KeywordMatcher انجام می‌شود و نیم‌فاصله را درست مدیریت می‌کند (H-3).
+        val canonical = PersianNormalizer.canonical(rawText)
+        if (repo.countByNormalized(canonical) > 0) {
             return AddKeywordResult.Duplicate
         }
         val rule = KeywordRule(
             rawText = rawText.trim(),
-            normalizedText = normalized,
+            normalizedText = canonical,
             category = category.ifBlank { "عمومی" },
-            isPhrase = RuleValidation.isPhrase(normalized),
+            isPhrase = RuleValidation.isPhrase(canonical),
         )
         val id = repo.add(rule)
+        if (id == -1L) {
+            // ایندکس یکتا در DB تکراری را رد کرد (مثلاً قانون قدیمی با
+            // فرم نرمال متفاوت) — تکراری حساب می‌شود.
+            return AddKeywordResult.Duplicate
+        }
         return AddKeywordResult.Added(rule.copy(id = id))
     }
 }
