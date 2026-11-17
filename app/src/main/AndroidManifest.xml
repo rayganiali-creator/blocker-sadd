@@ -74,6 +74,8 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- L-7: بعضی OEMها (مثل HTC) به‌جای BOOT_COMPLETED این را می‌فرستند. -->
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
     </application>
