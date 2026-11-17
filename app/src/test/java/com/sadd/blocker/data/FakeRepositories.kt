@@ -13,6 +13,8 @@ import com.sadd.blocker.domain.repository.WebsiteRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Repositoryهای حافظه‌ای — فقط برای تست واحد.
@@ -169,12 +171,14 @@ class FakeSessionRepository : SessionRepository {
     private val items = LinkedHashMap<Long, BlockingSession>()
     private var nextId = 1L
     private val flow = MutableStateFlow<BlockingSession?>(null)
+    private val mutex = Mutex()
 
     private fun emitActive(nowMs: Long) {
         flow.value = items.values.firstOrNull { it.status == "active" && it.endEpochMs > nowMs }
     }
 
     override suspend fun getActive(nowMs: Long): BlockingSession? {
+        expireOld(nowMs)
         return items.values
             .filter { it.status == "active" && it.endEpochMs > nowMs }
             .maxByOrNull { it.endEpochMs }
@@ -189,6 +193,26 @@ class FakeSessionRepository : SessionRepository {
         items[id] = session.copy(id = id)
         emitActive(session.startEpochMs)
         return id
+    }
+
+    override suspend fun startIfNoActive(session: BlockingSession, nowMs: Long): Long {
+        return mutex.withLock {
+            expireOld(nowMs)
+            if (getActive(nowMs) != null) return@withLock -1L
+            start(session)
+        }
+    }
+
+    override suspend fun expireOld(nowMs: Long): Int {
+        var count = 0
+        for ((id, item) in items) {
+            if (item.status == "active" && item.endEpochMs <= nowMs) {
+                items[id] = item.copy(status = "expired", endedReason = "expired")
+                count++
+            }
+        }
+        if (count > 0) emitActive(nowMs)
+        return count
     }
 
     override suspend fun end(id: Long, reason: String) {
