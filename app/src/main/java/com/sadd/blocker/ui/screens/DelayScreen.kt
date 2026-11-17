@@ -10,25 +10,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.domain.model.DelayOptions
 import com.sadd.blocker.ui.DelayViewModel
 import com.sadd.blocker.ui.RuleDelayOverride
+import com.sadd.blocker.ui.theme.SaddSpacing
 
 /**
- * تنظیمات تاخیر — فاز ۲.
+ * تنظیمات تاخیر.
  * تاخیر سراسری: ۰ / ۳ / ۵ / ۱۰ / ۱۵ ثانیه (پیش‌فرض ۵).
  * تاخیر per-rule از صفحه همان قانون تنظیم می‌شود و اینجا قابل بازنشانی به سراسری است.
  */
@@ -38,15 +40,15 @@ fun DelayScreen(
     onNavigate: (String) -> Unit = {},
     onBack: () -> Unit = {},
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(SaddSpacing.Large),
     ) {
-        ScreenHeader(
+        SaddTopBar(
             "تنظیمات تاخیر",
             "بعد از تشخیص، چند ثانیه فرصت فکر کردن داری.",
             onBack = onBack,
@@ -56,7 +58,7 @@ fun DelayScreen(
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(SaddSpacing.Small))
         for (seconds in DelayOptions.VALUES) {
             val label = if (seconds == 0) "بدون تاخیر" else "$seconds ثانیه"
             Row(
@@ -67,11 +69,15 @@ fun DelayScreen(
                     selected = uiState.globalDelay == seconds,
                     onClick = { viewModel.setGlobalDelay(seconds) },
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(SaddSpacing.Small))
                 Text(label, style = MaterialTheme.typography.bodyLarge)
                 if (seconds == DelayOptions.DEFAULT_SECONDS) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("(پیش‌فرض)", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.width(SaddSpacing.Small))
+                    Text(
+                        "(پیش‌فرض)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -94,17 +100,17 @@ fun DelayScreen(
             }
         }
         if (uiState.appOverrides.isEmpty() && uiState.websiteOverrides.isEmpty() && uiState.keywordOverrides.isEmpty()) {
-            EmptyState("هیچ قانون تاخیر اختصاصی ندارد؛ همه از تاخیر سراسری استفاده می‌کنند.")
+            EmptyState("هیچ قانون تاخیر اختصاصی ندارد؛ همه از تاخیر سراسری استفاده می‌کنند.", icon = Icons.Filled.Schedule)
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(SaddSpacing.Large))
     }
 }
 
 @Composable
 private fun OverrideRow(override: RuleDelayOverride, onReset: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
