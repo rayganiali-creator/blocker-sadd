@@ -57,3 +57,19 @@ object DelayOptions {
     val VALUES = listOf(0, 3, 5, 10, 15)
     const val DEFAULT_SECONDS = 5
 }
+
+/** حالت بلاک — در DataStore به‌صورت رشته ذخیره می‌شود. */
+enum class BlockMode {
+    NORMAL,
+    STRICT,
+}
+
+/** مدت‌های آماده سشن در داشبورد (میلی‌ثانیه). */
+object SessionDurations {
+    val OPTIONS = listOf(
+        30L * 60L * 1000L,
+        60L * 60L * 1000L,
+        3L * 60L * 60L * 1000L,
+        8L * 60L * 60L * 1000L,
+    )
+}
