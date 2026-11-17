@@ -29,11 +29,13 @@ $KOTLINC \
   app/src/main/java/com/sadd/blocker/core/SessionCalculator.kt \
   app/src/main/java/com/sadd/blocker/core/PinCrypto.kt \
   app/src/main/java/com/sadd/blocker/domain/TimeFormat.kt \
+  app/src/main/java/com/sadd/blocker/domain/JalaliDate.kt \
   app/src/main/java/com/sadd/blocker/domain/RuleValidation.kt \
   app/src/main/java/com/sadd/blocker/domain/BackupCodec.kt \
   app/src/main/java/com/sadd/blocker/domain/model/Models.kt \
   app/src/main/java/com/sadd/blocker/domain/repository/RuleRepositories.kt \
   app/src/main/java/com/sadd/blocker/domain/usecase/RuleUseCases.kt \
+  app/src/main/java/com/sadd/blocker/domain/usecase/RuleGuard.kt \
   app/src/main/java/com/sadd/blocker/domain/usecase/SessionUseCases.kt \
   app/src/main/java/com/sadd/blocker/domain/usecase/BackupUseCases.kt \
   app/src/test/java/com/sadd/blocker/core/PersianNormalizerTest.kt \
@@ -42,6 +44,7 @@ $KOTLINC \
   app/src/test/java/com/sadd/blocker/core/SessionCalculatorTest.kt \
   app/src/test/java/com/sadd/blocker/core/PinCryptoTest.kt \
   app/src/test/java/com/sadd/blocker/domain/RuleValidationTest.kt \
+  app/src/test/java/com/sadd/blocker/domain/JalaliDateTest.kt \
   app/src/test/java/com/sadd/blocker/domain/BackupCodecTest.kt \
   app/src/test/java/com/sadd/blocker/data/FakeRepositories.kt \
   app/src/test/java/com/sadd/blocker/data/RepositoryTest.kt \
@@ -57,6 +60,7 @@ $JAVA -cp "$OUT/test-classes:$TB/junit.jar:$TB/hamcrest.jar:$COROUTINES_JAR:$TB/
   com.sadd.blocker.core.SessionCalculatorTest \
   com.sadd.blocker.core.PinCryptoTest \
   com.sadd.blocker.domain.RuleValidationTest \
+  com.sadd.blocker.domain.JalaliDateTest \
   com.sadd.blocker.domain.BackupCodecTest \
   com.sadd.blocker.data.RepositoryTest \
   com.sadd.blocker.domain.UseCaseTest
