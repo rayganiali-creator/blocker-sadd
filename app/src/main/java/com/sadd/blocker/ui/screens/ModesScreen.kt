@@ -233,8 +233,9 @@ class StrictSettingsViewModel @Inject constructor(
 
     /**
      * اعمال تغییر ثبت‌شده در درخواست انتظار، اگر زمان کامل گذشته باشد.
-     * درخواست پایان سشن (END_SESSION) اینجا اعمال نمی‌شود؛ مال داشبورد و
-     * صفحه سشن‌هاست و دست نخورده می‌ماند.
+     * درخواست پایان سشن (END_SESSION) و تغییر قانون (RULE_CHANGE) اینجا
+     * اعمال نمی‌شوند؛ مال داشبورد/صفحه سشن‌ها و صفحه قانون مربوطه‌اند و
+     * دست نخورده می‌مانند.
      */
     private suspend fun applyRecordedRequestIfElapsed(): Boolean {
         val request = _uiState.value.cooldownRequest ?: return false
@@ -249,6 +250,7 @@ class StrictSettingsViewModel @Inject constructor(
                 request.pendingHours?.let { settingsStore.setStrictCooldownHours(it) }
             }
             StrictPendingKind.END_SESSION -> return false
+            StrictPendingKind.RULE_CHANGE -> return false
         }
         settingsStore.clearStrictCooldownRequest()
         return true
@@ -285,6 +287,20 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
         StrictPendingKind.HOURS -> {
             val hours = request.pendingHours ?: request.pendingValue
             "تغییر مدت انتظار به $hours ساعت"
+        }
+        StrictPendingKind.RULE_CHANGE -> {
+            val change = request.pendingRuleChange
+            if (change != null) {
+                val actionText = when (change.action) {
+                    StrictRuleChange.ACTION_TOGGLE -> if (change.value == "true") "فعال‌کردن" else "غیرفعال‌کردن"
+                    StrictRuleChange.ACTION_REMOVE -> "حذف"
+                    StrictRuleChange.ACTION_DELAY -> "تغییر تأخیر"
+                    else -> "تغییر"
+                }
+                "$actionText قانون (${change.id})"
+            } else {
+                "تغییر قانون"
+            }
         }
     }
 }
