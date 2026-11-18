@@ -42,6 +42,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.widget.Toast
 import com.sadd.blocker.R
 import com.sadd.blocker.ui.OnboardingViewModel
 import com.sadd.blocker.ui.theme.SaddRadius
@@ -50,8 +55,8 @@ import kotlinx.coroutines.launch
 
 /**
  * ویزارد راه‌اندازی اول‌نصب — دقیقاً طبق موکاپ تاییدشده:
- * سربرگ «راه‌اندازی سد» + خرس، نوار پیشرفت «مرحله X از ۶»، کارت مرحله
- * فعلی با توضیح و دکمه بزرگ، فهرست ۶ مرحله با وضعیت، جعبه راهنمای
+ * سربرگ «راه‌اندازی سد» + خرس، نوار پیشرفت «مرحله X از ۵»، کارت مرحله
+ * فعلی با توضیح و دکمه بزرگ، فهرست ۵ مرحله با وضعیت، راهنمای قدم‌به‌قدم
  * restricted settings برای دسترسی‌پذیری، و لینک «بعداً انجام می‌دهم».
  * وضعیت‌ها زنده‌اند (ON_RESUME و بعد از هر نتیجه لانچر تازه می‌شوند)؛
  * وقتی مرحله فعلی انجام شود، ویزارد خودکار به مرحله بعد می‌رود.
@@ -111,7 +116,7 @@ fun OnboardingScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "برای اینکه سد درست کار کند، این ۶ مجوز را بده.",
+                        "برای اینکه سد درست کار کند، این ۵ مجوز را بده.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -169,7 +174,10 @@ fun OnboardingScreen(
 
         if (currentStep?.key == "accessibility") {
             item {
-                RestrictedSettingsHint()
+                RestrictedSettingsGuide(
+                    onOpenAppInfo = { openAppInfoPage(context) },
+                    onRecheck = { viewModel.refresh() },
+                )
                 Spacer(Modifier.height(SaddSpacing.Medium))
             }
         }
@@ -277,19 +285,24 @@ fun OnboardingScreen(
 private fun ctaLabel(key: String): String {
     return when (key) {
         "notification" -> "درخواست مجوز"
-        "vpn" -> "تایید VPN"
         else -> "فعال کردن"
     }
 }
 
 /**
- * راهنمای restricted settings — فقط برای مرحله دسترسی‌پذیری.
+ * راهنمای قدم‌به‌قدم restricted settings — فقط برای مرحله دسترسی‌پذیری.
  * اندروید برای برنامه‌های نصب‌شده دستی (نه از فروشگاه) دکمه
  * دسترسی‌پذیری را قفل می‌کند تا وقتی این گزینه فعال نشود؛ هیچ کدی
  * نمی‌تواند دورش بزند، پس راهنما را همان‌جا به کاربر نشان می‌دهیم.
+ * متن نکته قبلی حفظ شده؛ زیر آن سه قدم شماره‌دار، دکمه رفتن به
+ * اطلاعات برنامه و دکمه «بررسی دوباره» اضافه شده است. وضعیت بعد از
+ * بازگشت به صفحه با ON_RESUME هم تازه می‌شود.
  */
 @Composable
-private fun RestrictedSettingsHint() {
+private fun RestrictedSettingsGuide(
+    onOpenAppInfo: () -> Unit,
+    onRecheck: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(SaddRadius.Card),
@@ -301,25 +314,75 @@ private fun RestrictedSettingsHint() {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
         ),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Info,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.size(SaddSpacing.Small))
+        Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.size(SaddSpacing.Small))
+                Text(
+                    "قبل از فعال‌کردن دسترسی‌پذیری",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(Modifier.height(SaddSpacing.Small))
             Text(
                 "نکته: برای برنامه‌های نصب‌شده دستی، ابتدا باید در تنظیمات گوشی، " +
                     "از صفحه اطلاعات «سد»، گزینه «Allow restricted settings» را فعال کنید؛ " +
                     "در غیر این صورت دکمه دسترسی‌پذیری خاکستری می‌ماند.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.height(SaddSpacing.Medium))
+            Text(
+                "۱. دکمه «رفتن به اطلاعات برنامه» را بزن.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(SaddSpacing.Small))
+            Text(
+                "۲. در صفحه اطلاعات برنامه، روی ⋮ (سه‌نقطه بالای صفحه) بزن و " +
+                    "«Allow restricted settings» را فعال کن.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(SaddSpacing.Small))
+            Text(
+                "۳. برگرد به «سد» و دسترسی‌پذیری را فعال کن.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(SaddSpacing.Medium))
+            SaddButton(
+                text = "رفتن به اطلاعات برنامه",
+                onClick = onOpenAppInfo,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(SaddSpacing.Small))
+            SaddButton(
+                text = "بررسی دوباره",
+                onClick = onRecheck,
+                style = SaddButtonStyle.SECONDARY,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+/** باز کردن صفحه اطلاعات خودِ برنامه (Settings → Apps → سد). */
+private fun openAppInfoPage(context: Context) {
+    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        data = Uri.parse("package:${context.packageName}")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    val opened = runCatching { context.startActivity(intent) }.isSuccess
+    if (!opened) {
+        Toast.makeText(
+            context,
+            "صفحه اطلاعات برنامه باز نشد؛ از تنظیمات گوشی اقدام کن",
+            Toast.LENGTH_LONG,
+        ).show()
     }
 }
 
