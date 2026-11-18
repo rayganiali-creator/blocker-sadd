@@ -3,7 +3,6 @@ package com.sadd.blocker.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Bundle
-import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.sadd.blocker.core.KeywordMatcher
@@ -402,8 +401,7 @@ class BlockAccessibilityService : AccessibilityService() {
             if (redacted == currentText) return
             val done = trySetText(node, redacted)
             if (!done) {
-                val presses = TextRedactor.removedCharCount(currentText, redacted)
-                repeat(presses) { dispatchDeleteKey() }
+                tryCutMatchedWord(node, currentText, rule.rawText)
             }
             logBlock(
                 BlockEventKind.KEYWORD_TYPED,
@@ -598,13 +596,28 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** یک backspace به فیلد فوکوس‌شده (fallback وقتی ACTION_SET_TEXT نشد). */
-    private fun dispatchDeleteKey() {
-        try {
-            dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
-            dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
+    /**
+     * حذف کلمه منطبق با انتخاب + CUT (fallback وقتی ACTION_SET_TEXT نشد).
+     * سرویس Accessibility متد dispatchKeyEvent ندارد (متد Activity/View
+     * است)، پس دکمه backspace را نمی‌توان مستقیم فرستاد؛ انتخاب بازه
+     * کلمه و CUT همان کار را با APIهای دسترس‌پذیری می‌کند.
+     */
+    private fun tryCutMatchedWord(node: AccessibilityNodeInfo, text: String, ruleRaw: String): Boolean {
+        val range = TextRedactor.firstMatchRange(text, ruleRaw) ?: return false
+        return try {
+            val selArgs = Bundle()
+            selArgs.putInt(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT,
+                range.first,
+            )
+            selArgs.putInt(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT,
+                range.second,
+            )
+            if (!node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selArgs)) return false
+            node.performAction(AccessibilityNodeInfo.ACTION_CUT)
         } catch (_: Exception) {
-            // نادیده — best-effort
+            false
         }
     }
 

@@ -96,4 +96,36 @@ object TextRedactor {
         val diff = original.length - redacted.length
         return if (diff < 0) 0 else diff
     }
+
+    /**
+     * بازه کاراکتری اولین وقوع whole-word قانون [ruleRaw] در [text]
+     * (شروع، پایانِ‌انحصاری)، یا null. همان منطق پنجره‌کلمه‌ای
+     * [removeMatchedRule] است، ولی به‌جای متنِ‌حذف‌شده بازه را می‌دهد
+     * تا fallback انتخاب + CUT بتواند همان کلمه را حذف کند.
+     */
+    fun firstMatchRange(text: String, ruleRaw: String): Pair<Int, Int>? {
+        val ruleAtoms = PersianNormalizer.tokens(ruleRaw)
+        if (ruleAtoms.isEmpty()) return null
+        val spans = ArrayList<Pair<Int, Int>>()
+        var i = 0
+        while (i < text.length) {
+            while (i < text.length && text[i] == ' ') i++
+            if (i >= text.length) break
+            val start = i
+            while (i < text.length && text[i] != ' ') i++
+            spans.add(start to i)
+        }
+        if (spans.isEmpty()) return null
+        val words = spans.map { text.substring(it.first, it.second) }
+        val n = ruleAtoms.size
+        var start = 0
+        while (start <= words.size - n) {
+            val candidate = words.subList(start, start + n).joinToString(" ")
+            if (KeywordMatcher.matches(candidate, ruleRaw)) {
+                return spans[start].first to spans[start + n - 1].second
+            }
+            start++
+        }
+        return null
+    }
 }

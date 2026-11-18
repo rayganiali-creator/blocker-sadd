@@ -63,6 +63,20 @@ class TextRedactorTest {
     }
 
     @Test
+    fun firstMatchRangeFindsWord() {
+        assertEquals(3 to 6, TextRedactor.firstMatchRange("من فوت کردم", "فوت"))
+        assertEquals(0 to 3, TextRedactor.firstMatchRange("فوت کردم", "فوت"))
+        assertEquals(0 to 11, TextRedactor.firstMatchRange("قمار آنلاین خطرناک است", "قمار آنلاین"))
+    }
+
+    @Test
+    fun firstMatchRangeIgnoresSubstrings() {
+        assertNull(TextRedactor.firstMatchRange("فوتبال", "فوت"))
+        assertNull(TextRedactor.firstMatchRange("من فوتبال دوست دارم", "فوت"))
+        assertNull(TextRedactor.firstMatchRange("سلام دنیا", "فوت"))
+    }
+
+    @Test
     fun resolveDelayPrefersRuleDelay() {
         assertEquals(3, TextRedactor.resolveDelay(3, 5))
         assertEquals(5, TextRedactor.resolveDelay(null, 5))
