@@ -4,13 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.net.VpnService
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import com.sadd.blocker.data.system.PermissionStatus
@@ -19,27 +17,24 @@ import com.sadd.blocker.data.system.PermissionStatus
  * لانچرهای سیستمی درخواست مجوز — یک‌بار در صفحه ساخته می‌شوند و به
  * requestPermission داده می‌شوند تا منطق باز کردن مجوز در یک جا بماند
  * (صفحه عیب‌یابی و ویزارد راه‌اندازی هر دو همین را استفاده می‌کنند).
+ * (VPN حذف شده — بلاک وب با Accessibility انجام می‌شود، پس لانچر
+ * VpnService.prepare هم حذف شد.)
  */
 data class PermissionLaunchers(
-    val vpnPrepareLauncher: ManagedActivityResultLauncher<Intent, ActivityResult>,
     val notificationPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>,
 )
 
 @Composable
 fun rememberPermissionLaunchers(onRefresh: () -> Unit): PermissionLaunchers {
-    // VPN: تایید از طریق دیالوگ سیستمی VpnService.prepare است، نه صفحه VPN Settings.
-    val vpnPrepareLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { onRefresh() }
     // اعلان‌ها: درخواست مستقیم runtime permission (اندروید ۱۳+)، نه فقط تنظیمات.
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { onRefresh() }
-    return PermissionLaunchers(vpnPrepareLauncher, notificationPermissionLauncher)
+    return PermissionLaunchers(notificationPermissionLauncher)
 }
 
 /**
- * درخواست/باز کردن یک مجوز: VPN و اعلان مسیر سیستمی خودشان را دارند؛
+ * درخواست/باز کردن یک مجوز: اعلان مسیر سیستمی خودش را دارد؛
  * بقیه صفحه تنظیمات مربوطه را باز می‌کنند.
  */
 fun requestPermission(
@@ -49,15 +44,6 @@ fun requestPermission(
     onRefresh: () -> Unit,
 ) {
     when (permission.key) {
-        "vpn" -> {
-            val prepareIntent = VpnService.prepare(context)
-            if (prepareIntent == null) {
-                Toast.makeText(context, "VPN لوکال آماده است.", Toast.LENGTH_SHORT).show()
-                onRefresh()
-            } else {
-                launchers.vpnPrepareLauncher.launch(prepareIntent)
-            }
-        }
         "notification" -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 launchers.notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
