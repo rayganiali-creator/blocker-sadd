@@ -13,18 +13,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -48,15 +55,18 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.R
-import com.sadd.blocker.domain.TimeFormat
-import com.sadd.blocker.domain.model.BlockMode
-import com.sadd.blocker.domain.model.SessionDurations
+import com.sadd.blocker.ui.DashboardRule
+import com.sadd.blocker.ui.DashboardRuleKind
 import com.sadd.blocker.ui.DashboardViewModel
+import com.sadd.blocker.ui.theme.Mint
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /**
- * داشبورد — طبق موکاپ تاییدشده v2: سرتیتر با خرس «سد»، حلقه سشن،
- * دسترسی سریع، آمار قوانین و سلامت مجوزها.
+ * داشبورد — طبق موکاپ تاییدشده v2: سرتیتر با خرس «سد» و آیکون‌های
+ * تنظیمات/اعلان، حلقه درخشان سشن، دسترسی سریع، دو کارت آمار واقعی
+ * (قوانین فعال و بلاک‌های امروز از Room) و ردیف‌های
+ * تاگل قوانین فعال که مستقیم روی همان قوانین واقعی کار می‌کنند.
+ * شروع سشن از اینجا به صفحه سشن‌ها منتقل شده است.
  * همه اعداد از Room و سیستم خوانده می‌شوند، نه نمایشی.
  * تیکر فقط وقتی صفحه دیده می‌شود می‌دود (ON_RESUME روشن، ON_PAUSE خاموش).
  */
@@ -66,9 +76,6 @@ fun DashboardScreen(
     onNavigate: (String) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedDuration by rememberSaveable { mutableStateOf(SessionDurations.OPTIONS[1]) }
-    var customMinutes by rememberSaveable { mutableStateOf("") }
-    var customError by rememberSaveable { mutableStateOf<String?>(null) }
     var endPin by rememberSaveable { mutableStateOf("") }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -130,20 +137,31 @@ fun DashboardScreen(
             .verticalScroll(rememberScrollState())
             .padding(SaddSpacing.Large),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Image(
-                painter = painterResource(id = R.drawable.sadd_bear),
-                contentDescription = "خرس سد",
-                modifier = Modifier.size(56.dp),
-            )
-            Spacer(Modifier.size(SaddSpacing.Small))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("سد", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "دستیار آگاهانهٔ دیجیتال — فقط وقتی خودت خواستی، جلوی دسترسی را می‌گیرد.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // سرتیتر موکاپ: خرس + «سد» سمت راست، زنگ و چرخ‌دنده سمت چپ (در RTL).
+        // مسیر تنظیمات اختصاصی وجود ندارد، پس چرخ‌دنده به عیب‌یابی می‌رود.
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.sadd_bear),
+                    contentDescription = "خرس سد",
+                    modifier = Modifier.size(48.dp),
                 )
+                Spacer(Modifier.size(SaddSpacing.Small))
+                Text(
+                    "سد",
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { onNavigate("diagnostics") }) {
+                    Icon(Icons.Filled.Notifications, contentDescription = "اعلان‌ها و عیب‌یابی")
+                }
+                IconButton(onClick = { onNavigate("diagnostics") }) {
+                    Icon(Icons.Filled.Settings, contentDescription = "تنظیمات")
+                }
             }
         }
         Spacer(Modifier.height(SaddSpacing.Large))
@@ -191,72 +209,11 @@ fun DashboardScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 } else {
-                    Text("مدت سشن:", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(SaddSpacing.Small))
-                    Row(horizontalArrangement = Arrangement.spacedBy(SaddSpacing.Small)) {
-                        for (duration in SessionDurations.OPTIONS) {
-                            FilterChip(
-                                selected = selectedDuration == duration,
-                                onClick = { selectedDuration = duration },
-                                label = { Text(TimeFormat.durationLabel(duration)) },
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(SaddSpacing.Small))
                     SaddButton(
-                        text = "شروع سشن (${TimeFormat.durationLabel(selectedDuration)})",
-                        onClick = { viewModel.startSession(selectedDuration) },
+                        text = "شروع جلسه",
+                        onClick = { onNavigate("sessions") },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Spacer(Modifier.height(SaddSpacing.Medium))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        SaddTextField(
-                            value = customMinutes,
-                            onValueChange = {
-                                customMinutes = it
-                                customError = null
-                            },
-                            label = "مدت دلخواه (دقیقه)",
-                            modifier = Modifier.weight(1f),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        )
-                        Spacer(Modifier.size(SaddSpacing.Small))
-                        SaddButton(
-                            text = "شروع",
-                            onClick = {
-                                val minutes = customMinutes.trim().toIntOrNull()
-                                if (minutes == null || minutes <= 0) {
-                                    customError = "مدت را به دقیقه وارد کن."
-                                } else {
-                                    val durationMs = minutes * 60_000L
-                                    if (durationMs < SessionDurations.MIN_MS) {
-                                        customError = "حداقل مدت سشن ۳۰ ثانیه است."
-                                    } else if (durationMs > SessionDurations.MAX_MS) {
-                                        customError = "حداکثر مدت سشن ۹۰ روز (۱۲۹٬۶۰۰ دقیقه) است."
-                                    } else {
-                                        viewModel.startSession(durationMs)
-                                    }
-                                }
-                            },
-                            style = SaddButtonStyle.SECONDARY,
-                        )
-                    }
-                    if (customError != null) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            customError!!,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                    if (uiState.blockMode == BlockMode.STRICT) {
-                        Spacer(Modifier.height(SaddSpacing.Small))
-                        Text(
-                            "حالت Strict فعال است — سشن با قوانین سخت‌گیرانه شروع می‌شود.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
                 }
             }
         }
@@ -264,9 +221,9 @@ fun DashboardScreen(
         Spacer(Modifier.height(SaddSpacing.Large))
         Row(horizontalArrangement = Arrangement.spacedBy(SaddSpacing.Small)) {
             QuickTile(
-                icon = Icons.Filled.Apps,
-                label = "اپ‌ها",
-                onClick = { onNavigate("apps") },
+                icon = Icons.Filled.PlayArrow,
+                label = "شروع جلسه",
+                onClick = { onNavigate("sessions") },
                 modifier = Modifier.weight(1f),
             )
             QuickTile(
@@ -276,15 +233,15 @@ fun DashboardScreen(
                 modifier = Modifier.weight(1f),
             )
             QuickTile(
-                icon = Icons.Filled.TextFields,
-                label = "کلمات",
-                onClick = { onNavigate("rules") },
+                icon = Icons.Filled.Apps,
+                label = "اپ‌ها",
+                onClick = { onNavigate("apps") },
                 modifier = Modifier.weight(1f),
             )
             QuickTile(
-                icon = Icons.Filled.Timer,
-                label = "سشن‌ها",
-                onClick = { onNavigate("sessions") },
+                icon = Icons.Filled.TextFields,
+                label = "کلمات",
+                onClick = { onNavigate("rules") },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -294,10 +251,28 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
         ) {
-            StatCard("قانون فعال", uiState.activeRulesCount.toString(), Modifier.weight(1f))
-            StatCard("اپ‌ها", uiState.appsCount.toString(), Modifier.weight(1f))
-            StatCard("وب‌سایت‌ها", uiState.websitesCount.toString(), Modifier.weight(1f))
-            StatCard("کلمات", uiState.keywordsCount.toString(), Modifier.weight(1f))
+            StatCard(
+                label = "قوانین فعال",
+                value = uiState.activeRulesCount.toString(),
+                icon = Icons.Filled.Shield,
+                modifier = Modifier.weight(1f),
+            )
+            StatCard(
+                label = "بلاک امروز",
+                value = uiState.blocksTodayCount.toString(),
+                icon = Icons.Filled.Timer,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        Spacer(Modifier.height(SaddSpacing.Small))
+        SectionTitle("قوانین فعال")
+        if (uiState.activeRules.isEmpty()) {
+            EmptyState("هنوز قانون فعالی نیست. از کلمات، اپ‌ها یا وب‌سایت‌ها قانون اضافه کن.")
+        } else {
+            for (rule in uiState.activeRules) {
+                ActiveRuleRow(rule = rule, onToggle = { viewModel.toggleRule(rule) })
+            }
         }
 
         Spacer(Modifier.height(SaddSpacing.Large))
@@ -372,14 +347,46 @@ private fun QuickTile(icon: ImageVector, label: String, onClick: () -> Unit, mod
 }
 
 @Composable
-private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
+private fun StatCard(label: String, value: String, icon: ImageVector, modifier: Modifier = Modifier) {
     SaddCard(modifier = modifier) {
-        Column(
+        Row(
             modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(label, style = MaterialTheme.typography.bodySmall)
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.size(SaddSpacing.Small))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(label, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/** ردیف تاگل یک قانون فعال واقعی (کلمه / اپ / وب‌سایت). */
+@Composable
+private fun ActiveRuleRow(rule: DashboardRule, onToggle: () -> Unit) {
+    val icon = when (rule.kind) {
+        DashboardRuleKind.KEYWORD -> Icons.Filled.TextFields
+        DashboardRuleKind.APP -> Icons.Filled.Apps
+        DashboardRuleKind.WEBSITE -> Icons.Filled.Language
+    }
+    SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.size(SaddSpacing.Small))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(rule.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    rule.detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = rule.enabled, onCheckedChange = { onToggle() })
         }
     }
 }
@@ -388,8 +395,14 @@ private fun StatCard(label: String, value: String, modifier: Modifier = Modifier
 private fun SessionRing(progress: Float, remainingText: String, active: Boolean) {
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val arcColor = MaterialTheme.colorScheme.primary
+    // درخشش مینت دور حلقه فقط وقتی سشن فعال است (موکاپ v2).
+    val ringModifier = if (active) {
+        Modifier.shadow(elevation = 24.dp, shape = CircleShape, ambientColor = Mint, spotColor = Mint)
+    } else {
+        Modifier
+    }
     Box(
-        modifier = Modifier.size(180.dp),
+        modifier = ringModifier.size(180.dp),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.size(180.dp)) {
