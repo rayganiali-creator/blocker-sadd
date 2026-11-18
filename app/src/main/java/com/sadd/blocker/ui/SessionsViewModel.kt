@@ -1,14 +1,19 @@
 package com.sadd.blocker.ui
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
+import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.TimeFormat
+import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.BlockingSession
 import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.domain.usecase.EndSessionResult
 import com.sadd.blocker.domain.usecase.EndSessionUseCase
 import com.sadd.blocker.domain.usecase.ExtendSessionUseCase
+import com.sadd.blocker.domain.usecase.StartSessionResult
+import com.sadd.blocker.domain.usecase.StartSessionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -26,6 +31,7 @@ data class SessionsUiState(
     val totalMs: Long = 0L,
     val history: List<BlockingSession> = emptyList(),
     val pinRequired: Boolean = false,
+    val blockMode: BlockMode = BlockMode.NORMAL,
     val message: String? = null,
 )
 
@@ -40,6 +46,8 @@ class SessionsViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val endSessionUseCase: EndSessionUseCase,
     private val extendSessionUseCase: ExtendSessionUseCase,
+    private val startSessionUseCase: StartSessionUseCase,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SessionsUiState())
@@ -48,6 +56,11 @@ class SessionsViewModel @Inject constructor(
     private var tickerJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            settingsStore.blockMode.collect { mode ->
+                _uiState.update { it.copy(blockMode = mode) }
+            }
+        }
         setTicking(true)
     }
 
@@ -68,6 +81,31 @@ class SessionsViewModel @Inject constructor(
     override fun onCleared() {
         tickerJob?.cancel()
         super.onCleared()
+    }
+
+    /**
+     * شروع سشن — همان رفتاری که قبلاً داشبورد داشت (از داشبورد به اینجا منتقل شد):
+     * در حالت Strict سشن سخت‌گیرانه شروع می‌شود؛ نتیجه از UseCase می‌آید.
+     */
+    fun startSession(durationMs: Long) {
+        viewModelScope.launch {
+            val strict = _uiState.value.blockMode == BlockMode.STRICT
+            val result = startSessionUseCase.execute(
+                durationMs,
+                strict,
+                nowElapsedMs = SystemClock.elapsedRealtime(),
+            )
+            if (result is StartSessionResult.Started) {
+                _uiState.update { it.copy(message = "سشن ${TimeFormat.durationLabel(durationMs)} شروع شد.") }
+            }
+            if (result is StartSessionResult.AlreadyActive) {
+                _uiState.update { it.copy(message = "یک سشن فعال وجود دارد؛ اول آن را پایان بده.") }
+            }
+            if (result is StartSessionResult.InvalidDuration) {
+                _uiState.update { it.copy(message = result.reason) }
+            }
+            refresh()
+        }
     }
 
     fun extendSession() {
