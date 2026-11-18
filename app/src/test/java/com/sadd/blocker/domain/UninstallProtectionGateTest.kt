@@ -84,6 +84,42 @@ class UninstallProtectionGateTest {
     }
 
     @Test
+    fun deactivatedNoticeOnlyWhenEnabledAndWasActiveAndNowInactive() {
+        // محافظت روشن بود، مدیر فعال بود، الان فعال نیست = از تنظیمات سیستم غیرفعال شده.
+        assertTrue(
+            UninstallProtectionGate.shouldShowDeactivatedNotice(
+                protectionEnabled = true,
+                wasAdminActive = true,
+                adminActive = false,
+            ),
+        )
+        // مدیر هنوز فعال است — اعلانی نیست.
+        assertFalse(
+            UninstallProtectionGate.shouldShowDeactivatedNotice(
+                protectionEnabled = true,
+                wasAdminActive = true,
+                adminActive = true,
+            ),
+        )
+        // مدیر هیچ‌وقت فعال نشده بود — همان «هنوز فعال نشده» است، نه «غیرفعال شد».
+        assertFalse(
+            UninstallProtectionGate.shouldShowDeactivatedNotice(
+                protectionEnabled = true,
+                wasAdminActive = false,
+                adminActive = false,
+            ),
+        )
+        // محافظت خاموش است — اعلانی نیست (خاموش‌کردنِ خودِ اپ).
+        assertFalse(
+            UninstallProtectionGate.shouldShowDeactivatedNotice(
+                protectionEnabled = false,
+                wasAdminActive = true,
+                adminActive = false,
+            ),
+        )
+    }
+
+    @Test
     fun protectionRequestSurvivesCooldownElapsedCheck() {
         // درخواست محافظت مثل بقیه درخواست‌ها با زمان دیواری می‌ماند.
         val request = StrictCooldownRequest(1_000L, StrictPendingKind.PROTECTION, "", 24)

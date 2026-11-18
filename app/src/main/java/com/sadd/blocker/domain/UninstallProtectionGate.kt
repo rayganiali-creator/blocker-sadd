@@ -27,6 +27,18 @@ object UninstallProtectionGate {
         turningOn && !adminActive
 
     /**
+     * آیا باید اعلان «محافظت از تنظیمات سیستم غیرفعال شد» نشان داده شود؟
+     * فقط وقتی محافظت روشن است و مدیر دستگاه قبلاً فعال بوده ولی الان فعال نیست —
+     * یعنی کسی آن را از تنظیمات گوشی غیرفعال کرده است. اپ نمی‌تواند جلوی
+     * غیرفعال‌سازی از تنظیمات سیستم را بگیرد؛ فقط می‌تواند خبر بدهد.
+     */
+    fun shouldShowDeactivatedNotice(
+        protectionEnabled: Boolean,
+        wasAdminActive: Boolean,
+        adminActive: Boolean,
+    ): Boolean = protectionEnabled && wasAdminActive && !adminActive
+
+    /**
      * متن یک‌خطی تشخیص برای کارت محافظت: وضعیت مدیر دستگاه + در دسترس بودن
      * صفحه فعال‌سازی روی این گوشی. برای عیب‌یابی از راه دور با کاربر است؛
      * activationAvailable==null یعنی هنوز بررسی نشده.

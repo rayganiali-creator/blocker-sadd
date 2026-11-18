@@ -27,8 +27,9 @@ import com.sadd.blocker.ui.theme.SaddSpacing
 /**
  * درباره و مستندات.
  * نسخه، معماری و محدودیت‌های صادقانه اندروید؛ مستندات کامل در ARCHITECTURE.md ریپو است.
- * صادقانه: WorkManager برای زمان‌بندی و AccessibilityService برای تشخیص نیت
- * و بلاک وب هنوز وصل نشده‌اند — در فاز بعدی می‌آیند.
+ * صادقانه: AccessibilityService برای تشخیص نیت و بلاک وب وصل است و فقط وسط
+ * سشن فعال کار می‌کند؛ WorkManager برای اجرای خودکار زمان‌بندی هنوز وصل نشده
+ * است — در فاز بعدی می‌آید.
  * بلاک وب با Accessibility انجام می‌شود، نه با VPN.
  */
 @Composable
@@ -74,8 +75,9 @@ fun AboutScreen(
             "Kotlin + Jetpack Compose + Material 3، MVVM، Room برای قوانین و سشن‌ها، " +
                 "DataStore برای تنظیمات و PIN هش‌شده، و موتور تشخیص نیت قانون‌محور قطعی " +
                 "(بدون مدل عصبی). مکانیزم بلاک واقعی — AccessibilityService برای تشخیص نیت " +
-                "و بلاک وب، و WorkManager برای اجرای خودکار زمان‌بندی — " +
-                "هنوز وصل نشده و در فاز بعدی می‌آید. بلاک وب با Accessibility انجام " +
+                "و بلاک وب — وصل است و فقط وسط سشن فعال کار می‌کند؛ " +
+                "WorkManager برای اجرای خودکار زمان‌بندی هنوز وصل نشده و در فاز بعدی می‌آید. " +
+                "بلاک وب با Accessibility انجام " +
                 "می‌شود، نه با VPN.",
             style = MaterialTheme.typography.bodyMedium,
         )

@@ -128,7 +128,7 @@ class StrictUnlockTest {
     fun passageBankHasEightLongPassagesWithSources() {
         assertEquals(8, STRICT_PASSAGES.size)
         for (passage in STRICT_PASSAGES) {
-            assertTrue(passage.text.length in 250..400)
+            assertTrue(passage.text.length in 500..750)
             assertTrue(passage.source.isNotBlank())
         }
     }

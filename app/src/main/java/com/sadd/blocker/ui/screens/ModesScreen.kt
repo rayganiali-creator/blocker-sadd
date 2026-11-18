@@ -53,6 +53,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -78,8 +79,8 @@ data class StrictSettingsUiState(
     val uninstallAdminActive: Boolean = false,
     /** صفحه فعال‌سازی مدیر دستگاه روی این گوشی در دسترس است یا نه (تشخیص؛ null = هنوز بررسی نشده). */
     val adminActivationAvailable: Boolean? = null,
-    /** رویداد یک‌بارمصرف: بعد از روشن‌کردن تاگل، صفحه فعال‌سازی باز شود (فقط وقتی مدیر دستگاه هنوز فعال نیست). */
-    val adminActivationRequested: Boolean = false,
+    /** محافظت روشن بود ولی مدیر دستگاه از تنظیمات سیستم غیرفعال شد (تشخیص، فقط در کارت نشان داده می‌شود). */
+    val adminDeactivatedNotice: Boolean = false,
 )
 
 /**
@@ -138,18 +139,48 @@ class StrictSettingsViewModel @Inject constructor(
         refreshAdminState()
     }
 
-    /** وضعیت زنده مدیر دستگاه را از سیستم می‌خواند (مثلاً بعد از برگشت از صفحه فعال‌سازی). */
+    /**
+     * وضعیت زنده مدیر دستگاه را از سیستم می‌خواند (مثلاً بعد از برگشت از صفحه فعال‌سازی).
+     * همچنین تشخیص می‌دهد که مدیر دستگاه از تنظیمات سیستم غیرفعال شده است یا نه:
+     * اگر محافظت روشن است و مدیر دستگاه قبلاً فعال بوده (در DataStore ثبت شده)
+     * ولی الان فعال نیست، یعنی کاربر آن را از تنظیمات گوشی غیرفعال کرده است؛
+     * در این صورت اعلان «غیرفعال شد» در کارت نشان داده می‌شود تا وقتی کاربر آن را ببندد
+     * (با فعال‌شدن دوباره مدیر دستگاه هم اعلان پاک می‌شود). وقتی محافظت خاموش است،
+     * وضعیتِ ثبت‌شده با وضعیت فعلی همگام می‌شود تا خاموش‌کردنِ خودِ اپ اشتباه گرفته نشود.
+     */
     fun refreshAdminState() {
         viewModelScope.launch {
             val active = runCatching { uninstallProtection.isAdminActive() }.getOrDefault(false)
             val available = runCatching { uninstallProtection.isActivationScreenAvailable() }.getOrNull()
-            _uiState.update { it.copy(uninstallAdminActive = active, adminActivationAvailable = available) }
+            val enabled = _uiState.value.uninstallProtectionEnabled
+            val wasActive = runCatching { settingsStore.uninstallAdminWasActive.first() }.getOrDefault(false)
+            val notice = UninstallProtectionGate.shouldShowDeactivatedNotice(enabled, wasActive, active)
+            val newWasActive = when {
+                !enabled -> active
+                active -> true
+                wasActive -> false
+                else -> false
+            }
+            if (newWasActive != wasActive) {
+                runCatching { settingsStore.setUninstallAdminWasActive(newWasActive) }
+            }
+            _uiState.update {
+                it.copy(
+                    uninstallAdminActive = active,
+                    adminActivationAvailable = available,
+                    adminDeactivatedNotice = if (active) {
+                        false
+                    } else {
+                        notice || it.adminDeactivatedNotice
+                    },
+                )
+            }
         }
     }
 
-    /** رویداد یک‌بارمصرف باز کردن صفحه فعال‌سازی مصرف شد (بعد از LaunchedEffect در صفحه). */
-    fun consumeAdminActivationRequest() {
-        _uiState.update { it.copy(adminActivationRequested = false) }
+    /** بستن اعلان «محافظت از تنظیمات سیستم غیرفعال شد». */
+    fun dismissAdminDeactivatedNotice() {
+        _uiState.update { it.copy(adminDeactivatedNotice = false) }
     }
 
     /** درخواست تغییر روش بازگشایی. */
@@ -229,14 +260,12 @@ class StrictSettingsViewModel @Inject constructor(
                 settingsStore.setUninstallProtectionEnabled(enabled)
                 if (!enabled) {
                     runCatching { uninstallProtection.removeAdmin() }
-                } else {
-                    // روشن‌کردن تاگل = رفتن فوراً به صفحه فعال‌سازی؛ دیگر دکمه جدا
-                    // تنها راه نیست. فقط وقتی مدیر دستگاه هنوز فعال نیست.
-                    val adminActive = runCatching { uninstallProtection.isAdminActive() }.getOrDefault(false)
-                    if (UninstallProtectionGate.shouldLaunchActivation(turningOn = true, adminActive = adminActive)) {
-                        _uiState.update { it.copy(adminActivationRequested = true) }
-                    }
                 }
+                // روشن‌کردن تاگل دیگر اینجا صفحه فعال‌سازی را باز نمی‌کند؛
+                // باز کردن صفحه هم‌زمان با ضربه کاربر و مستقیم در onCheckedChange
+                // انجام می‌شود (بدون رویداد یک‌بارمصرف — رویداد حافظه‌ای با
+                // تنظیمِ ماندگار در DataStore همگام نبود و اگر تاگل از قبل روشن
+                // بود، هیچ انتقالی برای باز کردن صفحه رخ نمی‌داد).
                 refreshAdminState()
                 return@launch
             }
@@ -413,9 +442,8 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
  * Strict: وسط سشن فعال نمی‌توان قانون را غیرفعال یا حذف کرد و پایان سشن
  * و تغییر تنظیمات Strict فقط با بازگشایی Strict (تایپ متن طولانی یا انتظار)
  * انجام می‌شود. شروع سشن Strict همیشه آزاد است.
- * صادقانه: بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility)
- * هنوز وصل نشده و در فاز بعدی می‌آید؛ حالت‌ها فعلاً نحوه شروع سشن
- * و قفل قوانین وسط سشن را تعیین می‌کنند.
+ * بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility) وصل است و فقط وسط سشن
+ * فعال کار می‌کند؛ حالت‌ها نحوه شروع سشن و قفل قوانین وسط سشن را تعیین می‌کنند.
  * محدودیت صادقانه: اپ معمولی نمی‌تواند جلوی حذف نصب یا force-stop را قطعی بگیرد؛
  * مدیر دستگاه (پایین همین صفحه) حذف نصب را مسدود می‌کند، ولی غیرفعال‌سازی آن
  * از تنظیمات سیستم همیشه ممکن است و فقط یک هشدار نشان می‌دهد.
@@ -443,15 +471,6 @@ fun ModesScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    // روشن‌کردن تاگل محافظت فوراً صفحه فعال‌سازی مدیر دستگاه را باز می‌کند
-    // (رویداد یک‌بارمصرف از ViewModel؛ فقط وقتی مدیر دستگاه هنوز فعال نیست).
-    LaunchedEffect(strictState.adminActivationRequested) {
-        if (strictState.adminActivationRequested) {
-            openAdminActivationPage(context)
-            strictViewModel.consumeAdminActivationRequest()
-        }
     }
 
     // تیکر شمارش معکوس کارت «تغییر در انتظار» — فقط وقتی درخواستی هست می‌دود.
@@ -519,7 +538,7 @@ fun ModesScreen(
                     ModeCard(
                         selected = strictState.unlockMethod == StrictUnlockMethod.PASSAGE,
                         title = "تایپ متن طولانی",
-                        description = "یک متن طولانی (حدود ۳۰۰ کاراکتر) را دقیقاً تایپ می‌کنی؛ " +
+                        description = "یک متن طولانی (حدود ۵۰۰ کاراکتر) را دقیقاً تایپ می‌کنی؛ " +
                             "سخن امامان یا جمله انگیزشی. تا کامل تایپ نشود، بازگشایی نمی‌شود.",
                         onClick = { strictViewModel.requestUnlockMethod(StrictUnlockMethod.PASSAGE) },
                     )
@@ -570,9 +589,35 @@ fun ModesScreen(
                             "با روشن‌کردن، صفحه فعال‌سازی مدیر دستگاه فوراً باز می‌شود. " +
                             "خاموش‌کردن آن وسط سشن Strict فقط با بازگشایی Strict (تایپ متن طولانی یا انتظار) انجام می‌شود.",
                         checked = strictState.uninstallProtectionEnabled,
-                        onCheckedChange = { strictViewModel.requestUninstallProtection(it) },
+                        // باز کردن صفحه فعال‌سازی هم‌زمان با ضربه کاربر و مستقیم
+                        // اینجا انجام می‌شود، نه با رویداد یک‌بارمصرف در ViewModel:
+                        // اگر تاگل از قبل روشن بود، هیچ انتقالی رخ نمی‌داد و صفحه
+                        // هیچ‌وقت باز نمی‌شد (همین باگ ران ۱۷۱ بود).
+                        onCheckedChange = { enabled ->
+                            strictViewModel.requestUninstallProtection(enabled)
+                            if (UninstallProtectionGate.shouldLaunchActivation(enabled, strictState.uninstallAdminActive)) {
+                                openAdminActivationPage(context)
+                            }
+                        },
                     )
                     if (strictState.uninstallProtectionEnabled) {
+                        // اعلان: محافظت روشن بود ولی مدیر دستگاه از تنظیمات سیستم
+                        // غیرفعال شد (اپ نمی‌تواند جلوی آن را بگیرد؛ فقط خبر می‌دهد).
+                        if (strictState.adminDeactivatedNotice) {
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            Text(
+                                "محافظت از تنظیمات سیستم غیرفعال شد — مدیر دستگاه از تنظیمات گوشی غیرفعال شده است. " +
+                                    "برای فعال‌کردن دوباره، «تلاش دوباره» را بزن.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            SaddButton(
+                                text = "فهمیدم",
+                                onClick = { strictViewModel.dismissAdminDeactivatedNotice() },
+                                modifier = Modifier.fillMaxWidth(),
+                                style = SaddButtonStyle.SECONDARY,
+                            )
+                        }
                         Spacer(Modifier.height(SaddSpacing.Small))
                         if (strictState.uninstallAdminActive) {
                             Text(
@@ -687,8 +732,9 @@ fun ModesScreen(
         Spacer(Modifier.height(SaddSpacing.Large))
         SaddCard(modifier = Modifier.fillMaxWidth()) {
             Text(
-                "مکانیزم بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility) هنوز وصل نشده " +
-                    "و در فاز بعدی می‌آید؛ تا آن زمان، حالت‌ها فقط شروع سشن و قفل قوانین را تعیین می‌کنند.",
+                "مکانیزم بلاک واقعی با Accessibility وصل است و فقط وسط سشن فعال کار می‌کند: " +
+                    "جستجوی عمدی سابمیت‌شده، ناوبری به دامنه ممنوعه و باز کردن اپ ممنوعه بلاک می‌شوند؛ " +
+                    "خواندن و تایپ عادی هرگز بلاک نمی‌شود.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(SaddSpacing.Large),

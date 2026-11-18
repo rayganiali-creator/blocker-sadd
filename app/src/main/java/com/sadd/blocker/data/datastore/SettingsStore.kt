@@ -74,6 +74,11 @@ class SettingsStore @Inject constructor(
         /** محافظت از حذف نصب (مدیر دستگاه) روشن است یا نه؛ پیش‌فرض خاموش. */
         val UNINSTALL_PROTECTION_ENABLED = booleanPreferencesKey("uninstall_protection_enabled")
         /**
+         * آخرین وضعیتِ شناخته‌شده مدیر دستگاه (فعال بوده یا نه)؛ برای تشخیص
+         * اینکه مدیر دستگاه از تنظیمات سیستم غیرفعال شده است. پیش‌فرض خاموش.
+         */
+        val UNINSTALL_ADMIN_WAS_ACTIVE = booleanPreferencesKey("uninstall_admin_was_active")
+        /**
          * مرحله فعلی دنباله دسترسی‌پذیری ویزارد (۱ تا ۳؛ ۰ یعنی تمام شده).
          * ترتیب واقعی گوشی: ۱) زدن کلید خاکستری در دسترسی‌پذیری و بستن
          * پیام، ۲) روشن‌کردن Allow restricted settings در اطلاعات برنامه،
@@ -237,6 +242,16 @@ class SettingsStore @Inject constructor(
     suspend fun setUninstallProtectionEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[UNINSTALL_PROTECTION_ENABLED] = enabled
+        }
+    }
+
+    /** آخرین وضعیتِ شناخته‌شده مدیر دستگاه؛ پیش‌فرض «فعال نبوده». */
+    val uninstallAdminWasActive: Flow<Boolean> = safeData
+        .map { prefs -> prefs[UNINSTALL_ADMIN_WAS_ACTIVE] ?: false }
+
+    suspend fun setUninstallAdminWasActive(wasActive: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[UNINSTALL_ADMIN_WAS_ACTIVE] = wasActive
         }
     }
 
