@@ -26,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sadd.blocker.data.system.UninstallProtection
 import com.sadd.blocker.domain.JalaliDate
 import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.domain.model.BlockMode
@@ -82,11 +84,15 @@ fun SessionsScreen(
     var customMinutes by rememberSaveable { mutableStateOf("") }
     var customError by rememberSaveable { mutableStateOf<String?>(null) }
 
+    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_RESUME -> viewModel.setTicking(true)
+                Lifecycle.Event.ON_RESUME -> {
+                    viewModel.setTicking(true)
+                    viewModel.refreshAdminState()
+                }
                 Lifecycle.Event.ON_PAUSE -> viewModel.setTicking(false)
                 else -> Unit
             }
@@ -222,6 +228,27 @@ fun SessionsScreen(
                         if (active.strict) {
                             Spacer(Modifier.height(SaddSpacing.Small))
                             AssistChip(onClick = {}, label = { Text("Strict — سخت‌گیرانه") })
+                        }
+                        if (active.strict && uiState.uninstallProtectionOn && !uiState.uninstallAdminActive) {
+                            Spacer(Modifier.height(SaddSpacing.Medium))
+                            Text(
+                                "محافظت از حذف نصب روشن است اما مدیر دستگاه فعال نیست؛ " +
+                                    "تا فعال نشود، حذف نصب «سد» مسدود نیست.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            SaddButton(
+                                text = "فعال‌سازی محافظت از حذف نصب",
+                                onClick = {
+                                    runCatching {
+                                        context.startActivity(
+                                            UninstallProtection.enableIntent(context),
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         }
                         Spacer(Modifier.height(SaddSpacing.Medium))
                         Row {

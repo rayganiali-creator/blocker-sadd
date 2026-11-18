@@ -30,6 +30,8 @@ enum class StrictPendingKind {
     HOURS,
     /** تغییر قانون (غیرفعال/حذف/تاخیر)؛ pendingValue کدگذاری StrictRuleChange است. */
     RULE_CHANGE,
+    /** خاموش‌کردن محافظت از حذف نصب؛ pendingValue خالی است. */
+    PROTECTION,
 }
 
 /**

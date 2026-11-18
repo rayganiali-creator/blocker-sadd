@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- مدیر دستگاه برای محافظت از حذف نصب. مسدود کردن حذف نصب به سیاست خاصی
+     نیاز ندارد؛ همین که «سد» مدیر دستگاه فعال باشد، سیستم حذف نصب را نمی‌گذارد. -->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

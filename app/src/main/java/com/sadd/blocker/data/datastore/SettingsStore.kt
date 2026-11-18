@@ -71,6 +71,8 @@ class SettingsStore @Inject constructor(
         val STRICT_COOLDOWN_PENDING_VALUE = stringPreferencesKey("strict_cooldown_pending_value")
         /** مدت انتظار ثبت‌شده موقع درخواست (ساعت) — تا پایان درخواست ثابت است. */
         val STRICT_COOLDOWN_DURATION_HOURS = intPreferencesKey("strict_cooldown_duration_hours")
+        /** محافظت از حذف نصب (مدیر دستگاه) روشن است یا نه؛ پیش‌فرض خاموش. */
+        val UNINSTALL_PROTECTION_ENABLED = booleanPreferencesKey("uninstall_protection_enabled")
 
         /** بعد از ۵ تلاش اشتباه، PIN قفل می‌شود (H-8). */
         const val PIN_MAX_ATTEMPTS = 5
@@ -218,6 +220,16 @@ class SettingsStore @Inject constructor(
             prefs.remove(STRICT_COOLDOWN_PENDING_KIND)
             prefs.remove(STRICT_COOLDOWN_PENDING_VALUE)
             prefs.remove(STRICT_COOLDOWN_DURATION_HOURS)
+        }
+    }
+
+    /** محافظت از حذف نصب روشن است یا نه؛ پیش‌فرض خاموش است. */
+    val uninstallProtectionEnabled: Flow<Boolean> = safeData
+        .map { prefs -> prefs[UNINSTALL_PROTECTION_ENABLED] ?: false }
+
+    suspend fun setUninstallProtectionEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[UNINSTALL_PROTECTION_ENABLED] = enabled
         }
     }
 

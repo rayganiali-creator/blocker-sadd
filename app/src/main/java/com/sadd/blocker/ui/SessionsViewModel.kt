@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.system.UninstallProtection
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictUnlock
@@ -44,6 +45,10 @@ data class SessionsUiState(
     val strictCooldownRequest: StrictCooldownRequest? = null,
     val blockMode: BlockMode = BlockMode.NORMAL,
     val message: String? = null,
+    /** محافظت از حذف نصب روشن است یا نه (تنظیم). */
+    val uninstallProtectionOn: Boolean = false,
+    /** «سد» الان مدیر دستگاه فعال است یا نه (وضعیت زنده سیستم). */
+    val uninstallAdminActive: Boolean = false,
 )
 
 /**
@@ -59,6 +64,7 @@ class SessionsViewModel @Inject constructor(
     private val extendSessionUseCase: ExtendSessionUseCase,
     private val startSessionUseCase: StartSessionUseCase,
     private val settingsStore: SettingsStore,
+    private val uninstallProtection: UninstallProtection,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SessionsUiState())
@@ -87,7 +93,21 @@ class SessionsViewModel @Inject constructor(
                 _uiState.update { it.copy(strictCooldownRequest = request) }
             }
         }
+        viewModelScope.launch {
+            settingsStore.uninstallProtectionEnabled.collect { enabled ->
+                _uiState.update { it.copy(uninstallProtectionOn = enabled) }
+            }
+        }
+        refreshAdminState()
         setTicking(true)
+    }
+
+    /** وضعیت زنده مدیر دستگاه را از سیستم می‌خواند (مثلاً بعد از برگشت از صفحه فعال‌سازی). */
+    fun refreshAdminState() {
+        viewModelScope.launch {
+            val active = runCatching { uninstallProtection.isAdminActive() }.getOrDefault(false)
+            _uiState.update { it.copy(uninstallAdminActive = active) }
+        }
     }
 
     /** تیکر شمارش معکوس را روشن/خاموش می‌کند (M-5: فقط وقتی صفحه دیده می‌شود). */

@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,18 +26,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.system.UninstallProtection
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
 import com.sadd.blocker.domain.StrictUnlock
 import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.domain.TimeFormat
+import com.sadd.blocker.domain.UninstallProtectionGate
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.ui.ModesViewModel
@@ -54,6 +61,7 @@ import javax.inject.Inject
 private sealed interface PendingStrictChange {
     data class Method(val method: StrictUnlockMethod) : PendingStrictChange
     data class Hours(val hours: Int) : PendingStrictChange
+    data object ProtectionOff : PendingStrictChange
 }
 
 data class StrictSettingsUiState(
@@ -64,6 +72,10 @@ data class StrictSettingsUiState(
     val strictSessionActive: Boolean = false,
     val dialogVisible: Boolean = false,
     val message: String? = null,
+    /** محافظت از حذف نصب روشن است یا نه (تنظیم). */
+    val uninstallProtectionEnabled: Boolean = false,
+    /** «سد» الان مدیر دستگاه فعال است یا نه (وضعیت زنده سیستم). */
+    val uninstallAdminActive: Boolean = false,
 )
 
 /**
@@ -81,6 +93,7 @@ data class StrictSettingsUiState(
 class StrictSettingsViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
     private val sessionRepository: SessionRepository,
+    private val uninstallProtection: UninstallProtection,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StrictSettingsUiState())
@@ -109,9 +122,23 @@ class StrictSettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            settingsStore.uninstallProtectionEnabled.collect { enabled ->
+                _uiState.update { it.copy(uninstallProtectionEnabled = enabled) }
+            }
+        }
+        viewModelScope.launch {
             sessionRepository.observeActive().collect { active ->
                 _uiState.update { it.copy(strictSessionActive = active?.strict == true) }
             }
+        }
+        refreshAdminState()
+    }
+
+    /** وضعیت زنده مدیر دستگاه را از سیستم می‌خواند (مثلاً بعد از برگشت از صفحه فعال‌سازی). */
+    fun refreshAdminState() {
+        viewModelScope.launch {
+            val active = runCatching { uninstallProtection.isAdminActive() }.getOrDefault(false)
+            _uiState.update { it.copy(uninstallAdminActive = active) }
         }
     }
 
@@ -179,6 +206,44 @@ class StrictSettingsViewModel @Inject constructor(
     }
 
     /**
+     * درخواست روشن/خاموش کردن محافظت از حذف نصب.
+     * روشن‌کردن همیشه آزاد است. خاموش‌کردن وسط سشن Strict فعال نیازمند
+     * بازگشایی Strict با روش فعلی است؛ بیرون از سشن Strict آزاد است و
+     * همان‌جا «سد» را از مدیر دستگاه هم حذف می‌کند.
+     */
+    fun requestUninstallProtection(enabled: Boolean) {
+        val state = _uiState.value
+        if (enabled == state.uninstallProtectionEnabled) return
+        viewModelScope.launch {
+            if (!UninstallProtectionGate.requiresUnlock(state.strictSessionActive, enabled)) {
+                settingsStore.setUninstallProtectionEnabled(enabled)
+                if (!enabled) {
+                    runCatching { uninstallProtection.removeAdmin() }
+                }
+                refreshAdminState()
+                return@launch
+            }
+            if (state.unlockMethod == StrictUnlockMethod.PASSAGE) {
+                pendingChange = PendingStrictChange.ProtectionOff
+                _uiState.update { it.copy(dialogVisible = true) }
+            } else {
+                // درخواست تکراری همان تغییر: ساعت از اول شمرده نمی‌شود.
+                val existing = state.cooldownRequest
+                if (existing != null && existing.pendingKind == StrictPendingKind.PROTECTION) {
+                    _uiState.update { it.copy(dialogVisible = true) }
+                    return@launch
+                }
+                settingsStore.recordStrictCooldownRequest(
+                    kind = StrictPendingKind.PROTECTION,
+                    value = "",
+                    durationHours = state.cooldownHours,
+                )
+                _uiState.update { it.copy(dialogVisible = true) }
+            }
+        }
+    }
+
+    /**
      * ثبت درخواست انتظار از دیالوگ (وقتی دیالوگ با درخواستی باز نشده باشد).
      * در جریان معمول ModesScreen درخواست موقع ضربه روی گزینه ثبت می‌شود،
      * پس این تابع بیشتر تور ایمنی است.
@@ -202,6 +267,13 @@ class StrictSettingsViewModel @Inject constructor(
                         durationHours = state.cooldownHours,
                     )
                 }
+                is PendingStrictChange.ProtectionOff -> {
+                    settingsStore.recordStrictCooldownRequest(
+                        kind = StrictPendingKind.PROTECTION,
+                        value = "",
+                        durationHours = state.cooldownHours,
+                    )
+                }
             }
         }
     }
@@ -220,6 +292,11 @@ class StrictSettingsViewModel @Inject constructor(
                     is PendingStrictChange.Hours -> {
                         settingsStore.setStrictCooldownHours(pending.hours)
                     }
+                    is PendingStrictChange.ProtectionOff -> {
+                        settingsStore.setUninstallProtectionEnabled(false)
+                        runCatching { uninstallProtection.removeAdmin() }
+                        refreshAdminState()
+                    }
                     null -> Unit
                 }
                 _uiState.update {
@@ -236,7 +313,8 @@ class StrictSettingsViewModel @Inject constructor(
      * اعمال تغییر ثبت‌شده در درخواست انتظار، اگر زمان کامل گذشته باشد.
      * درخواست پایان سشن (END_SESSION) و تغییر قانون (RULE_CHANGE) اینجا
      * اعمال نمی‌شوند؛ مال داشبورد/صفحه سشن‌ها و صفحه قانون مربوطه‌اند و
-     * دست نخورده می‌مانند.
+     * دست نخورده می‌مانند. خاموش‌کردن محافظت از حذف نصب (PROTECTION)
+     * همین‌جا اعمال می‌شود: تنظیم خاموش و «سد» از مدیر دستگاه حذف می‌شود.
      */
     private suspend fun applyRecordedRequestIfElapsed(): Boolean {
         val request = _uiState.value.cooldownRequest ?: return false
@@ -249,6 +327,11 @@ class StrictSettingsViewModel @Inject constructor(
             }
             StrictPendingKind.HOURS -> {
                 request.pendingHours?.let { settingsStore.setStrictCooldownHours(it) }
+            }
+            StrictPendingKind.PROTECTION -> {
+                settingsStore.setUninstallProtectionEnabled(false)
+                runCatching { uninstallProtection.removeAdmin() }
+                refreshAdminState()
             }
             StrictPendingKind.END_SESSION -> return false
             StrictPendingKind.RULE_CHANGE -> return false
@@ -289,6 +372,7 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
             val hours = request.pendingHours ?: request.pendingValue
             "تغییر مدت انتظار به $hours ساعت"
         }
+        StrictPendingKind.PROTECTION -> "خاموش‌کردن محافظت از حذف نصب"
         StrictPendingKind.RULE_CHANGE -> {
             val change = request.pendingRuleChange
             if (change != null) {
@@ -315,7 +399,9 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
  * صادقانه: بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility)
  * هنوز وصل نشده و در فاز بعدی می‌آید؛ حالت‌ها فعلاً نحوه شروع سشن
  * و قفل قوانین وسط سشن را تعیین می‌کنند.
- * محدودیت صادقانه: اپ معمولی نمی‌تواند جلوی حذف نصب یا force-stop را قطعی بگیرد.
+ * محدودیت صادقانه: اپ معمولی نمی‌تواند جلوی حذف نصب یا force-stop را قطعی بگیرد؛
+ * مدیر دستگاه (پایین همین صفحه) حذف نصب را مسدود می‌کند، ولی غیرفعال‌سازی آن
+ * از تنظیمات سیستم همیشه ممکن است و فقط یک هشدار نشان می‌دهد.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -327,6 +413,20 @@ fun ModesScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val strictState by strictViewModel.uiState.collectAsStateWithLifecycle()
+
+    // وضعیت مدیر دستگاه را موقع برگشت به صفحه تازه می‌کنیم
+    // (مثلاً بعد از فعال‌سازی در صفحه سیستمی).
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                strictViewModel.refreshAdminState()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // تیکر شمارش معکوس کارت «تغییر در انتظار» — فقط وقتی درخواستی هست می‌دود.
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -375,8 +475,8 @@ fun ModesScreen(
             title = "Strict — سخت‌گیرانه",
             description = "وسط سشن فعال نمی‌توان قانون را غیرفعال یا حذف کرد و پایان سشن " +
                 "فقط با بازگشایی Strict (تایپ متن طولانی یا انتظار) انجام می‌شود. " +
-                "Strict جلوی حذف نصب یا force-stop را نمی‌گیرد؛ " +
-                "اپ معمولی چنین قدرتی در اندروید ندارد.",
+                "Strict به‌تنهایی جلوی حذف نصب را نمی‌گیرد؛ برای آن، «جلوگیری از حذف نصب» " +
+                "را پایین همین صفحه فعال کن. force-stop را هیچ اپ معمولی نمی‌تواند بگیرد.",
             onClick = { viewModel.setBlockMode(BlockMode.STRICT) },
         )
         if (uiState.blockMode == BlockMode.STRICT) {
@@ -428,6 +528,53 @@ fun ModesScreen(
                         Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
                             "سشن Strict فعالی نیست؛ تغییر این تنظیمات آزاد است.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(SaddSpacing.Medium))
+            SectionTitle("جلوگیری از حذف نصب")
+            SaddCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
+                    SaddSwitchRow(
+                        label = "جلوگیری از حذف نصب",
+                        description = "وقتی روشن است، «سد» مدیر دستگاه می‌شود و اندروید حذف نصب آن را مسدود می‌کند. " +
+                            "خاموش‌کردن آن وسط سشن Strict فقط با بازگشایی Strict (تایپ متن طولانی یا انتظار) انجام می‌شود.",
+                        checked = strictState.uninstallProtectionEnabled,
+                        onCheckedChange = { strictViewModel.requestUninstallProtection(it) },
+                    )
+                    if (strictState.uninstallProtectionEnabled) {
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        if (strictState.uninstallAdminActive) {
+                            Text(
+                                "مدیر دستگاه فعال است؛ حذف نصب «سد» مسدود است.",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        } else {
+                            Text(
+                                "مدیر دستگاه هنوز فعال نشده؛ تا فعال نشود، حذف نصب مسدود نیست.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(Modifier.height(SaddSpacing.Medium))
+                            SaddButton(
+                                text = "فعال‌سازی در تنظیمات سیستم",
+                                onClick = {
+                                    runCatching {
+                                        context.startActivity(
+                                            UninstallProtection.enableIntent(context),
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Text(
+                            "صادقانه: غیرفعال‌کردن مدیر دستگاه از تنظیمات سیستم همیشه ممکن است و فقط یک هشدار نشان می‌دهد؛ " +
+                                "این محافظت جلوی force-stop را هم نمی‌گیرد. قفل مطلق فقط با Device Owner ممکن است که نیازمند ریست فکتوری است.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
