@@ -29,7 +29,7 @@ import com.sadd.blocker.ui.theme.SaddSpacing
  * Normal: صفحه مداخله با فرصت تجدیدنظر و خروج کنترل‌شده.
  * Strict: وسط سشن فعال نمی‌توان قانون را غیرفعال یا حذف کرد و پایان سشن
  * فقط با PIN (اگر تنظیم شده باشد) انجام می‌شود.
- * صادقانه: بلاک واقعی (تشخیص نیت با Accessibility و بلاک دامنه با VPN)
+ * صادقانه: بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility)
  * هنوز وصل نشده و در فاز بعدی می‌آید؛ حالت‌ها فعلاً نحوه شروع سشن
  * و قفل قوانین وسط سشن را تعیین می‌کنند.
  * محدودیت صادقانه: اپ معمولی نمی‌تواند جلوی حذف نصب یا force-stop را قطعی بگیرد.
@@ -86,8 +86,8 @@ fun ModesScreen(
         Spacer(Modifier.height(SaddSpacing.Large))
         SaddCard(modifier = Modifier.fillMaxWidth()) {
             Text(
-                "مکانیزم بلاک واقعی (تشخیص نیت و بلاک دامنه) هنوز وصل نشده و در فاز بعدی می‌آید؛ " +
-                    "تا آن زمان، حالت‌ها فقط شروع سشن و قفل قوانین را تعیین می‌کنند.",
+                "مکانیزم بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility) هنوز وصل نشده " +
+                    "و در فاز بعدی می‌آید؛ تا آن زمان، حالت‌ها فقط شروع سشن و قفل قوانین را تعیین می‌کنند.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(SaddSpacing.Large),
