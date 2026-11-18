@@ -2,8 +2,6 @@ package com.sadd.blocker.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,9 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
@@ -41,16 +37,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.R
 import com.sadd.blocker.domain.OnboardingSteps
 import com.sadd.blocker.ui.OnboardingViewModel
-import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import kotlinx.coroutines.launch
 
 /**
  * ویزارد راه‌اندازی اول‌نصب — دقیقاً طبق موکاپ تاییدشده:
- * سربرگ «راه‌اندازی سد» + خرس، نوار پیشرفت «مرحله X از ۵»، کارت مرحله
- * فعلی با توضیح و دکمه بزرگ، فهرست ۵ مرحله با وضعیت، و لینک
- * «بعداً انجام می‌دهم».
+ * سربرگ «راه‌اندازی سد» + خرس، نوار پیشرفت «مرحله X از ۵»، و کارت
+ * مرحله فعلی با توضیح و دکمه بزرگ.
  *
+ * نمایش یکی‌یکی است: فقط کارت مرحله فعلی کامل دیده می‌شود؛ مرحله‌های
+ * انجام‌شده فقط به‌صورت یک ردیف کوچک جمع‌شده با تیک سبز بالای کارت
+ * فعلی می‌آیند؛ مرحله‌های آینده پنهان‌اند تا وقتی نوبتشان برسد.
+ * وقتی مرحله فعلی انجام شود، ویزارد خودکار به مرحله بعد می‌رود
+ * (وضعیت‌ها زنده‌اند: ON_RESUME و بعد از هر نتیجه لانچر تازه می‌شوند).
  * مرحله دسترسی‌پذیری یک دنباله سه‌مرحله‌ای است، دقیقاً طبق ترتیبی که
  * روی گوشی سید واقعاً اتفاق می‌افتد: ۱) زدن کلید خاکستری «سد» در
  * تنظیمات دسترسی‌پذیری و بستن پیام، ۲) روشن‌کردن Allow restricted
@@ -60,8 +59,6 @@ import kotlinx.coroutines.launch
  * اندروید برای برنامه‌های نصب‌شده دستی کلید دسترسی‌پذیری را قفل می‌کند
  * تا وقتی این اجازه داده نشود؛ هیچ کدی نمی‌تواند دورش بزند.
  *
- * وضعیت‌ها زنده‌اند (ON_RESUME و بعد از هر نتیجه لانچر تازه می‌شوند)؛
- * وقتی مرحله فعلی انجام شود، ویزارد خودکار به مرحله بعد می‌رود.
  * تیک هیچ مرحله‌ای جعل نمی‌شود: یا سیستم واقعاً آن را تایید کرده،
  * یا کاربر «انجامش دادم» را زده و «تأیید شما» نشان داده می‌شود.
  */
@@ -144,6 +141,39 @@ fun OnboardingScreen(
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
             Spacer(Modifier.height(SaddSpacing.Large))
+        }
+
+        // نمایش یکی‌یکی: مرحله‌های انجام‌شده فقط ردیف کوچک جمع‌شده با تیک‌اند؛
+        // مرحله‌های آینده پنهان‌اند. ردیف‌های جمع‌شده قابل‌زدن نیستند —
+        // مرحله انجام‌شده کاری برای انجام ندارد و selectStep هم مرحله
+        // انجام‌شده را انتخاب نمی‌کند.
+        val completedSteps = steps.filter { it.granted }
+        if (completedSteps.isNotEmpty()) {
+            item {
+                Column {
+                    completedSteps.forEach { step ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            StepStatusIcon(granted = true, isCurrent = false)
+                            Spacer(Modifier.size(SaddSpacing.Small))
+                            Text(
+                                step.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "انجام شد",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(SaddSpacing.Small))
+                }
+            }
         }
 
         if (currentStep != null) {
@@ -231,56 +261,6 @@ fun OnboardingScreen(
                     }
                 }
                 Spacer(Modifier.height(SaddSpacing.Medium))
-            }
-        }
-
-        item {
-            SectionTitle("مراحل راه‌اندازی")
-        }
-        itemsIndexed(steps, key = { _, step -> step.key }) { index, step ->
-            val isCurrent = index == uiState.currentStepIndex && !uiState.allGranted
-            SaddCard(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    .then(
-                        if (isCurrent) {
-                            Modifier.border(
-                                1.dp,
-                                MaterialTheme.colorScheme.primary,
-                                RoundedCornerShape(SaddRadius.Card),
-                            )
-                        } else {
-                            Modifier
-                        },
-                    )
-                    .clickable { viewModel.selectStep(index) },
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    StepStatusIcon(granted = step.granted, isCurrent = isCurrent)
-                    Spacer(Modifier.size(SaddSpacing.Small))
-                    Text(
-                        step.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        when {
-                            step.granted -> "انجام شد"
-                            step.key == "accessibility" && accessibilityPhase > 1 -> "تأیید شما"
-                            isCurrent -> "فعلی"
-                            else -> "در انتظار"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (step.granted || isCurrent) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
             }
         }
 

@@ -44,6 +44,7 @@ import com.sadd.blocker.data.system.UninstallProtection
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
+import com.sadd.blocker.domain.StrictSettingChange
 import com.sadd.blocker.domain.StrictUnlock
 import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.domain.TimeFormat
@@ -68,6 +69,8 @@ private sealed interface PendingStrictChange {
     data class Method(val method: StrictUnlockMethod) : PendingStrictChange
     data class Hours(val hours: Int) : PendingStrictChange
     data object ProtectionOff : PendingStrictChange
+    /** تغییر یک تنظیم؛ فقط کلید blockMode مال همین ViewModel است. */
+    data class SettingChange(val change: StrictSettingChange) : PendingStrictChange
 }
 
 data class StrictSettingsUiState(
@@ -266,6 +269,38 @@ class StrictSettingsViewModel @Inject constructor(
         _uiState.update { it.copy(adminDeactivatedNotice = false) }
     }
 
+    /** درخواست تغییر حالت بلاک (پیش‌فرض شروع سشن). */
+    fun requestBlockMode(mode: BlockMode) {
+        val state = _uiState.value
+        if (mode == state.blockMode) return
+        viewModelScope.launch {
+            if (!state.strictSessionActive) {
+                settingsStore.setBlockMode(mode)
+                return@launch
+            }
+            val change = StrictSettingChange.blockMode(mode.name)
+            if (state.unlockMethod == StrictUnlockMethod.PASSAGE) {
+                pendingChange = PendingStrictChange.SettingChange(change)
+                _uiState.update { it.copy(dialogVisible = true) }
+            } else {
+                // درخواست تکراری همان تغییر: ساعت از اول شمرده نمی‌شود.
+                val existing = state.cooldownRequest
+                if (existing != null && existing.pendingKind == StrictPendingKind.SETTING_CHANGE &&
+                    existing.pendingSettingChange == change
+                ) {
+                    _uiState.update { it.copy(dialogVisible = true) }
+                    return@launch
+                }
+                settingsStore.recordStrictCooldownRequest(
+                    kind = StrictPendingKind.SETTING_CHANGE,
+                    value = StrictSettingChange.encode(change),
+                    durationHours = state.cooldownHours,
+                )
+                _uiState.update { it.copy(dialogVisible = true) }
+            }
+        }
+    }
+
     /** درخواست تغییر روش بازگشایی. */
     fun requestUnlockMethod(method: StrictUnlockMethod) {
         val state = _uiState.value
@@ -409,6 +444,13 @@ class StrictSettingsViewModel @Inject constructor(
                         durationHours = state.cooldownHours,
                     )
                 }
+                is PendingStrictChange.SettingChange -> {
+                    settingsStore.recordStrictCooldownRequest(
+                        kind = StrictPendingKind.SETTING_CHANGE,
+                        value = StrictSettingChange.encode(pending.change),
+                        durationHours = state.cooldownHours,
+                    )
+                }
             }
         }
     }
@@ -431,6 +473,12 @@ class StrictSettingsViewModel @Inject constructor(
                         settingsStore.setUninstallProtectionEnabled(false)
                         runCatching { uninstallProtection.removeAdmin() }
                         refreshAdminState()
+                    }
+                    is PendingStrictChange.SettingChange -> {
+                        if (pending.change.key == StrictSettingChange.KEY_BLOCK_MODE) {
+                            runCatching { BlockMode.valueOf(pending.change.value) }
+                                .onSuccess { settingsStore.setBlockMode(it) }
+                        }
                     }
                     null -> Unit
                 }
@@ -470,6 +518,19 @@ class StrictSettingsViewModel @Inject constructor(
             }
             StrictPendingKind.END_SESSION -> return false
             StrictPendingKind.RULE_CHANGE -> return false
+            // تغییر تنظیم: فقط کلید blockMode مال این صفحه است؛ بقیه کلیدها
+            // (تاخیر سراسری، تم، رنگ‌بندی) مال ViewModel خودشان‌اند و درخواست
+            // دست نمی‌خورد تا همان‌جا اعمال شود.
+            StrictPendingKind.SETTING_CHANGE -> {
+                val change = request.pendingSettingChange ?: return false
+                if (change.key != StrictSettingChange.KEY_BLOCK_MODE) return false
+                runCatching { BlockMode.valueOf(change.value) }
+                    .onSuccess { settingsStore.setBlockMode(it) }
+            }
+            StrictPendingKind.EXTEND_SESSION -> return false
+            StrictPendingKind.SCHEDULE_ADD -> return false
+            StrictPendingKind.BACKUP_RESTORE -> return false
+            StrictPendingKind.RULE_ADD -> return false
             // درخواست نگهبان اینجا اعمال نمی‌شود؛ مال BlockedActivity (حالت guard)
             // است و دست نخورده می‌ماند تا همان‌جا پنجره ۵دقیقه‌ای را تنظیم کند.
             StrictPendingKind.GUARD_UNLOCK -> return false
@@ -512,6 +573,19 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
         }
         StrictPendingKind.PROTECTION -> "خاموش‌کردن محافظت از حذف نصب"
         StrictPendingKind.GUARD_UNLOCK -> "بازگشایی محافظت (حذف نصب/توقف اجباری)"
+        StrictPendingKind.SETTING_CHANGE -> {
+            val change = request.pendingSettingChange
+            when (change?.key) {
+                StrictSettingChange.KEY_BLOCK_MODE -> "تغییر حالت بلاک"
+                StrictSettingChange.KEY_THEME -> "تغییر تم"
+                StrictSettingChange.KEY_COLOR_THEME -> "تغییر رنگ‌بندی"
+                else -> "تغییر تنظیم"
+            }
+        }
+        StrictPendingKind.EXTEND_SESSION -> "تمدید سشن Strict"
+        StrictPendingKind.SCHEDULE_ADD -> "افزودن زمان‌بندی"
+        StrictPendingKind.BACKUP_RESTORE -> "ریستور بکاپ"
+        StrictPendingKind.RULE_ADD -> "افزودن قانون"
         StrictPendingKind.RULE_CHANGE -> {
             val change = request.pendingRuleChange
             if (change != null) {
@@ -532,11 +606,14 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
 /**
  * حالت بلاک.
  * Normal: صفحه مداخله با فرصت تجدیدنظر و خروج کنترل‌شده.
- * Strict: وسط سشن فعال نمی‌توان قانون را غیرفعال یا حذف کرد و پایان سشن
- * و تغییر تنظیمات Strict فقط با بازگشایی Strict (تایپ متن طولانی یا انتظار)
- * انجام می‌شود. شروع سشن Strict همیشه آزاد است.
- * بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility) وصل است و فقط وسط سشن
- * فعال کار می‌کند؛ حالت‌ها نحوه شروع سشن و قفل قوانین وسط سشن را تعیین می‌کنند.
+ * Strict: وسط سشن فعال هیچ چیزی در اپ قابل تغییر نیست — نه حالت بلاک،
+ * نه تاخیر، نه تم و رنگ‌بندی، نه قانون (افزودن/غیرفعال/حذف/تاخیر)، نه
+ * زمان‌بندی، نه تمدید سشن، نه ریستور بکاپ و نه پایان سشن — مگر با
+ * بازگشایی Strict (تایپ متن طولانی یا انتظار ۱۲/۲۴/۴۸ ساعت). شروع سشن
+ * Strict همیشه آزاد است؛ فعال‌کردن قانون (تقویت بلاک) و روشن‌کردن
+ * محافظت هم آزادند. بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility)
+ * وصل است و فقط وسط سشن فعال کار می‌کند؛ حالت‌ها نحوه شروع سشن و قفل
+ * قوانین وسط سشن را تعیین می‌کنند.
  * محدودیت صادقانه: اپ معمولی نمی‌تواند جلوی حذف نصب یا force-stop را قطعی بگیرد؛
  * مدیر دستگاه (پایین همین صفحه) حذف نصب را مسدود می‌کند و نگهبان، صفحه
  * غیرفعال‌سازی آن و حذف نصب/توقف اجباری را رهگیری می‌کند و بازگشایی
@@ -622,7 +699,7 @@ fun ModesScreen(
             selected = uiState.blockMode == BlockMode.NORMAL,
             title = "\u2066Normal\u2069 — عادی",
             description = "صفحه مداخله با فرصت تجدیدنظر؛ با بازگشت می‌توانی صرف‌نظر کنی.",
-            onClick = { viewModel.setBlockMode(BlockMode.NORMAL) },
+            onClick = { strictViewModel.requestBlockMode(BlockMode.NORMAL) },
         )
         Spacer(Modifier.height(SaddSpacing.Medium))
         ModeCard(
@@ -631,7 +708,7 @@ fun ModesScreen(
             description = "وسط سشن، تغییر قانون و پایان سشن فقط با بازگشایی Strict ممکن است. " +
                 "جلوی حذف نصب را نمی‌گیرد؛ آن را پایین همین صفحه فعال کن. " +
                 "\u2066force-stop\u2069 را هیچ اپ معمولی نمی‌تواند بگیرد.",
-            onClick = { viewModel.setBlockMode(BlockMode.STRICT) },
+            onClick = { strictViewModel.requestBlockMode(BlockMode.STRICT) },
         )
         if (uiState.blockMode == BlockMode.STRICT) {
             Spacer(Modifier.height(SaddSpacing.Large))

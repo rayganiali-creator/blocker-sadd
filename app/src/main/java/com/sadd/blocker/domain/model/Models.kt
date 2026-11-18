@@ -60,7 +60,8 @@ data class Schedule(
 /** تاخیرهای مجاز (ثانیه). */
 object DelayOptions {
     val VALUES = listOf(0, 3, 5, 10, 15)
-    const val DEFAULT_SECONDS = 5
+    /** پیش‌فرض تاخیر: فوری (۰ ثانیه) — بلاک همان لحظه اتفاق می‌افتد. */
+    const val DEFAULT_SECONDS = 0
 }
 
 /** حالت بلاک — در DataStore به‌صورت رشته ذخیره می‌شود. */

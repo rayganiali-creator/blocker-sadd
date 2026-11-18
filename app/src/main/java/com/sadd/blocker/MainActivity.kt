@@ -19,6 +19,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -59,6 +61,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // مهاجرت یک‌باره تاخیر پیش‌فرض به فوری (نصب‌های قدیمی با ۵ ثانیه ذخیره‌شده).
+        lifecycleScope.launch { settingsStore.migrateDelayDefaultIfNeeded() }
         setContent {
             val theme by settingsStore.theme.collectAsStateWithLifecycle(initialValue = AppTheme.DARK)
             val colorTheme by settingsStore.colorTheme.collectAsStateWithLifecycle(initialValue = ColorTheme.SADD)

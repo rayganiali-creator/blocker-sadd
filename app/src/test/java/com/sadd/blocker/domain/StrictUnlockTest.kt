@@ -1,5 +1,6 @@
 package com.sadd.blocker.domain
 
+import com.sadd.blocker.domain.model.DelayOptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -180,5 +181,146 @@ class StrictUnlockTest {
         assertEquals(change, ruleReq.pendingRuleChange)
         val endReq = StrictCooldownRequest(1L, StrictPendingKind.END_SESSION, "", 24)
         assertEquals(null, endReq.pendingRuleChange)
+    }
+
+    @Test
+    fun settingChangeEncodeDecodeRoundTrip() {
+        val blockMode = StrictSettingChange.blockMode("STRICT")
+        assertEquals(blockMode, StrictSettingChange.decode(StrictSettingChange.encode(blockMode)))
+        val theme = StrictSettingChange.theme("DARK")
+        assertEquals(theme, StrictSettingChange.decode(StrictSettingChange.encode(theme)))
+        val color = StrictSettingChange.colorTheme("FOREST")
+        assertEquals(color, StrictSettingChange.decode(StrictSettingChange.encode(color)))
+    }
+
+    @Test
+    fun settingChangeDecodeRejectsGarbage() {
+        assertEquals(null, StrictSettingChange.decode(""))
+        assertEquals(null, StrictSettingChange.decode("blockMode"))
+        assertEquals(null, StrictSettingChange.decode("|STRICT"))
+        // value عمداً می‌تواند «|» داشته باشد (limit=2)، پس این معتبر است.
+        assertEquals(
+            StrictSettingChange("blockMode", "STRICT|extra"),
+            StrictSettingChange.decode("blockMode|STRICT|extra"),
+        )
+    }
+
+    @Test
+    fun scheduleAddEncodeDecodeRoundTrip() {
+        val add = StrictScheduleAdd("SAT,SUN", 960, 1320, true)
+        assertEquals(add, StrictScheduleAdd.decode(StrictScheduleAdd.encode(add)))
+        val overnight = StrictScheduleAdd("FRI", 1200, 60, false)
+        assertEquals(overnight, StrictScheduleAdd.decode(StrictScheduleAdd.encode(overnight)))
+    }
+
+    @Test
+    fun scheduleAddDecodeRejectsGarbage() {
+        assertEquals(null, StrictScheduleAdd.decode(""))
+        assertEquals(null, StrictScheduleAdd.decode("SAT|960|1320"))
+        assertEquals(null, StrictScheduleAdd.decode("SAT|xx|1320|true"))
+        assertEquals(null, StrictScheduleAdd.decode("SAT|960|1320|yes"))
+        assertEquals(null, StrictScheduleAdd.decode("SAT|960|1320|true|extra"))
+    }
+
+    @Test
+    fun ruleAddEncodeDecodeRoundTrip() {
+        val keyword = StrictRuleAdd(StrictRuleChange.SCOPE_KEYWORD, "فوت", "block")
+        assertEquals(keyword, StrictRuleAdd.decode(StrictRuleAdd.encode(keyword)))
+        // بخش سفارشی: value خودش «|» دارد و باید سالم بماند.
+        val customSection = StrictRuleAdd(
+            StrictRuleChange.SCOPE_SECTION,
+            "com.whatsapp",
+            "استوری|وضعیت",
+        )
+        assertEquals(customSection, StrictRuleAdd.decode(StrictRuleAdd.encode(customSection)))
+        // افزودن دسته‌ای اپ‌ها: id خالی و value پکیج‌ها با «,».
+        val batchApps = StrictRuleAdd(
+            StrictRuleChange.SCOPE_APP,
+            "",
+            "com.example.a,com.example.b",
+        )
+        assertEquals(batchApps, StrictRuleAdd.decode(StrictRuleAdd.encode(batchApps)))
+    }
+
+    @Test
+    fun ruleAddDecodeRejectsGarbage() {
+        assertEquals(null, StrictRuleAdd.decode(""))
+        assertEquals(null, StrictRuleAdd.decode("keyword|فوت"))
+        assertEquals(null, StrictRuleAdd.decode("|فوت|block"))
+        // value عمداً می‌تواند «|» داشته باشد (limit=3)، پس این معتبر است.
+        assertEquals(
+            StrictRuleAdd("keyword", "فوت", "block|extra"),
+            StrictRuleAdd.decode("keyword|فوت|block|extra"),
+        )
+    }
+
+    @Test
+    fun pendingAddGettersExposeDecodedValueOnlyForTheirKind() {
+        val setting = StrictSettingChange.blockMode("NORMAL")
+        val settingReq = StrictCooldownRequest(
+            1L,
+            StrictPendingKind.SETTING_CHANGE,
+            StrictSettingChange.encode(setting),
+            24,
+        )
+        assertEquals(setting, settingReq.pendingSettingChange)
+        assertEquals(null, settingReq.pendingScheduleAdd)
+        assertEquals(null, settingReq.pendingRuleAdd)
+
+        val schedule = StrictScheduleAdd("MON", 480, 600, false)
+        val scheduleReq = StrictCooldownRequest(
+            1L,
+            StrictPendingKind.SCHEDULE_ADD,
+            StrictScheduleAdd.encode(schedule),
+            12,
+        )
+        assertEquals(schedule, scheduleReq.pendingScheduleAdd)
+        assertEquals(null, scheduleReq.pendingSettingChange)
+        assertEquals(null, scheduleReq.pendingRuleAdd)
+
+        val rule = StrictRuleAdd(StrictRuleChange.SCOPE_WEBSITE, "example.com", "true")
+        val ruleReq = StrictCooldownRequest(
+            1L,
+            StrictPendingKind.RULE_ADD,
+            StrictRuleAdd.encode(rule),
+            48,
+        )
+        assertEquals(rule, ruleReq.pendingRuleAdd)
+        assertEquals(null, ruleReq.pendingSettingChange)
+        assertEquals(null, ruleReq.pendingScheduleAdd)
+
+        val endReq = StrictCooldownRequest(1L, StrictPendingKind.END_SESSION, "", 24)
+        assertEquals(null, endReq.pendingSettingChange)
+        assertEquals(null, endReq.pendingScheduleAdd)
+        assertEquals(null, endReq.pendingRuleAdd)
+    }
+
+    @Test
+    fun newPendingKindsAreResolvable() {
+        assertEquals(StrictPendingKind.SETTING_CHANGE, StrictPendingKind.valueOf("SETTING_CHANGE"))
+        assertEquals(StrictPendingKind.EXTEND_SESSION, StrictPendingKind.valueOf("EXTEND_SESSION"))
+        assertEquals(StrictPendingKind.SCHEDULE_ADD, StrictPendingKind.valueOf("SCHEDULE_ADD"))
+        assertEquals(StrictPendingKind.BACKUP_RESTORE, StrictPendingKind.valueOf("BACKUP_RESTORE"))
+        assertEquals(StrictPendingKind.RULE_ADD, StrictPendingKind.valueOf("RULE_ADD"))
+    }
+
+    @Test
+    fun delayMigrationRunsOnlyOnce() {
+        assertTrue(DelayMigration.shouldMigrate(alreadyMigrated = false))
+        assertFalse(DelayMigration.shouldMigrate(alreadyMigrated = true))
+    }
+
+    @Test
+    fun guardPolicyIsAlwaysImmediate() {
+        assertEquals(0, GuardPolicy.ACTION_DELAY_SECONDS)
+        assertEquals(0, GuardPolicy.effectiveDelaySeconds(0))
+        assertEquals(0, GuardPolicy.effectiveDelaySeconds(5))
+        assertEquals(0, GuardPolicy.effectiveDelaySeconds(15))
+    }
+
+    @Test
+    fun delayOptionsDefaultIsImmediate() {
+        assertEquals(0, DelayOptions.DEFAULT_SECONDS)
+        assertTrue(DelayOptions.VALUES.contains(DelayOptions.DEFAULT_SECONDS))
     }
 }

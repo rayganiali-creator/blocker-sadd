@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.sadd.blocker.core.PinCrypto
+import com.sadd.blocker.domain.DelayMigration
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictUnlock
@@ -104,6 +105,11 @@ class SettingsStore @Inject constructor(
          * ۳) برگشت و فعال‌کردن «سد». با ری‌استارت اپ پاک نمی‌شود.
          */
         val ACCESSIBILITY_PHASE = intPreferencesKey("accessibility_phase")
+        /**
+         * پرچم مهاجرت یک‌باره تاخیر پیش‌فرض به فوری؛ اگر نخورده باشد،
+         * اولین اجرا مقدار تاخیر سراسری را ۰ می‌کند و پرچم را می‌زند.
+         */
+        val DELAY_DEFAULT_MIGRATED = booleanPreferencesKey("delay_default_migrated")
 
         /** بعد از ۵ تلاش اشتباه، PIN قفل می‌شود (H-8). */
         const val PIN_MAX_ATTEMPTS = 5
@@ -130,6 +136,23 @@ class SettingsStore @Inject constructor(
         if (!DelayOptions.VALUES.contains(seconds)) return
         context.settingsDataStore.edit { prefs ->
             prefs[GLOBAL_DELAY] = seconds
+        }
+    }
+
+    /**
+     * مهاجرت یک‌باره تاخیر پیش‌فرض به فوری (۰ ثانیه).
+     * نصب‌های قدیمی ممکن است مقدار ۵ ثانیه را ذخیره کرده باشند؛ تغییر
+     * پیش‌فرض کد به‌تنهایی آن‌ها را عوض نمی‌کند. اولین اجرا بعد از
+     * به‌روزرسانی، اگر پرچم نخورده باشد، مقدار را ۰ می‌کند و پرچم را
+     * می‌زند؛ بعد از آن، انتخاب کاربر دست نمی‌خورد. Idempotent است و
+     * فراخوانی هم‌زمان از دو جا هم بی‌ضرر است (همان مقدار نوشته می‌شود).
+     */
+    suspend fun migrateDelayDefaultIfNeeded() {
+        val migrated = safeData.first()[DELAY_DEFAULT_MIGRATED] == true
+        if (!DelayMigration.shouldMigrate(migrated)) return
+        context.settingsDataStore.edit { prefs ->
+            prefs[GLOBAL_DELAY] = DelayOptions.DEFAULT_SECONDS
+            prefs[DELAY_DEFAULT_MIGRATED] = true
         }
     }
 

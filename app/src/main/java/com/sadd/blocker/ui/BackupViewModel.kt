@@ -4,14 +4,21 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.BackupCodec
 import com.sadd.blocker.domain.BackupData
+import com.sadd.blocker.domain.StrictCooldownRequest
+import com.sadd.blocker.domain.StrictPendingKind
+import com.sadd.blocker.domain.StrictUnlock
+import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.domain.repository.BlockedAppRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
 import com.sadd.blocker.domain.repository.ScheduleRepository
+import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.domain.repository.WebsiteRepository
 import com.sadd.blocker.domain.usecase.RestoreBackupUseCase
 import com.sadd.blocker.domain.usecase.RestoreResult
+import com.sadd.blocker.domain.usecase.StrictSessionGuard
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +33,14 @@ import javax.inject.Inject
 data class BackupUiState(
     val message: String? = null,
     val exporting: Boolean = false,
+    /** دیالوگ بازگشایی Strict برای ریستور بکاپ باز است. */
+    val strictUnlockVisible: Boolean = false,
+    /** روش بازگشایی Strict (تایپ متن / انتظار) برای دیالوگ. */
+    val strictUnlockMethod: StrictUnlockMethod = StrictUnlockMethod.PASSAGE,
+    /** مدت انتظار بازگشایی Strict (ساعت) برای دیالوگ. */
+    val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
+    /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ. */
+    val strictCooldownRequest: StrictCooldownRequest? = null,
 )
 
 @HiltViewModel
@@ -36,6 +51,8 @@ class BackupViewModel @Inject constructor(
     private val keywordRepository: KeywordRepository,
     private val scheduleRepository: ScheduleRepository,
     private val restoreUseCase: RestoreBackupUseCase,
+    sessionRepository: SessionRepository,
+    private val settingsStore: SettingsStore,
 ) : ViewModel() {
 
     companion object {
@@ -45,6 +62,27 @@ class BackupViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(BackupUiState())
     val uiState: StateFlow<BackupUiState> = _uiState.asStateFlow()
+    private val strictGuard = StrictSessionGuard(sessionRepository)
+    /** JSON بکاپِ در انتظار بازگشایی Strict (فقط در حافظه). */
+    private var pendingRestoreJson: String? = null
+
+    init {
+        viewModelScope.launch {
+            settingsStore.strictUnlockMethod.collect { method ->
+                _uiState.update { it.copy(strictUnlockMethod = method) }
+            }
+        }
+        viewModelScope.launch {
+            settingsStore.strictCooldownHours.collect { hours ->
+                _uiState.update { it.copy(strictCooldownHours = hours) }
+            }
+        }
+        viewModelScope.launch {
+            settingsStore.strictCooldownRequest.collect { request ->
+                _uiState.update { it.copy(strictCooldownRequest = request) }
+            }
+        }
+    }
 
     /** ساخت JSON بکاپ از وضعیت فعلی دیتابیس. */
     suspend fun buildExportJson(): String {
@@ -88,22 +126,107 @@ class BackupViewModel @Inject constructor(
         }
     }
 
+    /**
+     * ریستور بکاپ از یک رشته JSON (خواندن فایل در BackupScreen انجام می‌شود).
+     * خروجی گرفتن (export) خواندنی است و آزاد، ولی ریستور همه قوانین و
+     * زمان‌بندی‌ها را عوض می‌کند؛ وسط سشن Strict فقط بعد از بازگشایی
+     * Strict (تایپ متن / انتظار) انجام می‌شود. اگر اپ وسط انتظار ری‌استارت
+     * شود، JSON در حافظه نمی‌ماند و با انتخاب دوباره فایل، بعد از گذشت
+     * انتظار، مستقیم اعمال می‌شود.
+     */
     fun importJson(json: String) {
         viewModelScope.launch {
-            val result = restoreUseCase.execute(json)
-            if (result is RestoreResult.Restored) {
-                val s = result.summary
+            if (strictGuard.isStrictSessionActive()) {
+                // درخواست انتظارِ ثبت‌شده و گذشته (بعد از ری‌استارت اپ و
+                // انتخاب دوباره فایل) مستقیم اعمال می‌شود.
+                val request = settingsStore.strictCooldownRequest.firstOrNull()
+                if (_uiState.value.strictUnlockMethod == StrictUnlockMethod.COOLDOWN &&
+                    request?.pendingKind == StrictPendingKind.BACKUP_RESTORE &&
+                    StrictUnlock.isCooldownElapsed(request, System.currentTimeMillis())
+                ) {
+                    settingsStore.clearStrictCooldownRequest()
+                    applyRestore(json)
+                    return@launch
+                }
+                pendingRestoreJson = json
+                _uiState.update { it.copy(strictUnlockVisible = true) }
+                return@launch
+            }
+            applyRestore(json)
+        }
+    }
+
+    /** ریستور بعد از بازگشایی موفق در دیالوگ Strict. */
+    fun confirmStrictUnlocked() {
+        viewModelScope.launch {
+            val json = pendingRestoreJson
+            if (json == null) {
                 _uiState.update {
                     it.copy(
-                        message = "ریستور شد: ${s.appsAdded} اپ، ${s.websitesAdded} وب‌سایت، " +
-                            "${s.keywordsAdded} کلمه، ${s.schedulesAdded} زمان‌بندی. " +
-                            "${s.skipped} آیتم تکراری یا خراب skip شد.",
+                        strictUnlockVisible = false,
+                        message = "فایل بکاپ را دوباره انتخاب کن؛ متن بکاپ بعد از ری‌استارت اپ نگه داشته نمی‌شود.",
                     )
                 }
+                return@launch
             }
-            if (result is RestoreResult.Failed) {
-                _uiState.update { it.copy(message = "ریستور ناموفق بود: ${result.reason}") }
+            if (_uiState.value.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
+                val request = _uiState.value.strictCooldownRequest
+                if (request == null || request.pendingKind != StrictPendingKind.BACKUP_RESTORE ||
+                    !StrictUnlock.isCooldownElapsed(request, System.currentTimeMillis())
+                ) {
+                    if (request != null && request.pendingKind != StrictPendingKind.BACKUP_RESTORE) {
+                        pendingRestoreJson = null
+                        _uiState.update {
+                            it.copy(
+                                strictUnlockVisible = false,
+                                message = "این انتظار برای کار دیگری ثبت شده است؛ برای ریستور دوباره درخواست بده.",
+                            )
+                        }
+                    }
+                    return@launch
+                }
+                settingsStore.clearStrictCooldownRequest()
             }
+            pendingRestoreJson = null
+            _uiState.update { it.copy(strictUnlockVisible = false) }
+            applyRestore(json)
+        }
+    }
+
+    /** ثبت درخواست انتظار برای ریستور بکاپ (از دیالوگ بازگشایی). */
+    fun recordStrictCooldownRequest() {
+        if (pendingRestoreJson == null) return
+        val existing = _uiState.value.strictCooldownRequest
+        // درخواست تکراری همان ریستور: ساعت از اول شمرده نمی‌شود.
+        if (existing?.pendingKind == StrictPendingKind.BACKUP_RESTORE) return
+        viewModelScope.launch {
+            settingsStore.recordStrictCooldownRequest(
+                kind = StrictPendingKind.BACKUP_RESTORE,
+                value = "",
+                durationHours = _uiState.value.strictCooldownHours,
+            )
+        }
+    }
+
+    fun cancelStrictUnlock() {
+        pendingRestoreJson = null
+        _uiState.update { it.copy(strictUnlockVisible = false) }
+    }
+
+    private suspend fun applyRestore(json: String) {
+        val result = restoreUseCase.execute(json)
+        if (result is RestoreResult.Restored) {
+            val s = result.summary
+            _uiState.update {
+                it.copy(
+                    message = "ریستور شد: ${s.appsAdded} اپ، ${s.websitesAdded} وب‌سایت، " +
+                        "${s.keywordsAdded} کلمه، ${s.schedulesAdded} زمان‌بندی. " +
+                        "${s.skipped} آیتم تکراری یا خراب skip شد.",
+                )
+            }
+        }
+        if (result is RestoreResult.Failed) {
+            _uiState.update { it.copy(message = "ریستور ناموفق بود: ${result.reason}") }
         }
     }
 

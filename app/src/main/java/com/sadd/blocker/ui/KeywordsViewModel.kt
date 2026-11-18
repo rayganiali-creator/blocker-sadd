@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
+import com.sadd.blocker.domain.StrictRuleAdd
 import com.sadd.blocker.domain.StrictRuleChange
 import com.sadd.blocker.domain.StrictUnlock
 import com.sadd.blocker.domain.StrictUnlockMethod
@@ -49,6 +50,8 @@ class KeywordsViewModel @Inject constructor(
     private var lastRemoved: KeywordRule? = null
     /** تغییر قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
     private var pendingStrictRuleChange: StrictRuleChange? = null
+    /** افزودن قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
+    private var pendingRuleAdd: StrictRuleAdd? = null
 
     init {
         viewModelScope.launch {
@@ -75,16 +78,28 @@ class KeywordsViewModel @Inject constructor(
 
     fun addKeyword(rawText: String, category: String) {
         viewModelScope.launch {
-            val result = addUseCase.execute(rawText, category)
-            if (result is AddKeywordResult.Added) {
-                _uiState.update { it.copy(message = "کلمه «${result.rule.rawText}» اضافه شد.") }
+            // وسط سشن Strict، افزودن قانون هم تغییر است و فقط بعد از
+            // بازگشایی Strict (تایپ متن / انتظار) انجام می‌شود.
+            if (strictGuard.isStrictSessionActive()) {
+                pendingRuleAdd = StrictRuleAdd(StrictRuleChange.SCOPE_KEYWORD, rawText, category)
+                _uiState.update { it.copy(strictUnlockVisible = true) }
+                return@launch
             }
-            if (result is AddKeywordResult.Duplicate) {
-                _uiState.update { it.copy(message = "این کلمه قبلاً در لیست است.") }
-            }
-            if (result is AddKeywordResult.Invalid) {
-                _uiState.update { it.copy(message = result.reason) }
-            }
+            applyAddKeyword(rawText, category)
+        }
+    }
+
+    /** افزودن کلمه (مسیر آزاد و مسیر بعد از بازگشایی Strict). */
+    private suspend fun applyAddKeyword(rawText: String, category: String) {
+        val result = addUseCase.execute(rawText, category)
+        if (result is AddKeywordResult.Added) {
+            _uiState.update { it.copy(message = "کلمه «${result.rule.rawText}» اضافه شد.") }
+        }
+        if (result is AddKeywordResult.Duplicate) {
+            _uiState.update { it.copy(message = "این کلمه قبلاً در لیست است.") }
+        }
+        if (result is AddKeywordResult.Invalid) {
+            _uiState.update { it.copy(message = result.reason) }
         }
     }
 
@@ -138,15 +153,43 @@ class KeywordsViewModel @Inject constructor(
     }
 
     /**
-     * اعمال تغییر قانون بعد از بازگشایی موفق در دیالوگ.
-     * در روش انتظار، درخواست باید برای همین تغییر ثبت شده و کامل گذشته باشد؛
-     * اگر انتظار برای تغییر دیگری ثبت شده باشد، اعمال نمی‌شود (و درخواست
-     * دست نمی‌خورد تا همان تغییرِ خودش با آن انجام شود).
+     * اعمال افزودن قانون یا تغییر قانون بعد از بازگشایی موفق در دیالوگ.
+     * در روش انتظار، درخواست باید برای همین کار ثبت شده و کامل گذشته باشد؛
+     * اگر انتظار برای کار دیگری ثبت شده باشد، اعمال نمی‌شود (و درخواست
+     * دست نمی‌خورد تا همان کارِ خودش با آن انجام شود).
      */
     fun confirmStrictUnlocked() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val state = _uiState.value
+            val add = pendingRuleAdd
+                ?: state.strictCooldownRequest?.takeIf { it.pendingKind == StrictPendingKind.RULE_ADD }?.pendingRuleAdd
+            if (add != null) {
+                if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
+                    val request = state.strictCooldownRequest
+                    if (request == null || !StrictUnlock.isCooldownElapsed(request, now) ||
+                        request.pendingRuleAdd != add
+                    ) {
+                        if (request != null && request.pendingRuleAdd != add) {
+                            pendingRuleAdd = null
+                            _uiState.update {
+                                it.copy(
+                                    strictUnlockVisible = false,
+                                    message = "این انتظار برای تغییر دیگری ثبت شده است؛ برای این تغییر دوباره درخواست بده.",
+                                )
+                            }
+                        }
+                        return@launch
+                    }
+                }
+                pendingRuleAdd = null
+                _uiState.update { it.copy(strictUnlockVisible = false) }
+                if (state.strictCooldownRequest?.pendingKind == StrictPendingKind.RULE_ADD) {
+                    settingsStore.clearStrictCooldownRequest()
+                }
+                applyRuleAdd(add)
+                return@launch
+            }
             val change = pendingStrictRuleChange
                 ?: state.strictCooldownRequest?.takeIf { it.pendingKind == StrictPendingKind.RULE_CHANGE }?.pendingRuleChange
             if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
@@ -176,8 +219,24 @@ class KeywordsViewModel @Inject constructor(
         }
     }
 
-    /** ثبت درخواست انتظار برای تغییر قانون (از دیالوگ بازگشایی). */
+    /** ثبت درخواست انتظار برای افزودن قانون یا تغییر قانون (از دیالوگ بازگشایی). */
     fun recordStrictCooldownRequest() {
+        val add = pendingRuleAdd
+        if (add != null) {
+            val existing = _uiState.value.strictCooldownRequest
+            // درخواست تکراری همان افزودن: ساعت از اول شمرده نمی‌شود.
+            if (existing?.pendingKind == StrictPendingKind.RULE_ADD &&
+                existing.pendingRuleAdd == add
+            ) return
+            viewModelScope.launch {
+                settingsStore.recordStrictCooldownRequest(
+                    kind = StrictPendingKind.RULE_ADD,
+                    value = StrictRuleAdd.encode(add),
+                    durationHours = _uiState.value.strictCooldownHours,
+                )
+            }
+            return
+        }
         val pending = pendingStrictRuleChange ?: return
         val existing = _uiState.value.strictCooldownRequest
         // درخواست تکراری همان تغییر: ساعت از اول شمرده نمی‌شود.
@@ -195,7 +254,14 @@ class KeywordsViewModel @Inject constructor(
 
     fun cancelStrictUnlock() {
         pendingStrictRuleChange = null
+        pendingRuleAdd = null
         _uiState.update { it.copy(strictUnlockVisible = false) }
+    }
+
+    /** افزودن قانونِ بازگشایی‌شده (فقط scope همین صفحه). */
+    private suspend fun applyRuleAdd(add: StrictRuleAdd) {
+        if (add.scope != StrictRuleChange.SCOPE_KEYWORD) return
+        applyAddKeyword(add.id, add.value)
     }
 
     /** اعمال تغییر قانونِ بازگشایی‌شده (فقط scope همین صفحه). */

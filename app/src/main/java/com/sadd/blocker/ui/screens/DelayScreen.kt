@@ -28,11 +28,14 @@ import com.sadd.blocker.domain.model.DelayOptions
 import com.sadd.blocker.ui.DelayViewModel
 import com.sadd.blocker.ui.RuleDelayOverride
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.widgets.StrictUnlockDialog
 
 /**
  * تنظیمات تاخیر.
- * تاخیر سراسری: ۰ / ۳ / ۵ / ۱۰ / ۱۵ ثانیه (پیش‌فرض ۵).
+ * تاخیر سراسری: ۰ / ۳ / ۵ / ۱۰ / ۱۵ ثانیه (پیش‌فرض ۰ — فوری).
  * تاخیر per-rule از صفحه همان قانون تنظیم می‌شود و اینجا قابل بازنشانی به سراسری است.
+ * وسط سشن Strict، تغییر تاخیر (سراسری یا اختصاصی قانون فعال) فقط بعد
+ * از بازگشایی Strict انجام می‌شود.
  */
 @Composable
 fun DelayScreen(
@@ -103,6 +106,17 @@ fun DelayScreen(
             EmptyState("هیچ قانون تاخیر اختصاصی ندارد؛ همه از تاخیر سراسری استفاده می‌کنند.", icon = Icons.Filled.Schedule)
         }
         Spacer(Modifier.height(SaddSpacing.Large))
+    }
+    // وسط سشن Strict، تغییر تاخیر فقط بعد از بازگشایی Strict انجام می‌شود.
+    if (uiState.strictUnlockVisible) {
+        StrictUnlockDialog(
+            method = uiState.strictUnlockMethod,
+            cooldownHours = uiState.strictCooldownHours,
+            cooldownRequest = uiState.strictCooldownRequest,
+            onUnlocked = { viewModel.confirmStrictUnlocked() },
+            onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
+            onDismiss = { viewModel.cancelStrictUnlock() },
+        )
     }
 }
 

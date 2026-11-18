@@ -23,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.BackupViewModel
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.widgets.StrictUnlockDialog
 import kotlinx.coroutines.launch
 
 /**
@@ -106,5 +107,16 @@ fun BackupScreen(
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(SaddSpacing.Large))
+    }
+    // وسط سشن Strict، ریستور فقط بعد از بازگشایی Strict انجام می‌شود.
+    if (uiState.strictUnlockVisible) {
+        StrictUnlockDialog(
+            method = uiState.strictUnlockMethod,
+            cooldownHours = uiState.strictCooldownHours,
+            cooldownRequest = uiState.strictCooldownRequest,
+            onUnlocked = { viewModel.confirmStrictUnlocked() },
+            onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
+            onDismiss = { viewModel.cancelStrictUnlock() },
+        )
     }
 }

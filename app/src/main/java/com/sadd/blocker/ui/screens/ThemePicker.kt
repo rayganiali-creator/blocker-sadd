@@ -32,6 +32,7 @@ import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.colorSchemeFor
 import com.sadd.blocker.ui.theme.paletteLabelFa
+import com.sadd.blocker.ui.widgets.StrictUnlockDialog
 
 /**
  * انتخاب تم برنامه (روشن / تیره / سیستمی) + رنگ‌بندی — مشترک بین صفحه درباره و عیب‌یابی.
@@ -89,6 +90,17 @@ fun ThemePickerSection(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    // وسط سشن Strict، تغییر تم/رنگ‌بندی فقط بعد از بازگشایی Strict انجام می‌شود.
+    if (themeState.strictUnlockVisible) {
+        StrictUnlockDialog(
+            method = themeState.strictUnlockMethod,
+            cooldownHours = themeState.strictCooldownHours,
+            cooldownRequest = themeState.strictCooldownRequest,
+            onUnlocked = { themeViewModel.confirmStrictUnlocked() },
+            onRecordCooldownRequest = { themeViewModel.recordStrictCooldownRequest() },
+            onDismiss = { themeViewModel.cancelStrictUnlock() },
+        )
+    }
 }
 
 /** کارت نرم و بالشتی یک رنگ‌بندی: سه نقطه رنگ + نام فارسی؛ انتخاب‌شده قاب دارد. */

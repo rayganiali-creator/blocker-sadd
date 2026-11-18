@@ -14,6 +14,7 @@ import com.sadd.blocker.data.system.UninstallProtection
 import com.sadd.blocker.domain.UninstallProtectionGate
 import com.sadd.blocker.domain.model.BlockEventKind
 import com.sadd.blocker.domain.model.BlockedWebsite
+import com.sadd.blocker.domain.model.DelayOptions
 import com.sadd.blocker.domain.model.KeywordRule
 import com.sadd.blocker.domain.model.SectionRule
 import com.sadd.blocker.domain.repository.BlockEventRepository
@@ -122,6 +123,19 @@ class BlockAccessibilityService : AccessibilityService() {
 
     @Inject
     lateinit var uninstallProtection: UninstallProtection
+
+    override fun onCreate() {
+        super.onCreate()
+        // مهاجرت یک‌باره تاخیر پیش‌فرض به فوری؛ سرویس ممکن است پیش از
+        // MainActivity (مثلاً بعد از بوت) روشن شود.
+        scope.launch {
+            try {
+                settingsStore.migrateDelayDefaultIfNeeded()
+            } catch (_: Exception) {
+                // fail-open: مهاجرت خراب نمی‌کند؛ پیش‌فرض کد ۰ است.
+            }
+        }
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -291,7 +305,7 @@ class BlockAccessibilityService : AccessibilityService() {
             Snapshot(
                 sessionActive = false,
                 strict = false,
-                globalDelaySeconds = 5,
+                globalDelaySeconds = DelayOptions.DEFAULT_SECONDS,
                 keywords = emptyList(),
                 websites = emptyList(),
                 sections = emptyList(),
@@ -378,7 +392,8 @@ class BlockAccessibilityService : AccessibilityService() {
      * «Device admin apps» یا دیالوگ غیرفعال‌کردن مدیر دستگاه را از روی
      * متن صفحه تشخیص می‌دهد؛ همان لحظه پرده رهگیری را نشان می‌دهد تا
      * ضربه سریع روی دکمه زیرین ثبت نشود، BACK می‌زند و صفحه بازگشایی
-     * Strict را باز می‌کند. اگر صفحه محافظت‌شده دیگر جلوی چشم نباشد
+     * Strict را باز می‌کند. نگهبان همیشه فوری عمل می‌کند (تاخیر صفر) و
+     * تاخیر تنظیم‌شده کاربر روی آن اثری ندارد — مسیر scheduleBlock را نمی‌رود. اگر صفحه محافظت‌شده دیگر جلوی چشم نباشد
      * (مثلاً کاربر با بازگشت بیرون رفته باشد)، پرده برداشته می‌شود.
      * متن خود اپ هرگز نگهبان را فعال نمی‌کند (هم چک پکیج پیش‌زمینه در
      * onAccessibilityEvent و هم چک داخل detector). ضد حلقه ۱۵ ثانیه‌ای
@@ -594,6 +609,9 @@ class BlockAccessibilityService : AccessibilityService() {
                 BlockEventKind.KEYWORD_TYPED,
                 "keyword_rule_id=${rule.id} pkg=$packageName strict=$strict",
             )
+            // خروج از اپ/سایت بلاک‌شده، بعد رفتن به «سد»: بدون BACK، برگشت از
+            // صفحه بلاک کاربر را به همان متن بلاک‌شده برمی‌گرداند.
+            performGlobalAction(GLOBAL_ACTION_BACK)
             showBlocked("کلمه «${rule.rawText}» بلاک شد", rule.category, delaySeconds)
         } catch (_: Exception) {
             // fail-open
