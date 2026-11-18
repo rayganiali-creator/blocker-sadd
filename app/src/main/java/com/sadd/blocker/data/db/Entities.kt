@@ -70,6 +70,32 @@ data class ScheduleEntity(
     val enabled: Boolean = true,
 )
 
+/**
+ * قانون «بخشِ اپ» (نسخه ۳): یک بخش داخل یک اپ، مثلاً جستجوی تلگرام.
+ * ترکیب (packageName, sectionKey) یکتاست؛ پیش‌فرض‌ها از
+ * [com.sadd.blocker.core.SectionDetector.PRESETS] می‌آیند.
+ */
+@Entity(
+    tableName = "section_rules",
+    indices = [Index(value = ["packageName", "sectionKey"], unique = true)],
+)
+data class SectionRuleEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val packageName: String,
+    val sectionKey: String,
+    val labelFa: String,
+    val enabled: Boolean = true,
+)
+
+/** رویداد بلاک (نسخه ۳): هر بلاک موتور، یک سطر؛ داشبورد «بلاک امروز» را از آن می‌شمارد. */
+@Entity(tableName = "block_events")
+data class BlockEventEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val timestampMs: Long,
+    val kind: String,
+    val detail: String,
+)
+
 @Dao
 interface BlockedAppDao {
     @Query("SELECT * FROM blocked_apps ORDER BY label")
@@ -250,4 +276,46 @@ interface ScheduleDao {
 
     @Query("DELETE FROM schedules WHERE id = :id")
     suspend fun delete(id: Long)
+}
+
+@Dao
+interface SectionRuleDao {
+    @Query("SELECT * FROM section_rules ORDER BY packageName, sectionKey")
+    fun observeAll(): Flow<List<SectionRuleEntity>>
+
+    @Query("SELECT * FROM section_rules ORDER BY packageName, sectionKey")
+    suspend fun listAll(): List<SectionRuleEntity>
+
+    @Query("SELECT * FROM section_rules WHERE enabled = 1")
+    suspend fun getEnabled(): List<SectionRuleEntity>
+
+    @Query("SELECT * FROM section_rules WHERE packageName = :packageName AND sectionKey = :sectionKey")
+    suspend fun getByPackageAndSection(packageName: String, sectionKey: String): SectionRuleEntity?
+
+    // IGNORE: پیش‌فرض تکراری با -1 برگردانده می‌شود، نه exception.
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(entity: SectionRuleEntity): Long
+
+    // M-16: آپدیت مستقیم به‌جای read-then-write.
+    @Query("UPDATE section_rules SET enabled = :enabled WHERE packageName = :packageName AND sectionKey = :sectionKey")
+    suspend fun setEnabled(packageName: String, sectionKey: String, enabled: Boolean)
+
+    @Query("DELETE FROM section_rules WHERE packageName = :packageName AND sectionKey = :sectionKey")
+    suspend fun delete(packageName: String, sectionKey: String)
+}
+
+@Dao
+interface BlockEventDao {
+    @Insert
+    suspend fun insert(entity: BlockEventEntity): Long
+
+    /** تعداد بلاک‌ها از [sinceMs] به بعد — داشبورد «بلاک امروز» را از آن می‌شمارد. */
+    @Query("SELECT COUNT(*) FROM block_events WHERE timestampMs >= :sinceMs")
+    fun countSince(sinceMs: Long): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM block_events WHERE timestampMs >= :sinceMs")
+    suspend fun countSinceNow(sinceMs: Long): Int
+
+    @Query("DELETE FROM block_events WHERE timestampMs < :beforeMs")
+    suspend fun pruneOlderThan(beforeMs: Long): Int
 }
