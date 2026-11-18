@@ -1,5 +1,7 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -13,11 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -83,6 +88,9 @@ fun SessionsScreen(
     var selectedDuration by rememberSaveable { mutableStateOf(SessionDurations.OPTIONS[1]) }
     var customMinutes by rememberSaveable { mutableStateOf("") }
     var customError by rememberSaveable { mutableStateOf<String?>(null) }
+    // مدتی که کاربر برای شروع انتخاب کرده و منتظر انتخاب حالت است؛
+    // حالت (Strict یا معمولی) موقع هر شروع پرسیده می‌شود و ذخیره نمی‌شود.
+    var pendingStartDuration by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -109,6 +117,21 @@ fun SessionsScreen(
             onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
             onUnlocked = { viewModel.confirmStrictUnlocked() },
             onDismiss = { viewModel.cancelStrictUnlock() },
+        )
+    }
+
+    // انتخاب حالت موقع هر شروع سشن — بدون گزینه «به خاطر بسپار»؛
+    // حالت ذخیره‌شده فقط پیش‌فرضِ پیشنهادی است.
+    val pendingDuration = pendingStartDuration
+    if (pendingDuration != null) {
+        StartModeDialog(
+            durationLabel = TimeFormat.durationLabel(pendingDuration),
+            defaultStrict = uiState.blockMode == BlockMode.STRICT,
+            onPick = { strict ->
+                pendingStartDuration = null
+                viewModel.startSession(pendingDuration, strict)
+            },
+            onDismiss = { pendingStartDuration = null },
         )
     }
 
@@ -146,7 +169,7 @@ fun SessionsScreen(
                         Spacer(Modifier.height(SaddSpacing.Small))
                         SaddButton(
                             text = "شروع سشن (${TimeFormat.durationLabel(selectedDuration)})",
-                            onClick = { viewModel.startSession(selectedDuration) },
+                            onClick = { pendingStartDuration = selectedDuration },
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(SaddSpacing.Medium))
@@ -175,7 +198,7 @@ fun SessionsScreen(
                                         } else if (durationMs > SessionDurations.MAX_MS) {
                                             customError = "حداکثر مدت سشن ۹۰ روز (۱۲۹٬۶۰۰ دقیقه) است."
                                         } else {
-                                            viewModel.startSession(durationMs)
+                                            pendingStartDuration = durationMs
                                         }
                                     }
                                 },
@@ -190,14 +213,13 @@ fun SessionsScreen(
                                 color = MaterialTheme.colorScheme.error,
                             )
                         }
-                        if (uiState.blockMode == BlockMode.STRICT) {
-                            Spacer(Modifier.height(SaddSpacing.Small))
-                            Text(
-                                "حالت Strict فعال است — سشن با قوانین سخت‌گیرانه شروع می‌شود.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Text(
+                            "حالت سشن (Strict یا معمولی) موقع هر شروع پرسیده می‌شود؛ " +
+                                "حالت انتخاب‌شده در صفحه «حالت بلاک» فقط پیش‌فرضِ پیشنهادی است.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -290,5 +312,97 @@ fun SessionsScreen(
             }
         }
         item { Spacer(Modifier.height(SaddSpacing.Large)) }
+    }
+}
+
+/**
+ * دیالوگ انتخاب حالت موقع شروع سشن — موقع هر شروع نشان داده می‌شود،
+ * بدون گزینه «به خاطر بسپار». گزینه پیش‌فرض (از صفحه «حالت بلاک»)
+ * با برچسب «پیش‌فرض» مشخص است، ولی شروع فقط با زدن یکی از دو گزینه
+ * انجام می‌شود. شروع سشن Strict آزاد است؛ قفل فقط برای پایان و تغییر است.
+ */
+@Composable
+private fun StartModeDialog(
+    durationLabel: String,
+    defaultStrict: Boolean,
+    onPick: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("سشن $durationLabel را با کدام حالت شروع کنم؟", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                Text(
+                    "هر بار موقع شروع پرسیده می‌شود؛ انتخابت ذخیره نمی‌شود.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(SaddSpacing.Medium))
+                StartModeOption(
+                    title = "Strict — سخت‌گیرانه",
+                    description = "پایان سشن و تغییر قانون فقط با تایپ متن طولانی یا انتظار ممکن است.",
+                    isDefault = defaultStrict,
+                    onClick = { onPick(true) },
+                )
+                Spacer(Modifier.height(SaddSpacing.Small))
+                StartModeOption(
+                    title = "معمولی",
+                    description = "پایان سشن و تغییر قانون آزاد است.",
+                    isDefault = !defaultStrict,
+                    onClick = { onPick(false) },
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("لغو") }
+        },
+    )
+}
+
+/** یک گزینه حالت در دیالوگ شروع سشن: عنوان + توضیح + برچسب پیش‌فرض. */
+@Composable
+private fun StartModeOption(
+    title: String,
+    description: String,
+    isDefault: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .border(
+                1.dp,
+                if (isDefault) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline
+                },
+                RoundedCornerShape(12.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(SaddSpacing.Medium),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            if (isDefault) {
+                Text(
+                    "پیش‌فرض",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

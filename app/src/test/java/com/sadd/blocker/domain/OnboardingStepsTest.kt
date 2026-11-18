@@ -8,43 +8,44 @@ import org.junit.Test
 class OnboardingStepsTest {
 
     @Test
-    fun orderHasSixStepsWithRestrictedBeforeAccessibility() {
-        assertEquals(6, OnboardingSteps.ORDER.size)
+    fun orderHasFiveStepsWithAccessibilitySecond() {
+        assertEquals(5, OnboardingSteps.ORDER.size)
         assertEquals("notification", OnboardingSteps.ORDER.first())
-        assertTrue(
-            OnboardingSteps.ORDER.indexOf(OnboardingSteps.KEY_RESTRICTED) <
-                OnboardingSteps.ORDER.indexOf(OnboardingSteps.KEY_ACCESSIBILITY),
-        )
+        assertEquals("accessibility", OnboardingSteps.ORDER[1])
+        assertEquals("alarm", OnboardingSteps.ORDER.last())
     }
 
     @Test
-    fun restrictedDoneWhenUserConfirmed() {
-        assertTrue(
-            OnboardingSteps.isRestrictedDone(
-                accessibilityEnabled = false,
-                userConfirmed = true,
-            ),
-        )
+    fun accessibilityPhaseIsZeroWhenServiceEnabled() {
+        assertEquals(0, OnboardingSteps.accessibilityPhase(storedPhase = 2, accessibilityEnabled = true))
     }
 
     @Test
-    fun restrictedDoneWhenAccessibilityEnabled() {
-        assertTrue(
-            OnboardingSteps.isRestrictedDone(
-                accessibilityEnabled = true,
-                userConfirmed = false,
-            ),
-        )
+    fun accessibilityPhaseCoercesStoredValueIntoRange() {
+        assertEquals(1, OnboardingSteps.accessibilityPhase(storedPhase = 0, accessibilityEnabled = false))
+        assertEquals(3, OnboardingSteps.accessibilityPhase(storedPhase = 99, accessibilityEnabled = false))
+        assertEquals(2, OnboardingSteps.accessibilityPhase(storedPhase = 2, accessibilityEnabled = false))
     }
 
     @Test
-    fun restrictedNotDoneWithoutConfirmationOrAccessibility() {
-        assertFalse(
-            OnboardingSteps.isRestrictedDone(
-                accessibilityEnabled = false,
-                userConfirmed = false,
-            ),
-        )
+    fun accessibilityPhaseDoneWhenServiceEnabled() {
+        assertTrue(OnboardingSteps.isAccessibilityPhaseDone(1, 1, true))
+        assertTrue(OnboardingSteps.isAccessibilityPhaseDone(3, 3, true))
+    }
+
+    @Test
+    fun accessibilityPhaseDoneOnlyForEarlierPhases() {
+        // مرحله فعلی ۲ است: مرحله ۱ دستی تایید شده، مرحله ۲ و ۳ نه.
+        assertTrue(OnboardingSteps.isAccessibilityPhaseDone(1, 2, false))
+        assertFalse(OnboardingSteps.isAccessibilityPhaseDone(2, 2, false))
+        assertFalse(OnboardingSteps.isAccessibilityPhaseDone(3, 2, false))
+    }
+
+    @Test
+    fun nextAccessibilityPhaseAdvancesButNotPastThree() {
+        assertEquals(2, OnboardingSteps.nextAccessibilityPhase(1))
+        assertEquals(3, OnboardingSteps.nextAccessibilityPhase(2))
+        assertEquals(3, OnboardingSteps.nextAccessibilityPhase(3))
     }
 
     @Test

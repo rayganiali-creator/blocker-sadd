@@ -74,12 +74,12 @@ class SettingsStore @Inject constructor(
         /** محافظت از حذف نصب (مدیر دستگاه) روشن است یا نه؛ پیش‌فرض خاموش. */
         val UNINSTALL_PROTECTION_ENABLED = booleanPreferencesKey("uninstall_protection_enabled")
         /**
-         * تایید کاربر که مرحله restricted settings ویزارد را انجام داده است.
-         * وضعیت restricted settings را هیچ API عمومی‌ای مستقیم نشان نمی‌دهد،
-         * پس این تایید تنها راه عبور از مرحله است؛ با فعال‌شدن واقعی
-         * Accessibility هم مرحله خودکار انجام‌شده حساب می‌شود.
+         * مرحله فعلی دنباله دسترسی‌پذیری ویزارد (۱ تا ۳؛ ۰ یعنی تمام شده).
+         * ترتیب واقعی گوشی: ۱) زدن کلید خاکستری در دسترسی‌پذیری و بستن
+         * پیام، ۲) روشن‌کردن Allow restricted settings در اطلاعات برنامه،
+         * ۳) برگشت و فعال‌کردن «سد». با ری‌استارت اپ پاک نمی‌شود.
          */
-        val RESTRICTED_SETTINGS_CONFIRMED = booleanPreferencesKey("restricted_settings_confirmed")
+        val ACCESSIBILITY_PHASE = intPreferencesKey("accessibility_phase")
 
         /** بعد از ۵ تلاش اشتباه، PIN قفل می‌شود (H-8). */
         const val PIN_MAX_ATTEMPTS = 5
@@ -240,13 +240,13 @@ class SettingsStore @Inject constructor(
         }
     }
 
-    /** تایید کاربر برای انجام مرحله restricted settings ویزارد؛ پیش‌فرض false است. */
-    val restrictedSettingsConfirmed: Flow<Boolean> = safeData
-        .map { prefs -> prefs[RESTRICTED_SETTINGS_CONFIRMED] ?: false }
+    /** مرحله فعلی دنباله دسترسی‌پذیری ویزارد (۱ تا ۳)؛ پیش‌فرض ۱ است. */
+    val accessibilityPhase: Flow<Int> = safeData
+        .map { prefs -> prefs[ACCESSIBILITY_PHASE] ?: 1 }
 
-    suspend fun setRestrictedSettingsConfirmed(confirmed: Boolean) {
+    suspend fun setAccessibilityPhase(phase: Int) {
         context.settingsDataStore.edit { prefs ->
-            prefs[RESTRICTED_SETTINGS_CONFIRMED] = confirmed
+            prefs[ACCESSIBILITY_PHASE] = phase
         }
     }
 

@@ -1,5 +1,8 @@
 package com.sadd.blocker.ui.screens
 
+import android.content.Intent
+import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -458,7 +461,7 @@ fun ModesScreen(
     ) {
         SaddTopBar(
             "حالت بلاک",
-            "حالت سشن‌های بعدی؛ سشن فعال با حالت خودش ادامه می‌یابد.",
+            "پیش‌فرض انتخاب موقع شروع سشن؛ هر بار موقع شروع، Strict یا معمولی پرسیده می‌شود. سشن فعال با حالت خودش ادامه می‌یابد.",
             onBack = onBack,
         )
         MessageBar(message = strictState.message, onDismiss = { strictViewModel.dismissMessage() })
@@ -562,10 +565,28 @@ fun ModesScreen(
                             SaddButton(
                                 text = "فعال‌سازی در تنظیمات سیستم",
                                 onClick = {
-                                    runCatching {
+                                    // شکست startActivity دیگر بی‌صدا قورت داده نمی‌شود:
+                                    // Toast + fallback به صفحه امنیت سیستم تا کاربر
+                                    // دستی به Device admin apps برسد.
+                                    val opened = runCatching {
                                         context.startActivity(
                                             UninstallProtection.enableIntent(context),
                                         )
+                                    }.isSuccess
+                                    if (!opened) {
+                                        Toast.makeText(
+                                            context,
+                                            "صفحه فعال‌سازی مدیر دستگاه باز نشد؛ " +
+                                                "از تنظیمات گوشی: امنیت ← Device admin apps ← «سد»",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                },
+                                            )
+                                        }
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),

@@ -3,47 +3,64 @@ package com.sadd.blocker.domain
 /**
  * ماشین وضعیت مرحله‌های ویزارد راه‌اندازی اول‌نصب — خالص و تست‌پذیر.
  *
- * مرحله «restricted» (اجازه تنظیمات محدودشده) یک مرحله جداست که قبل از
- * فعال‌کردن Accessibility می‌آید: اندروید برای برنامه‌های نصب‌شده دستی
- * (نه از فروشگاه) کلید دسترسی‌پذیری را قفل می‌کند تا وقتی «Allow
- * restricted settings» در صفحه اطلاعات برنامه فعال نشود؛ هیچ کدی
- * نمی‌تواند دورش بزند، پس ویزارد آن را یک مرحله جدا با راهنمای قدم‌به‌قدم
- * نشان می‌دهد، نه یک نکته کوچک کنار مرحله دسترسی‌پذیری.
+ * مرحله دسترسی‌پذیری یک دنباله سه‌مرحله‌ای است، دقیقاً طبق ترتیبی که
+ * روی گوشی سید (A35) واقعاً اتفاق می‌افتد:
+ *  ۱. اول به تنظیمات دسترسی‌پذیری می‌روی و کلید خاکستری «سد» را می‌زنی؛
+ *     پیامی می‌آید و آن را می‌بندی.
+ *  ۲. بعد به اطلاعات برنامه می‌روی و «Allow restricted settings» را
+ *     از ⋮ روشن می‌کنی.
+ *  ۳. بعد برمی‌گردی به دسترسی‌پذیری؛ کلید حالا روشن شده و «سد» را
+ *     فعال می‌کنی.
+ * پس «اجازه تنظیمات محدودشده» مرحله جدایی قبل از دسترسی‌پذیری نیست؛
+ * مرحله دومِ همین دنباله است. ترتیب قبلی (restricted جدا، قبل از
+ * accessibility) با جریان واقعی گوشی جور نبود و همین گیج‌کننده بود.
  *
- * صداقت وضعیت: هیچ API عمومی‌ای وضعیت restricted settings را مستقیم
- * نشان نمی‌دهد، پس تیک این مرحله هرگز جعل نمی‌شود — یا کاربر خودش
- * «انجامش دادم» را می‌زند، یا سرویس Accessibility واقعاً فعال شده باشد
- * (فعال‌شدن سرویس بدون Allow restricted settings ممکن نیست، پس خودش
- * مدرک انجام‌شدن است).
+ * صداقت وضعیت: وضعیت restricted settings را هیچ API عمومی‌ای مستقیم
+ * نشان نمی‌دهد، پس تایید دستی مرحله‌های ۱ و ۲ فقط «تأیید شما»ست تا
+ * وقتی سرویس Accessibility واقعاً فعال شود؛ فعال‌شدن سرویس بدون Allow
+ * restricted settings ممکن نیست، پس خودش مدرک انجام‌شدن هر سه مرحله است.
+ * مرحله‌ها در فهرست قابل‌زدن و برگشت‌پذیرند.
  */
 object OnboardingSteps {
 
     const val KEY_NOTIFICATION = "notification"
-    const val KEY_RESTRICTED = "restricted"
     const val KEY_ACCESSIBILITY = "accessibility"
     const val KEY_USAGE = "usage"
     const val KEY_BATTERY = "battery"
     const val KEY_ALARM = "alarm"
 
-    /**
-     * ترتیب مرحله‌ها — restricted جدا و قبل از accessibility است؛
-     * هر صفحه فقط یک کار دارد.
-     */
+    /** ترتیب مرحله‌ها — دسترسی‌پذیری با دنباله سه‌مرحله‌ای‌اش یک مرحله است. */
     val ORDER = listOf(
         KEY_NOTIFICATION,
-        KEY_RESTRICTED,
         KEY_ACCESSIBILITY,
         KEY_USAGE,
         KEY_BATTERY,
         KEY_ALARM,
     )
 
+    /** تعداد مرحله‌های دنباله دسترسی‌پذیری. */
+    const val ACCESSIBILITY_PHASE_COUNT = 3
+
     /**
-     * مرحله restricted انجام‌شده حساب می‌شود وقتی یا کاربر خودش تایید کرده
-     * باشد، یا سرویس Accessibility واقعاً فعال شده باشد.
+     * مرحله فعلی دنباله دسترسی‌پذیری؛ 0 یعنی دنباله تمام شده
+     * (سرویس فعال است). مقدار ذخیره‌شده به ۱ تا ۳ محدود می‌شود.
      */
-    fun isRestrictedDone(accessibilityEnabled: Boolean, userConfirmed: Boolean): Boolean =
-        accessibilityEnabled || userConfirmed
+    fun accessibilityPhase(storedPhase: Int, accessibilityEnabled: Boolean): Int =
+        if (accessibilityEnabled) 0 else storedPhase.coerceIn(1, ACCESSIBILITY_PHASE_COUNT)
+
+    /**
+     * مرحله‌ای انجام‌شده حساب می‌شود وقتی سرویس فعال باشد، یا شماره‌اش
+     * از مرحله فعلی گذشته باشد (یعنی کاربر دستی تاییدش کرده).
+     */
+    fun isAccessibilityPhaseDone(
+        phase: Int,
+        currentPhase: Int,
+        accessibilityEnabled: Boolean,
+    ): Boolean = accessibilityEnabled || phase < currentPhase
+
+    /** مرحله بعد از تایید دستی یک مرحله؛ از ۳ جلوتر نمی‌رود. */
+    fun nextAccessibilityPhase(currentPhase: Int): Int =
+        (currentPhase + 1).coerceAtMost(ACCESSIBILITY_PHASE_COUNT)
 
     /**
      * اندیس اولین مرحله ناتمام؛ اگر همه انجام شده‌اند، اندازه فهرست

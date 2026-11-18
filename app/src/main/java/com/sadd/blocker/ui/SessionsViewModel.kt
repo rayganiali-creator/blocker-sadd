@@ -130,12 +130,13 @@ class SessionsViewModel @Inject constructor(
     }
 
     /**
-     * شروع سشن — همان رفتاری که قبلاً داشبورد داشت (از داشبورد به اینجا منتقل شد):
-     * در حالت Strict سشن سخت‌گیرانه شروع می‌شود؛ نتیجه از UseCase می‌آید.
+     * شروع سشن — حالت (Strict یا معمولی) را صفحه موقع هر شروع از کاربر
+     * می‌پرسد و همین‌جا تحویل می‌دهد؛ دیگر از حالت ذخیره‌شده خوانده
+     * نمی‌شود. حالت ذخیره‌شده فقط پیش‌فرضِ پیشنهادی در دیالوگ است.
+     * شروع سشن Strict همیشه آزاد است؛ قفل فقط برای پایان و تغییر است.
      */
-    fun startSession(durationMs: Long) {
+    fun startSession(durationMs: Long, strict: Boolean) {
         viewModelScope.launch {
-            val strict = _uiState.value.blockMode == BlockMode.STRICT
             val result = startSessionUseCase.execute(
                 durationMs,
                 strict,

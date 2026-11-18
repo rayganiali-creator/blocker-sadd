@@ -69,10 +69,13 @@
             </intent-filter>
         </receiver>
 
-        <!-- محافظت از حذف نصب: مدیر دستگاه فعال، حذف نصب را مسدود می‌کند. -->
+        <!-- محافظت از حذف نصب: مدیر دستگاه فعال، حذف نصب را مسدود می‌کند.
+             گیرنده مدیر دستگاه باید exported باشد؛ سیستم با BIND_DEVICE_ADMIN
+             به آن وصل می‌شود و با exported=false جریان فعال‌سازی
+             (ACTION_ADD_DEVICE_ADMIN) کار نمی‌کند. -->
         <receiver
             android:name=".service.SaddDeviceAdminReceiver"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.BIND_DEVICE_ADMIN">
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />

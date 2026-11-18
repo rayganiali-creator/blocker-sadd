@@ -56,6 +56,26 @@ fun requestPermission(
 }
 
 /**
+ * باز کردن صفحه اطلاعات برنامه (App info)؛ برای مرحله دوم دنباله
+ * دسترسی‌پذیری (Allow restricted settings از ⋮). خطا Toast + fallback
+ * دارد، مثل openSettingsPage — هیچ‌وقت بی‌صدا شکست نمی‌خورد.
+ */
+fun openAppInfoPage(context: Context) {
+    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        data = Uri.parse("package:${context.packageName}")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    val opened = runCatching { context.startActivity(intent) }.isSuccess
+    if (!opened) {
+        Toast.makeText(
+            context,
+            "صفحه اطلاعات برنامه باز نشد؛ از تنظیمات گوشی: برنامه‌ها ← «سد»",
+            Toast.LENGTH_LONG,
+        ).show()
+    }
+}
+
+/**
  * باز کردن صفحه تنظیمات مربوط به یک مجوز.
  * خطای startActivity بی‌صدا قورت داده نمی‌شود: FLAG_ACTIVITY_NEW_TASK اضافه
  * شده، در صورت شکست Toast نشان داده می‌شود و fallback به صفحه اطلاعات اپ است.

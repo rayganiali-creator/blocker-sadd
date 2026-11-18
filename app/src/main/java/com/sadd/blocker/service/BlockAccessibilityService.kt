@@ -10,7 +10,6 @@ import com.sadd.blocker.core.SectionDetector
 import com.sadd.blocker.core.TextRedactor
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.model.BlockEventKind
-import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.BlockedWebsite
 import com.sadd.blocker.domain.model.KeywordRule
 import com.sadd.blocker.domain.model.SectionRule
@@ -232,11 +231,14 @@ class BlockAccessibilityService : AccessibilityService() {
         }
         val fresh = try {
             val session = sessionRepository.getActive(now)
-            val mode = settingsStore.blockMode.first()
             val globalDelay = settingsStore.globalDelaySeconds.first()
             Snapshot(
                 sessionActive = session != null,
-                strict = (session?.strict == true) || mode == BlockMode.STRICT,
+                // سخت‌گیرانه بودن فقط از خود سشن فعال می‌آید — حالتی که
+                // موقع شروع سشن انتخاب شده؛ حالت ذخیره‌شده فقط پیش‌فرضِ
+                // پیشنهادی در دیالوگ شروع است و روی سشنِ در حال اجرا
+                // اثری ندارد.
+                strict = session?.strict == true,
                 globalDelaySeconds = globalDelay,
                 keywords = keywordRepository.list().filter { it.enabled },
                 websites = websiteRepository.list().filter { it.enabled },
