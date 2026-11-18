@@ -41,9 +41,36 @@ class UninstallProtection @Inject constructor(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         }
-        /** اینتنت فهرست «Device admin apps» در تنظیمات سیستم. */
-        fun deviceAdminListIntent(): Intent {
-            return Intent(android.provider.Settings.ACTION_DEVICE_ADMIN_SETTINGS).apply {
+        /**
+         * اینتنت فهرست «Device admin apps» در تنظیمات سیستم.
+         * هیچ ثابت عمومی در SDK برای این فهرست نیست (Settings.ACTION_DEVICE_ADMIN_SETTINGS
+         * وجود ندارد)؛ پس نامزدها را به ترتیب امتحان می‌کنیم و اولینِ قابل‌حل را
+         * برمی‌گردانیم: اول کامپوننت صریح تنظیمات (روشی که اپ‌های دیگر مستقیم
+         * بازش می‌کنند)، بعد اکشن رشته‌ای. اگر هیچ‌کدام حل نشد، همان اکشن رشته‌ای
+         * برگردانده می‌شود تا resolveActivity در محل فراخوانی null بدهد و
+         * به صفحه امنیت سیستم برگردد — هیچ‌وقت بی‌صدا شکست نمی‌خورد.
+         */
+        fun deviceAdminListIntent(context: Context): Intent {
+            val candidates = listOf(
+                Intent().setComponent(
+                    ComponentName(
+                        "com.android.settings",
+                        "com.android.settings.DeviceAdminSettings",
+                    ),
+                ),
+                Intent().setComponent(
+                    ComponentName(
+                        "com.android.settings",
+                        "com.android.settings.Settings\$DeviceAdminSettingsActivity",
+                    ),
+                ),
+                Intent("android.settings.DEVICE_ADMIN_SETTINGS"),
+            )
+            val resolved = candidates.firstOrNull { candidate ->
+                runCatching { candidate.resolveActivity(context.packageManager) }
+                    .getOrNull() != null
+            } ?: candidates.last()
+            return resolved.apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         }
@@ -67,7 +94,7 @@ class UninstallProtection @Inject constructor(
 
     /** آیا فهرست «Device admin apps» روی این گوشی مستقیم باز می‌شود؟ */
     fun isDeviceAdminListAvailable(): Boolean =
-        runCatching { deviceAdminListIntent().resolveActivity(context.packageManager) }
+        runCatching { deviceAdminListIntent(context).resolveActivity(context.packageManager) }
             .getOrNull() != null
 
     /** حذف «سد» از مدیر دستگاه (فقط اگر فعال باشد). */

@@ -106,7 +106,7 @@ fun openSecuritySettingsPage(context: Context): Boolean {
  * بی‌صدا شکست نمی‌خورد. خطای startActivity هم با متن واقعی Toast می‌شود.
  */
 fun openDeviceAdminAppsPage(context: Context): Boolean {
-    val intent = UninstallProtection.deviceAdminListIntent()
+    val intent = UninstallProtection.deviceAdminListIntent(context)
     val resolves = runCatching { intent.resolveActivity(context.packageManager) }.getOrNull() != null
     if (!resolves) {
         Toast.makeText(
