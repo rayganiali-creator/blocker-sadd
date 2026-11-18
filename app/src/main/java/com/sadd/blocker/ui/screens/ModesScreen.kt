@@ -33,6 +33,7 @@ import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
+import com.sadd.blocker.domain.StrictRuleChange
 import com.sadd.blocker.domain.StrictUnlock
 import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.domain.TimeFormat
