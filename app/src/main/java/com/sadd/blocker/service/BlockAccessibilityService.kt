@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import com.sadd.blocker.core.BlockThrottle
 import com.sadd.blocker.core.KeywordMatcher
 import com.sadd.blocker.core.ProtectionGuardDetector
 import com.sadd.blocker.core.SectionDetector
@@ -31,7 +32,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 /**
@@ -165,8 +165,8 @@ class BlockAccessibilityService : AccessibilityService() {
     @Volatile
     private var snapshotAtMs: Long = 0L
 
-    /** ضد حلقه: کلید بلاک → آخرین زمان اجرا (میلی‌ثانیه). */
-    private val cooldownUntil = ConcurrentHashMap<String, Long>()
+    /** ضد بلاک تکراری: زمان‌بندیِ دوباره همان کلید تا اجرای بلاک رد می‌شود، و بعد از بلاک واقعی فقط ۱٫۵ ثانیه debounce است (BlockThrottle). */
+    private val blockThrottle = BlockThrottle()
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         try {
@@ -396,8 +396,8 @@ class BlockAccessibilityService : AccessibilityService() {
      * تاخیر تنظیم‌شده کاربر روی آن اثری ندارد — مسیر scheduleBlock را نمی‌رود. اگر صفحه محافظت‌شده دیگر جلوی چشم نباشد
      * (مثلاً کاربر با بازگشت بیرون رفته باشد)، پرده برداشته می‌شود.
      * متن خود اپ هرگز نگهبان را فعال نمی‌کند (هم چک پکیج پیش‌زمینه در
-     * onAccessibilityEvent و هم چک داخل detector). ضد حلقه ۱۵ ثانیه‌ای
-     * فقط برای BACK و صفحه بازگشایی است؛ پرده خودش idempotent است و با
+     * onAccessibilityEvent و هم چک داخل detector). ضد حلقه فقط برای BACK و صفحه بازگشایی است — BlockThrottle با
+     * debounce ۱٫۵ ثانیه‌ای بعد از هر شلیک؛ پرده خودش idempotent است و با
      * هر رویداد دوباره نشان داده نمی‌شود.
      */
     private suspend fun evaluateGuard(packageName: String, windowClassName: String?) {
@@ -436,15 +436,14 @@ class BlockAccessibilityService : AccessibilityService() {
             val reason = guardReason(hit)
             guardOverlay.show(hit, reason) { showGuardUnlock(hit) }
             val key = "guard:$hit"
-            val last = cooldownUntil[key] ?: 0L
-            if (now - last < COOLDOWN_MS) return
-            cooldownUntil[key] = now
+            if (!blockThrottle.trySchedule(key)) return
             logBlock(
                 BlockEventKind.GUARD_BLOCKED,
                 "guard:$hit pkg=$packageName",
             )
             performGlobalAction(GLOBAL_ACTION_BACK)
             showGuardUnlock(hit)
+            blockThrottle.markFired(key)
         } catch (_: Exception) {
             // fail-open: خطا در نگهبان = عدم مداخله.
         }
@@ -556,51 +555,56 @@ class BlockAccessibilityService : AccessibilityService() {
 
     /**
      * بلاک را بعد از [delaySeconds] اجرا می‌کند؛ موقع اجرا دوباره چک
-     * می‌شود که سشن هنوز فعال باشد. ضد حلقه: همان کلید تا ۱۵ ثانیه
-     * دوباره زمان‌بندی نمی‌شود (صفحه بلاک خودش تغییر پنجره می‌سازد).
+     * می‌شود که سشن هنوز فعال باشد. ضد حلقه (BlockThrottle): همان کلید
+     * تا وقتی بلاکش در صف است دوباره زمان‌بندی نمی‌شود؛ بعد از اجرای
+     * واقعی بلاک فقط ۱٫۵ ثانیه debounce است تا انفجار رویدادهای صفحه
+     * بلاک بلاک دوباره نسازد — تلاش تازه بعد از آن بی‌درنگ بلاک می‌شود.
+     * اگر بلاک اجرا نشد (سشن تمام شد / کلمه پاک شد / بخش رفت)، هیچ
+     * debounceای نمی‌ماند.
      */
     private fun scheduleBlock(
         key: String,
         delaySeconds: Int,
-        act: suspend () -> Unit,
+        act: suspend () -> Boolean,
     ) {
-        val now = System.currentTimeMillis()
-        val last = cooldownUntil[key] ?: 0L
-        if (now - last < COOLDOWN_MS) return
-        cooldownUntil[key] = now
+        if (!blockThrottle.trySchedule(key)) return
         scope.launch {
             try {
                 if (delaySeconds > 0) delay(delaySeconds * 1000L)
                 val fresh = loadSnapshot(forceRefresh = true)
-                if (!fresh.sessionActive) return@launch
-                act()
+                if (!fresh.sessionActive) {
+                    blockThrottle.markAbandoned(key)
+                    return@launch
+                }
+                val fired = act()
+                if (fired) blockThrottle.markFired(key) else blockThrottle.markAbandoned(key)
             } catch (_: Exception) {
-                // fail-open
+                blockThrottle.markAbandoned(key)
             }
         }
     }
 
     // ---------- اقدام‌ها ----------
 
-    /** حذف کلمه منطبق از فیلد، بعد صفحه بلاک. */
+    /** حذف کلمه منطبق از فیلد، بعد صفحه بلاک. true یعنی بلاک واقعاً شد. */
     private suspend fun actOnKeyword(
         packageName: String,
         rule: KeywordRule,
         delaySeconds: Int,
         strict: Boolean,
-    ) {
-        val root = activeRootOrNull() ?: return
-        val node = findEditableNodeMatching(root, rule.rawText) ?: return
+    ): Boolean {
+        val root = activeRootOrNull() ?: return false
+        val node = findEditableNodeMatching(root, rule.rawText) ?: return false
         try {
             val currentText = try {
                 node.text?.toString()
             } catch (_: Exception) {
                 null
-            } ?: return
+            } ?: return false
             // راستی‌آزمایی دوباره: کلمه هنوز در فیلد هست؟
-            if (TextRedactor.findMatchedKeyword(currentText, listOf(rule.rawText)) == null) return
+            if (TextRedactor.findMatchedKeyword(currentText, listOf(rule.rawText)) == null) return false
             val redacted = TextRedactor.removeMatchedRule(currentText, rule.rawText)
-            if (redacted == currentText) return
+            if (redacted == currentText) return false
             val done = trySetText(node, redacted)
             if (!done) {
                 tryCutMatchedWord(node, currentText, rule.rawText)
@@ -613,8 +617,9 @@ class BlockAccessibilityService : AccessibilityService() {
             // صفحه بلاک کاربر را به همان متن بلاک‌شده برمی‌گرداند.
             performGlobalAction(GLOBAL_ACTION_BACK)
             showBlocked("کلمه «${rule.rawText}» بلاک شد", rule.category, delaySeconds)
+            return true
         } catch (_: Exception) {
-            // fail-open
+            return false
         } finally {
             try {
                 node.recycle()
@@ -624,14 +629,14 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** ورود به بخش بلاک‌شده: BACK + صفحه بلاک. */
+    /** ورود به بخش بلاک‌شده: BACK + صفحه بلاک. true یعنی بلاک واقعاً شد. */
     private suspend fun actOnSection(
         packageName: String,
         rule: SectionRule,
         delaySeconds: Int,
         strict: Boolean,
-    ) {
-        val root = activeRootOrNull() ?: return
+    ): Boolean {
+        val root = activeRootOrNull() ?: return false
         try {
             // راستی‌آزمایی دوباره: اپ قانون هنوز پیش‌زمینه است؟
             // برای «کل اپ» سیگنال‌ها خالی هم مچ می‌شوند، پس بدون این چک
@@ -642,28 +647,29 @@ class BlockAccessibilityService : AccessibilityService() {
             } catch (_: Exception) {
                 null
             }
-            if (currentPkg != packageName) return
+            if (currentPkg != packageName) return false
             // راستی‌آزمایی دوباره: بخش هنوز روی صفحه است؟
             val signals = collectSignals(root, null)
-            if (!SectionDetector.isSectionShowing(packageName, rule.sectionKey, signals)) return
+            if (!SectionDetector.isSectionShowing(packageName, rule.sectionKey, signals)) return false
             performGlobalAction(GLOBAL_ACTION_BACK)
             logBlock(
                 BlockEventKind.SECTION_OPENED,
                 "section=${rule.sectionKey} pkg=$packageName strict=$strict",
             )
             showBlocked("بخش «${rule.labelFa}» بلاک شد", null, delaySeconds)
+            return true
         } catch (_: Exception) {
-            // fail-open
+            return false
         }
     }
 
-    /** دامنه/کلمه در مرورگر: BACK + صفحه بلاک. */
+    /** دامنه/کلمه در مرورگر: BACK + صفحه بلاک. true یعنی بلاک واقعاً شد. */
     private suspend fun actOnBrowser(
         packageName: String,
         reason: String,
         delaySeconds: Int,
         strict: Boolean,
-    ) {
+    ): Boolean {
         try {
             performGlobalAction(GLOBAL_ACTION_BACK)
             logBlock(
@@ -671,8 +677,9 @@ class BlockAccessibilityService : AccessibilityService() {
                 "pkg=$packageName strict=$strict",
             )
             showBlocked(reason, null, delaySeconds)
+            return true
         } catch (_: Exception) {
-            // fail-open
+            return false
         }
     }
 
@@ -862,9 +869,6 @@ class BlockAccessibilityService : AccessibilityService() {
     companion object {
         /** کش عکس قوانین: ۵ ثانیه (رویداد تایپ با هر کلید می‌آید). */
         private const val SNAPSHOT_TTL_MS = 5_000L
-
-        /** ضد حلقه بلاک تکراری: ۱۵ ثانیه برای هر کلید. */
-        private const val COOLDOWN_MS = 15_000L
 
         /** سقف گره‌های خوانده‌شده در هر پیمایش درخت (جلوگیری از هنگ). */
         private const val MAX_NODES = 800
