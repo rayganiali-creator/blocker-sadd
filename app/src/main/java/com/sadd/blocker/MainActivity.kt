@@ -38,6 +38,7 @@ import com.sadd.blocker.ui.screens.ModesScreen
 import com.sadd.blocker.ui.screens.OnboardingScreen
 import com.sadd.blocker.ui.screens.PinScreen
 import com.sadd.blocker.ui.screens.SchedulingScreen
+import com.sadd.blocker.ui.screens.SectionRulesScreen
 import com.sadd.blocker.ui.screens.SessionsScreen
 import com.sadd.blocker.ui.screens.WebsitesScreen
 import com.sadd.blocker.ui.theme.BlockerTheme
@@ -140,6 +141,12 @@ fun BlockerNav(onboardingDone: Boolean) {
             }
             composable("apps") {
                 AppsScreen(onNavigate = { navController.navigate(it) })
+            }
+            composable("section_rules") {
+                SectionRulesScreen(
+                    onNavigate = { navController.navigate(it) },
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable("websites") {
                 WebsitesScreen(onNavigate = { navController.navigate(it) })
