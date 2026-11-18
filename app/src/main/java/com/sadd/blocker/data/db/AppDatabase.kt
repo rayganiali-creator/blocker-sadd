@@ -6,7 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * دیتابیس Room — نسخه ۴.
+ * دیتابیس Room — نسخه ۵.
  * مهاجرت‌ها از نسخه ۲ به بعد اینجا ثبت می‌شوند (Migration)؛
  * fallbackToDestructiveMigration ممنوع است تا قانون کاربر با آپدیت پاک نشود.
  *
@@ -16,7 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * بلاک‌ها) اضافه شدند؛ پیش‌فرض‌های بخش در مهاجرت seed می‌شوند.
  * نسخه ۴: بدون تغییر اسکیما — فقط ۵ پیش‌فرض جدید بخش seed می‌شوند
  * (کل تلگرام/اینستاگرام/یوتیوب، ریلز اینستاگرام، شورتس یوتیوب).
- * ثبت مهاجرت در AppModule لازم است: .addMigrations(..., MIGRATION_3_4).
+ * نسخه ۵: بدون تغییر اسکیما — فقط ۱۸ پیش‌فرض جدید بخش seed می‌شوند
+ * (واتساپ، تیک‌تاک با دو پکیج، ایکس، فیسبوک، اسنپ‌چت).
+ * ثبت مهاجرت در AppModule لازم است: .addMigrations(..., MIGRATION_4_5).
  */
 @Database(
     entities = [
@@ -28,7 +30,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SectionRuleEntity::class,
         BlockEventEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -131,5 +133,44 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
                 "('com.google.android.youtube', 'youtube_shorts', 'شورتس یوتیوب', 1)",
         )
+    }
+}
+
+/**
+ * مهاجرت ۴ به ۵: بدون تغییر اسکیما — فقط ۱۸ پیش‌فرض جدید بخش برای
+ * نصب‌های موجود seed می‌شوند (همان الگوی MIGRATION_3_4):
+ * واتساپ (کل/جستجو/وضعیت)، تیک‌تاک با هر دو پکیج (کل/جستجو/For You)،
+ * ایکس (کل/جستجو/خانه)، فیسبوک (کل/جستجو/ریلز و واچ)، اسنپ‌چت
+ * (کل/جستجو/اسپات‌لایت). نصب تازه از ensurePresets می‌گیرد.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        val rows = listOf(
+            Triple("com.whatsapp", "whatsapp_app", "خود واتساپ"),
+            Triple("com.whatsapp", "whatsapp_search", "جستجوی واتساپ"),
+            Triple("com.whatsapp", "whatsapp_status", "وضعیت واتساپ"),
+            Triple("com.zhiliaoapp.musically", "tiktok_app", "خود تیک‌تاک"),
+            Triple("com.zhiliaoapp.musically", "tiktok_search", "جستجوی تیک‌تاک"),
+            Triple("com.zhiliaoapp.musically", "tiktok_foryou", "فید For You تیک‌تاک"),
+            Triple("com.ss.android.ugc.trill", "tiktok_app", "خود تیک‌تاک"),
+            Triple("com.ss.android.ugc.trill", "tiktok_search", "جستجوی تیک‌تاک"),
+            Triple("com.ss.android.ugc.trill", "tiktok_foryou", "فید For You تیک‌تاک"),
+            Triple("com.twitter.android", "x_app", "خود ایکس"),
+            Triple("com.twitter.android", "x_search", "جستجوی ایکس"),
+            Triple("com.twitter.android", "x_home", "تایم‌لاین خانه ایکس"),
+            Triple("com.facebook.katana", "facebook_app", "خود فیسبوک"),
+            Triple("com.facebook.katana", "facebook_search", "جستجوی فیسبوک"),
+            Triple("com.facebook.katana", "facebook_reels", "ریلز و واچ فیسبوک"),
+            Triple("com.snapchat.android", "snapchat_app", "خود اسنپ‌چت"),
+            Triple("com.snapchat.android", "snapchat_search", "جستجوی اسنپ‌چت"),
+            Triple("com.snapchat.android", "snapchat_spotlight", "اسپات‌لایت اسنپ‌چت"),
+        )
+        for ((pkg, key, label) in rows) {
+            db.execSQL(
+                "INSERT OR IGNORE INTO section_rules " +
+                    "(packageName, sectionKey, labelFa, enabled) VALUES " +
+                    "('$pkg', '$key', '$label', 1)",
+            )
+        }
     }
 }

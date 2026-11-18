@@ -1,6 +1,5 @@
 package com.sadd.blocker.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,10 +19,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,11 +37,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
-import android.widget.Toast
 import com.sadd.blocker.R
 import com.sadd.blocker.ui.OnboardingViewModel
 import com.sadd.blocker.ui.theme.SaddRadius
@@ -55,11 +45,21 @@ import kotlinx.coroutines.launch
 
 /**
  * ویزارد راه‌اندازی اول‌نصب — دقیقاً طبق موکاپ تاییدشده:
- * سربرگ «راه‌اندازی سد» + خرس، نوار پیشرفت «مرحله X از ۵»، کارت مرحله
- * فعلی با توضیح و دکمه بزرگ، فهرست ۵ مرحله با وضعیت، راهنمای قدم‌به‌قدم
- * restricted settings برای دسترسی‌پذیری، و لینک «بعداً انجام می‌دهم».
+ * سربرگ «راه‌اندازی سد» + خرس، نوار پیشرفت «مرحله X از ۶»، کارت مرحله
+ * فعلی با توضیح و دکمه بزرگ، فهرست ۶ مرحله با وضعیت، و لینک
+ * «بعداً انجام می‌دهم».
+ *
+ * مرحله «اجازه تنظیمات محدودشده» یک صفحه جداست که قبل از
+ * دسترسی‌پذیری می‌آید: چرا لازم است + سه قدم شماره‌دار بزرگ + یک دکمه
+ * بزرگ «رفتن به اطلاعات برنامه» + دکمه «انجامش دادم، ادامه».
+ * اندروید برای برنامه‌های نصب‌شده دستی کلید دسترسی‌پذیری را قفل می‌کند
+ * تا وقتی این اجازه داده نشود؛ هیچ کدی نمی‌تواند دورش بزند، پس ویزارد
+ * آن را یک مسیر هدایت‌شده نشان می‌دهد، نه یک نکته کوچک.
+ *
  * وضعیت‌ها زنده‌اند (ON_RESUME و بعد از هر نتیجه لانچر تازه می‌شوند)؛
  * وقتی مرحله فعلی انجام شود، ویزارد خودکار به مرحله بعد می‌رود.
+ * تیک مرحله restricted هرگز جعل نمی‌شود: یا کاربر «انجامش دادم» را
+ * زده، یا سرویس Accessibility واقعاً فعال شده است.
  */
 @Composable
 fun OnboardingScreen(
@@ -85,6 +85,9 @@ fun OnboardingScreen(
     val steps = uiState.steps
     val currentStep = steps.getOrNull(uiState.currentStepIndex)
     val grantedCount = steps.count { it.granted }
+    // تیک restricted با تایید دستی کاربر می‌آید؛ تا وقتی Accessibility
+    // واقعاً فعال نشده، در فهرست «تأیید شما» نشان داده می‌شود، نه «انجام شد».
+    val accessibilityGranted = steps.firstOrNull { it.key == "accessibility" }?.granted == true
     val progress = when {
         steps.isEmpty() -> 0f
         uiState.allGranted -> 1f
@@ -116,7 +119,7 @@ fun OnboardingScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "برای اینکه سد درست کار کند، این ۵ مجوز را بده.",
+                        "برای اینکه سد درست کار کند، این ۶ مرحله را انجام بده.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -156,6 +159,20 @@ fun OnboardingScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (currentStep.key == "restricted") {
+                            Spacer(Modifier.height(SaddSpacing.Medium))
+                            RestrictedSettingsSteps()
+                        }
+                        if (currentStep.key == "accessibility") {
+                            Spacer(Modifier.height(SaddSpacing.Medium))
+                            Text(
+                                "اگر کلید دسترسی‌پذیری در تنظیمات گوشی خاکستری و غیرقابل‌زدن بود، " +
+                                    "یعنی مرحله قبل هنوز انجام نشده؛ از فهرست پایین، مرحله " +
+                                    "«اجازه تنظیمات محدودشده» را بزن و انجامش بده.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         Spacer(Modifier.height(SaddSpacing.Medium))
                         SaddButton(
                             text = ctaLabel(currentStep.key),
@@ -166,18 +183,17 @@ fun OnboardingScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        if (currentStep.key == "restricted") {
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            SaddButton(
+                                text = "انجامش دادم، ادامه",
+                                onClick = { viewModel.confirmRestrictedSettings() },
+                                style = SaddButtonStyle.SECONDARY,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
-                Spacer(Modifier.height(SaddSpacing.Medium))
-            }
-        }
-
-        if (currentStep?.key == "accessibility") {
-            item {
-                RestrictedSettingsGuide(
-                    onOpenAppInfo = { openAppInfoPage(context) },
-                    onRecheck = { viewModel.refresh() },
-                )
                 Spacer(Modifier.height(SaddSpacing.Medium))
             }
         }
@@ -247,6 +263,7 @@ fun OnboardingScreen(
                     )
                     Text(
                         when {
+                            step.granted && step.key == "restricted" && !accessibilityGranted -> "تأیید شما"
                             step.granted -> "انجام شد"
                             isCurrent -> "فعلی"
                             else -> "در انتظار"
@@ -265,7 +282,7 @@ fun OnboardingScreen(
         item {
             Spacer(Modifier.height(SaddSpacing.Large))
             Text(
-                "$grantedCount از ${steps.size} مجوز فعال شده است.",
+                "$grantedCount از ${steps.size} مرحله انجام شده است.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -285,104 +302,68 @@ fun OnboardingScreen(
 private fun ctaLabel(key: String): String {
     return when (key) {
         "notification" -> "درخواست مجوز"
+        "restricted" -> "رفتن به اطلاعات برنامه"
         else -> "فعال کردن"
     }
 }
 
 /**
- * راهنمای قدم‌به‌قدم restricted settings — فقط برای مرحله دسترسی‌پذیری.
- * اندروید برای برنامه‌های نصب‌شده دستی (نه از فروشگاه) دکمه
- * دسترسی‌پذیری را قفل می‌کند تا وقتی این گزینه فعال نشود؛ هیچ کدی
- * نمی‌تواند دورش بزند، پس راهنما را همان‌جا به کاربر نشان می‌دهیم.
- * متن نکته قبلی حفظ شده؛ زیر آن سه قدم شماره‌دار، دکمه رفتن به
- * اطلاعات برنامه و دکمه «بررسی دوباره» اضافه شده است. وضعیت بعد از
- * بازگشت به صفحه با ON_RESUME هم تازه می‌شود.
+ * چرا مرحله restricted لازم است + سه قدم شماره‌دار بزرگ.
+ * بدون اصطلاح تخصصی: اندروید برای برنامه‌های نصب‌شده دستی کلید
+ * دسترسی‌پذیری را قفل می‌کند تا وقتی این اجازه داده نشود، و سد خودش
+ * نمی‌تواند این کار را برای کاربر انجام بدهد.
  */
 @Composable
-private fun RestrictedSettingsGuide(
-    onOpenAppInfo: () -> Unit,
-    onRecheck: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(SaddRadius.Card),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-        ),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.size(SaddSpacing.Small))
-                Text(
-                    "قبل از فعال‌کردن دسترسی‌پذیری",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Spacer(Modifier.height(SaddSpacing.Small))
-            Text(
-                "نکته: برای برنامه‌های نصب‌شده دستی، ابتدا باید در تنظیمات گوشی، " +
-                    "از صفحه اطلاعات «سد»، گزینه «Allow restricted settings» را فعال کنید؛ " +
-                    "در غیر این صورت دکمه دسترسی‌پذیری خاکستری می‌ماند.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(SaddSpacing.Medium))
-            Text(
-                "۱. دکمه «رفتن به اطلاعات برنامه» را بزن.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.height(SaddSpacing.Small))
-            Text(
-                "۲. در صفحه اطلاعات برنامه، روی ⋮ (سه‌نقطه بالای صفحه) بزن و " +
-                    "«Allow restricted settings» را فعال کن.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.height(SaddSpacing.Small))
-            Text(
-                "۳. برگرد به «سد» و دسترسی‌پذیری را فعال کن.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.height(SaddSpacing.Medium))
-            SaddButton(
-                text = "رفتن به اطلاعات برنامه",
-                onClick = onOpenAppInfo,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(SaddSpacing.Small))
-            SaddButton(
-                text = "بررسی دوباره",
-                onClick = onRecheck,
-                style = SaddButtonStyle.SECONDARY,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+private fun RestrictedSettingsSteps() {
+    Column {
+        Text(
+            "چرا این مرحله لازم است؟ چون «سد» را از فروشگاه نصب نکرده‌ای، " +
+                "اندروید کلید دسترسی‌پذیری را قفل می‌کند تا وقتی این اجازه را " +
+                "بدهی. سد خودش نمی‌تواند این کار را برایت انجام بدهد؛ فقط " +
+                "خودت از تنظیمات گوشی می‌توانی انجامش بدهی.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(SaddSpacing.Medium))
+        NumberedStep(
+            number = "۱",
+            text = "دکمه «رفتن به اطلاعات برنامه» را بزن تا صفحه اطلاعات «سد» باز شود.",
+        )
+        Spacer(Modifier.height(SaddSpacing.Small))
+        NumberedStep(
+            number = "۲",
+            text = "روی ⋮ (سه‌نقطه بالای صفحه) بزن.",
+        )
+        Spacer(Modifier.height(SaddSpacing.Small))
+        NumberedStep(
+            number = "۳",
+            text = "«Allow restricted settings» را روشن کن و برگرد به «سد».",
+        )
     }
 }
 
-/** باز کردن صفحه اطلاعات خودِ برنامه (Settings → Apps → سد). */
-private fun openAppInfoPage(context: Context) {
-    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-        data = Uri.parse("package:${context.packageName}")
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    val opened = runCatching { context.startActivity(intent) }.isSuccess
-    if (!opened) {
-        Toast.makeText(
-            context,
-            "صفحه اطلاعات برنامه باز نشد؛ از تنظیمات گوشی اقدام کن",
-            Toast.LENGTH_LONG,
-        ).show()
+/** یک قدم شماره‌دار بزرگ: دایره شماره + متن قدم. */
+@Composable
+private fun NumberedStep(number: String, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier.size(32.dp)
+                .background(MaterialTheme.colorScheme.primary, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                number,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+        }
+        Spacer(Modifier.size(SaddSpacing.Small))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

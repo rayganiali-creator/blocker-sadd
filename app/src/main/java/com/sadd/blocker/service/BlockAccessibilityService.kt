@@ -40,13 +40,19 @@ import javax.inject.Inject
  *    همان کلمه از فیلد حذف می‌شود (ACTION_SET_TEXT؛ اگر نشد backspace)
  *    و صفحه بلاک نشان داده می‌شود.
  * 2. بخش‌های اپ: روی تغییر پنجره، اگر بخش فعالِ قانون (کل تلگرام/
- *    اینستاگرام/یوتیوب، جستجوی هر سه، اکسپلور و ریلز اینستاگرام،
- *    شورتس یوتیوب) روی صفحه باشد، بعد از تاخیر سراسری BACK زده
- *    می‌شود و صفحه بلاک می‌آید. «کل اپ» بقیه بخش‌های همان اپ را
- *    دربر می‌گیرد: اگر مچ شد، بخش‌های دیگر آن اپ همان دور رد
- *    می‌شوند تا دو BACK پشت سر هم زمان‌بندی نشود.
- * 3. مرورگر (کروم): متن omnibox/جعبه جستجو خوانده می‌شود؛ دامنه بلاک‌شده
- *    یا کلمه ممنوعه → بعد از تاخیر BACK + صفحه بلاک.
+ *    اینستاگرام/یوتیوب/واتساپ/تیک‌تاک/ایکس/فیسبوک/اسنپ‌چت، جستجوی
+ *    هر کدام، اکسپلور و ریلز اینستاگرام، شورتس یوتیوب، وضعیت واتساپ،
+ *    For You تیک‌تاک، خانه ایکس، ریلز و واچ فیسبوک، اسپات‌لایت
+ *    اسنپ‌چت، یا «خود اپ»/بخش سفارشی هر اپ نصب‌شده) روی صفحه باشد،
+ *    بعد از تاخیر سراسری BACK زده می‌شود و صفحه بلاک می‌آید.
+ *    «کل اپ» بقیه بخش‌های همان اپ را دربر می‌گیرد: اگر مچ شد،
+ *    بخش‌های دیگر آن اپ همان دور رد می‌شوند تا دو BACK پشت سر هم
+ *    زمان‌بندی نشود.
+ * 3. مرورگر (کروم، فایرفاکس، سامسونگ اینترنت، اج، Brave): متن
+ *    omnibox/جعبه جستجو خوانده می‌شود؛ دامنه بلاک‌شده یا کلمه
+ *    ممنوعه → بعد از تاخیر BACK + صفحه بلاک. حالت Incognito نیازی
+ *    به تشخیص جدا ندارد — متن نوار آدرس در تب خصوصی هم از همان
+ *    مسیر خوانده می‌شود.
  *
  * اصول سفت (از نسخه ۲٫۰٫۱۰):
  * - همه‌چیز داخل try/catch؛ خطا هرگز گوشی را قفل نمی‌کند (fail-open).
@@ -59,10 +65,12 @@ import javax.inject.Inject
  *   کیبورد (IME) بیاید در حالی که متن مال اپ پیش‌زمینه است.
  * - هرگز HOME یا قفل گوشی فراخوانی نمی‌شود؛ فقط BACK و صفحه بلاک.
  *
- * محدودیت صادقانه مرورگر (بدون VPN): کروم موظف نیست متن omnibox را
- * از طریق Accessibility در اختیار بگذارد؛ در نسخه‌هایی که آن را
- * نمی‌دهد، بلاک دامنه در مرورگر کار نمی‌کند. این best-effort است و
- * جایگزین قطعی ندارد مگر VPN که سید نخواست.
+ * محدودیت صادقانه مرورگر (بدون VPN): هیچ مرورگری موظف نیست متن
+ * نوار آدرس را از طریق Accessibility در اختیار بگذارد؛ در نسخه‌ها یا
+ * مرورگرهایی که آن را نمی‌دهند، بلاک دامنه کار نمی‌کند. کروم مسیر
+ * تأییدشده است؛ فایرفاکس، سامسونگ اینترنت، اج و Brave به همان روش
+ * خوانده می‌شوند ولی بهترین تلاش‌اند. این جایگزین قطعی ندارد مگر
+ * VPN که سید نخواست.
  *
  * حالت Strict: از سشن فعال و SettingsStore خوانده و در رویداد بلاک
  * ثبت می‌شود. معیار تطابق و تاخیر در هر دو حالت یکی است — Strict
@@ -255,7 +263,7 @@ class BlockAccessibilityService : AccessibilityService() {
     private suspend fun evaluateText(packageName: String, text: String) {
         val snapshot = loadSnapshot(forceRefresh = false)
         if (!snapshot.sessionActive) return
-        if (packageName == SectionDetector.CHROME_PACKAGE) {
+        if (SectionDetector.isBrowserPackage(packageName)) {
             evaluateBrowserText(packageName, text, snapshot)
             return
         }
@@ -273,7 +281,7 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** متن omnibox/جعبه جستجوی کروم: اول دامنه، بعد کلمه. */
+    /** متن omnibox/جعبه جستجوی مرورگر: اول دامنه، بعد کلمه. */
     private suspend fun evaluateBrowserText(
         packageName: String,
         text: String,
@@ -314,7 +322,7 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    // ---------- ارزیابی پنجره (بخش‌ها + کروم) ----------
+    // ---------- ارزیابی پنجره (بخش‌ها + مرورگر) ----------
 
     private suspend fun evaluateWindow(
         packageName: String,
@@ -324,7 +332,7 @@ class BlockAccessibilityService : AccessibilityService() {
         if (!snapshot.sessionActive) return
         val root = activeRootOrNull() ?: return
         val signals = collectSignals(root, windowClassName)
-        if (packageName == SectionDetector.CHROME_PACKAGE) {
+        if (SectionDetector.isBrowserPackage(packageName)) {
             evaluateBrowserWindow(packageName, signals, snapshot)
             return
         }
@@ -358,7 +366,7 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** کروم روی تغییر پنجره: omnibox فعلی را از فیلدهای ویرایشی بخوان. */
+    /** مرورگر روی تغییر پنجره: omnibox فعلی را از فیلدهای ویرایشی بخوان. */
     private suspend fun evaluateBrowserWindow(
         packageName: String,
         signals: SectionDetector.SectionSignals,

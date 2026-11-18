@@ -14,12 +14,21 @@ interface SectionRuleRepository {
     suspend fun getEnabled(): List<SectionRule>
 
     /**
-     * پیش‌فرض‌ها (۹ بخش: کل تلگرام/اینستاگرام/یوتیوب + جستجوی هر سه +
-     * اکسپلور و ریلز اینستاگرام + شورتس یوتیوب)
+     * پیش‌فرض‌ها (۲۷ بخش: کل تلگرام/اینستاگرام/یوتیوب/واتساپ/تیک‌تاک/
+     * ایکس/فیسبوک/اسنپ‌چت + جستجوی هر کدام + اکسپلور و ریلز اینستاگرام +
+     * شورتس یوتیوب + وضعیت واتساپ + For You تیک‌تاک + خانه ایکس +
+     * ریلز و واچ فیسبوک + اسپات‌لایت اسنپ‌چت)
      * را اگر نیستند می‌سازد؛ تکراری نمی‌سازد (ایندکس یکتا در DB).
      */
     suspend fun ensurePresets()
     suspend fun setEnabled(packageName: String, sectionKey: String, enabled: Boolean)
+
+    /**
+     * یک قانون بخش دستی اضافه می‌کند (کل اپ یک اپ نصب‌شده یا بخش
+     * سفارشی با متن نشانه). اگر همان (packageName, sectionKey) از
+     * قبل باشد، false برمی‌گرداند و چیزی اضافه نمی‌شود.
+     */
+    suspend fun addRule(packageName: String, sectionKey: String, labelFa: String): Boolean
 }
 
 interface BlockEventRepository {

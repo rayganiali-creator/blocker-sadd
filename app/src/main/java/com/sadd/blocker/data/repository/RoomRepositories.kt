@@ -315,6 +315,17 @@ class RoomSectionRuleRepository @Inject constructor(
         dao.setEnabled(packageName, sectionKey, enabled)
     }
 
+    override suspend fun addRule(packageName: String, sectionKey: String, labelFa: String): Boolean {
+        // IGNORE: تکراری با -1 برمی‌گردد، نه exception.
+        return dao.insert(
+            SectionRuleEntity(
+                packageName = packageName,
+                sectionKey = sectionKey,
+                labelFa = labelFa,
+            ),
+        ) != -1L
+    }
+
     private fun SectionRuleEntity.toDomain(): SectionRule {
         return SectionRule(id, packageName, sectionKey, labelFa, enabled)
     }

@@ -33,6 +33,7 @@ $KOTLINC \
   app/src/main/java/com/sadd/blocker/domain/TimeFormat.kt \
   app/src/main/java/com/sadd/blocker/domain/StrictUnlock.kt \
   app/src/main/java/com/sadd/blocker/domain/StrictPassages.kt \
+  app/src/main/java/com/sadd/blocker/domain/OnboardingSteps.kt \
   app/src/main/java/com/sadd/blocker/domain/UninstallProtectionGate.kt \
   app/src/main/java/com/sadd/blocker/domain/JalaliDate.kt \
   app/src/main/java/com/sadd/blocker/domain/RuleValidation.kt \
@@ -54,6 +55,7 @@ $KOTLINC \
   app/src/test/java/com/sadd/blocker/core/PinCryptoTest.kt \
   app/src/test/java/com/sadd/blocker/domain/RuleValidationTest.kt \
   app/src/test/java/com/sadd/blocker/domain/StrictUnlockTest.kt \
+  app/src/test/java/com/sadd/blocker/domain/OnboardingStepsTest.kt \
   app/src/test/java/com/sadd/blocker/domain/UninstallProtectionGateTest.kt \
   app/src/test/java/com/sadd/blocker/domain/JalaliDateTest.kt \
   app/src/test/java/com/sadd/blocker/domain/BackupCodecTest.kt \
@@ -74,6 +76,7 @@ $JAVA -cp "$OUT/test-classes:$TB/junit.jar:$TB/hamcrest.jar:$COROUTINES_JAR:$TB/
   com.sadd.blocker.core.PinCryptoTest \
   com.sadd.blocker.domain.RuleValidationTest \
   com.sadd.blocker.domain.StrictUnlockTest \
+  com.sadd.blocker.domain.OnboardingStepsTest \
   com.sadd.blocker.domain.UninstallProtectionGateTest \
   com.sadd.blocker.domain.JalaliDateTest \
   com.sadd.blocker.domain.BackupCodecTest \

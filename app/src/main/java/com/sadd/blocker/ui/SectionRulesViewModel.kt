@@ -2,7 +2,10 @@ package com.sadd.blocker.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sadd.blocker.core.SectionDetector
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.system.InstalledAppInfo
+import com.sadd.blocker.data.system.InstalledAppsProvider
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
@@ -13,15 +16,18 @@ import com.sadd.blocker.domain.repository.SectionRuleRepository
 import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.domain.usecase.StrictSessionGuard
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class SectionRulesUiState(
     val rules: List<SectionRule> = emptyList(),
+    val installed: List<InstalledAppInfo> = emptyList(),
     val message: String? = null,
     /** دیالوگ بازگشایی Strict برای تغییر قانون محافظت‌شده باز است. */
     val strictUnlockVisible: Boolean = false,
@@ -34,15 +40,20 @@ data class SectionRulesUiState(
 )
 
 /**
- * ViewModel بخش‌های اپ — پیش‌فرض‌ها (۹ بخش: کل تلگرام/اینستاگرام/یوتیوب،
- * جستجوی هر سه، اکسپلور و ریلز اینستاگرام، شورتس یوتیوب) در اولین باز
- * شدن seed می‌شوند؛ هر بخش تاگل دارد.
+ * ViewModel بخش‌های اپ — پیش‌فرض‌ها (۲۷ بخش: کل تلگرام/اینستاگرام/یوتیوب/
+ * واتساپ/تیک‌تاک/ایکس/فیسبوک/اسنپ‌چت، جستجوی هر کدام، اکسپلور و ریلز
+ * اینستاگرام، شورتس یوتیوب، وضعیت واتساپ، For You تیک‌تاک، خانه ایکس،
+ * ریلز و واچ فیسبوک، اسپات‌لایت اسنپ‌چت) در اولین باز شدن seed می‌شوند؛
+ * هر بخش تاگل دارد. کاربر می‌تواند هر اپ نصب‌شده دیگری را هم اضافه کند:
+ * «خود اپ» (قطعی، تطابق پکیج) یا یک بخش سفارشی با متن نشانه (بهترین تلاش).
  * مثل بقیه صفحه‌های قوانین، در سشن Strict فعال نمی‌توان قانون فعال را
- * غیرفعال کرد (H-2) — مگر بعد از بازگشایی Strict.
+ * غیرفعال کرد (H-2) — مگر بعد از بازگشایی Strict. اضافه‌کردن قانون
+ * (سخت‌تر کردن بلاک) وسط Strict آزاد است.
  */
 @HiltViewModel
 class SectionRulesViewModel @Inject constructor(
     private val repository: SectionRuleRepository,
+    private val installedAppsProvider: InstalledAppsProvider,
     sessionRepository: SessionRepository,
     private val settingsStore: SettingsStore,
 ) : ViewModel() {
@@ -56,6 +67,10 @@ class SectionRulesViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.ensurePresets()
+        }
+        viewModelScope.launch {
+            val installed = withContext(Dispatchers.IO) { installedAppsProvider.load() }
+            _uiState.update { it.copy(installed = installed) }
         }
         viewModelScope.launch {
             repository.observe().collect { list ->
@@ -94,6 +109,66 @@ class SectionRulesViewModel @Inject constructor(
                 return@launch
             }
             repository.setEnabled(packageName, sectionKey, enabled)
+        }
+    }
+
+    /**
+     * «خود اپ» را برای یک اپ نصب‌شده اضافه می‌کند (قطعی: باز شدن اپ
+     * وسط سشن بلاک می‌شود). اگر آن اپ پیش‌فرض «خود اپ» را دارد،
+     * تکراری ساخته نمی‌شود.
+     */
+    fun addWholeApp(packageName: String, appLabel: String) {
+        viewModelScope.launch {
+            if (SectionDetector.PRESETS.any { preset ->
+                    preset.packageName == packageName &&
+                        SectionDetector.isWholeAppSection(preset.sectionKey)
+                }
+            ) {
+                _uiState.update { it.copy(message = "«خود $appLabel» از قبل وجود دارد؛ همان را فعال کن.") }
+                return@launch
+            }
+            val added = repository.addRule(
+                packageName,
+                SectionDetector.SECTION_CUSTOM_APP,
+                "خود $appLabel",
+            )
+            _uiState.update {
+                it.copy(
+                    message = if (added) "«خود $appLabel» اضافه شد." else "«خود $appLabel» از قبل وجود دارد.",
+                )
+            }
+        }
+    }
+
+    /**
+     * بخش سفارشی برای یک اپ نصب‌شده اضافه می‌کند: نام بخش را کاربر
+     * می‌نویسد و متن نشانه (مثلاً «For You») را؛ وقتی آن متن روی
+     * صفحه آن اپ دیده شود، وسط سشن بلاک می‌شود. بهترین تلاش است:
+     * نشانه کوتاه یا عمومی بیش‌بلاک می‌کند و نشانه‌ای که در UI آن
+     * اپ نیست هرگز بلاک نمی‌کند.
+     */
+    fun addCustomSection(packageName: String, appLabel: String, name: String, signal: String) {
+        viewModelScope.launch {
+            val trimmedName = name.trim()
+            if (trimmedName.isEmpty()) {
+                _uiState.update { it.copy(message = "نام بخش را بنویس.") }
+                return@launch
+            }
+            val sectionKey = SectionDetector.customSectionKey(signal)
+            if (sectionKey == null) {
+                _uiState.update { it.copy(message = "متن نشانه باید دست‌کم ۲ حرف باشد.") }
+                return@launch
+            }
+            val added = repository.addRule(packageName, sectionKey, trimmedName)
+            _uiState.update {
+                it.copy(
+                    message = if (added) {
+                        "بخش «$trimmedName» برای $appLabel اضافه شد."
+                    } else {
+                        "این بخش از قبل وجود دارد."
+                    },
+                )
+            }
         }
     }
 

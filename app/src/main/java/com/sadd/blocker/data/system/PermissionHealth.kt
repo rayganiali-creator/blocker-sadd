@@ -35,6 +35,18 @@ class PermissionHealthChecker @Inject constructor(
     fun checkAll(): List<PermissionStatus> {
         return listOf(
             PermissionStatus(
+                key = "restricted",
+                title = "اجازه تنظیمات محدودشده",
+                // وضعیت restricted settings را هیچ API عمومی‌ای مستقیم نشان
+                // نمی‌دهد؛ فعال‌بودن سرویس Accessibility یعنی این مرحله
+                // حتماً انجام شده است، پس همان را نشان می‌دهیم. تایید
+                // دستی کاربر در ویزارد جداگانه حساب می‌شود.
+                granted = isAccessibilityEnabled(),
+                description = "برای اینکه کلید دسترسی‌پذیری در تنظیمات گوشی قفل نماند؛ بدون آن مرحله بعد انجام نمی‌شود.",
+                settingsAction = Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                settingsUri = "package:${context.packageName}",
+            ),
+            PermissionStatus(
                 key = "accessibility",
                 title = "دسترسی‌پذیری (Accessibility)",
                 granted = isAccessibilityEnabled(),

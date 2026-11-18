@@ -73,6 +73,13 @@ class SettingsStore @Inject constructor(
         val STRICT_COOLDOWN_DURATION_HOURS = intPreferencesKey("strict_cooldown_duration_hours")
         /** محافظت از حذف نصب (مدیر دستگاه) روشن است یا نه؛ پیش‌فرض خاموش. */
         val UNINSTALL_PROTECTION_ENABLED = booleanPreferencesKey("uninstall_protection_enabled")
+        /**
+         * تایید کاربر که مرحله restricted settings ویزارد را انجام داده است.
+         * وضعیت restricted settings را هیچ API عمومی‌ای مستقیم نشان نمی‌دهد،
+         * پس این تایید تنها راه عبور از مرحله است؛ با فعال‌شدن واقعی
+         * Accessibility هم مرحله خودکار انجام‌شده حساب می‌شود.
+         */
+        val RESTRICTED_SETTINGS_CONFIRMED = booleanPreferencesKey("restricted_settings_confirmed")
 
         /** بعد از ۵ تلاش اشتباه، PIN قفل می‌شود (H-8). */
         const val PIN_MAX_ATTEMPTS = 5
@@ -230,6 +237,16 @@ class SettingsStore @Inject constructor(
     suspend fun setUninstallProtectionEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[UNINSTALL_PROTECTION_ENABLED] = enabled
+        }
+    }
+
+    /** تایید کاربر برای انجام مرحله restricted settings ویزارد؛ پیش‌فرض false است. */
+    val restrictedSettingsConfirmed: Flow<Boolean> = safeData
+        .map { prefs -> prefs[RESTRICTED_SETTINGS_CONFIRMED] ?: false }
+
+    suspend fun setRestrictedSettingsConfirmed(confirmed: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[RESTRICTED_SETTINGS_CONFIRMED] = confirmed
         }
     }
 

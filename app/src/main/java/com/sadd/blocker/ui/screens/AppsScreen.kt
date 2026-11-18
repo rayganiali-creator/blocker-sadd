@@ -133,7 +133,7 @@ fun AppsScreen(
                 )
                 Spacer(Modifier.height(SaddSpacing.Small))
                 SaddButton(
-                    text = "بخش‌های اپ‌ها — جستجو و اکسپلور",
+                    text = "بخش‌های اپ‌ها — جستجو، ریلز، وضعیت و…",
                     onClick = { onNavigate("section_rules") },
                     style = SaddButtonStyle.SECONDARY,
                     modifier = Modifier.fillMaxWidth(),
