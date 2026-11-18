@@ -52,6 +52,38 @@ class UninstallProtectionGateTest {
     }
 
     @Test
+    fun shouldLaunchActivationOnlyWhenTurningOnAndNotActive() {
+        assertTrue(UninstallProtectionGate.shouldLaunchActivation(turningOn = true, adminActive = false))
+        assertFalse(UninstallProtectionGate.shouldLaunchActivation(turningOn = true, adminActive = true))
+        assertFalse(UninstallProtectionGate.shouldLaunchActivation(turningOn = false, adminActive = false))
+        assertFalse(UninstallProtectionGate.shouldLaunchActivation(turningOn = false, adminActive = true))
+    }
+
+    @Test
+    fun adminDiagnosticLineCoversAllStates() {
+        assertEquals(
+            "تشخیص: مدیر دستگاه فعال است — صفحه فعال‌سازی در دسترس است",
+            UninstallProtectionGate.adminDiagnosticLine(adminActive = true, activationAvailable = true),
+        )
+        assertEquals(
+            "تشخیص: مدیر دستگاه فعال است — صفحه فعال‌سازی در دسترس نیست",
+            UninstallProtectionGate.adminDiagnosticLine(adminActive = true, activationAvailable = false),
+        )
+        assertEquals(
+            "تشخیص: مدیر دستگاه فعال نیست — صفحه فعال‌سازی در دسترس است",
+            UninstallProtectionGate.adminDiagnosticLine(adminActive = false, activationAvailable = true),
+        )
+        assertEquals(
+            "تشخیص: مدیر دستگاه فعال نیست — صفحه فعال‌سازی در دسترس نیست",
+            UninstallProtectionGate.adminDiagnosticLine(adminActive = false, activationAvailable = false),
+        )
+        assertEquals(
+            "تشخیص: مدیر دستگاه فعال نیست — صفحه فعال‌سازی بررسی نشده",
+            UninstallProtectionGate.adminDiagnosticLine(adminActive = false, activationAvailable = null),
+        )
+    }
+
+    @Test
     fun protectionRequestSurvivesCooldownElapsedCheck() {
         // درخواست محافظت مثل بقیه درخواست‌ها با زمان دیواری می‌ماند.
         val request = StrictCooldownRequest(1_000L, StrictPendingKind.PROTECTION, "", 24)

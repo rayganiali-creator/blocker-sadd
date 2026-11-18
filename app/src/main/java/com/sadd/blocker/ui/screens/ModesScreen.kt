@@ -1,8 +1,5 @@
 package com.sadd.blocker.ui.screens
 
-import android.content.Intent
-import android.provider.Settings
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -79,6 +76,10 @@ data class StrictSettingsUiState(
     val uninstallProtectionEnabled: Boolean = false,
     /** «سد» الان مدیر دستگاه فعال است یا نه (وضعیت زنده سیستم). */
     val uninstallAdminActive: Boolean = false,
+    /** صفحه فعال‌سازی مدیر دستگاه روی این گوشی در دسترس است یا نه (تشخیص؛ null = هنوز بررسی نشده). */
+    val adminActivationAvailable: Boolean? = null,
+    /** رویداد یک‌بارمصرف: بعد از روشن‌کردن تاگل، صفحه فعال‌سازی باز شود (فقط وقتی مدیر دستگاه هنوز فعال نیست). */
+    val adminActivationRequested: Boolean = false,
 )
 
 /**
@@ -141,8 +142,14 @@ class StrictSettingsViewModel @Inject constructor(
     fun refreshAdminState() {
         viewModelScope.launch {
             val active = runCatching { uninstallProtection.isAdminActive() }.getOrDefault(false)
-            _uiState.update { it.copy(uninstallAdminActive = active) }
+            val available = runCatching { uninstallProtection.isActivationScreenAvailable() }.getOrNull()
+            _uiState.update { it.copy(uninstallAdminActive = active, adminActivationAvailable = available) }
         }
+    }
+
+    /** رویداد یک‌بارمصرف باز کردن صفحه فعال‌سازی مصرف شد (بعد از LaunchedEffect در صفحه). */
+    fun consumeAdminActivationRequest() {
+        _uiState.update { it.copy(adminActivationRequested = false) }
     }
 
     /** درخواست تغییر روش بازگشایی. */
@@ -222,6 +229,13 @@ class StrictSettingsViewModel @Inject constructor(
                 settingsStore.setUninstallProtectionEnabled(enabled)
                 if (!enabled) {
                     runCatching { uninstallProtection.removeAdmin() }
+                } else {
+                    // روشن‌کردن تاگل = رفتن فوراً به صفحه فعال‌سازی؛ دیگر دکمه جدا
+                    // تنها راه نیست. فقط وقتی مدیر دستگاه هنوز فعال نیست.
+                    val adminActive = runCatching { uninstallProtection.isAdminActive() }.getOrDefault(false)
+                    if (UninstallProtectionGate.shouldLaunchActivation(turningOn = true, adminActive = adminActive)) {
+                        _uiState.update { it.copy(adminActivationRequested = true) }
+                    }
                 }
                 refreshAdminState()
                 return@launch
@@ -431,6 +445,15 @@ fun ModesScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // روشن‌کردن تاگل محافظت فوراً صفحه فعال‌سازی مدیر دستگاه را باز می‌کند
+    // (رویداد یک‌بارمصرف از ViewModel؛ فقط وقتی مدیر دستگاه هنوز فعال نیست).
+    LaunchedEffect(strictState.adminActivationRequested) {
+        if (strictState.adminActivationRequested) {
+            openAdminActivationPage(context)
+            strictViewModel.consumeAdminActivationRequest()
+        }
+    }
+
     // تیکر شمارش معکوس کارت «تغییر در انتظار» — فقط وقتی درخواستی هست می‌دود.
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
     val countdownActive = strictState.cooldownRequest != null && strictState.strictSessionActive
@@ -544,6 +567,7 @@ fun ModesScreen(
                     SaddSwitchRow(
                         label = "جلوگیری از حذف نصب",
                         description = "وقتی روشن است، «سد» مدیر دستگاه می‌شود و اندروید حذف نصب آن را مسدود می‌کند. " +
+                            "با روشن‌کردن، صفحه فعال‌سازی مدیر دستگاه فوراً باز می‌شود. " +
                             "خاموش‌کردن آن وسط سشن Strict فقط با بازگشایی Strict (تایپ متن طولانی یا انتظار) انجام می‌شود.",
                         checked = strictState.uninstallProtectionEnabled,
                         onCheckedChange = { strictViewModel.requestUninstallProtection(it) },
@@ -562,34 +586,39 @@ fun ModesScreen(
                                 color = MaterialTheme.colorScheme.error,
                             )
                             Spacer(Modifier.height(SaddSpacing.Medium))
+                            // «تلاش دوباره»: روشن‌کردن تاگل خودش صفحه فعال‌سازی را
+                            // باز می‌کند؛ این دکمه برای وقتی است که کاربر از آن
+                            // صفحه برگشته و هنوز فعال نکرده.
                             SaddButton(
-                                text = "فعال‌سازی در تنظیمات سیستم",
-                                onClick = {
-                                    // شکست startActivity دیگر بی‌صدا قورت داده نمی‌شود:
-                                    // Toast + fallback به صفحه امنیت سیستم تا کاربر
-                                    // دستی به Device admin apps برسد.
-                                    val opened = runCatching {
-                                        context.startActivity(
-                                            UninstallProtection.enableIntent(context),
-                                        )
-                                    }.isSuccess
-                                    if (!opened) {
-                                        Toast.makeText(
-                                            context,
-                                            "صفحه فعال‌سازی مدیر دستگاه باز نشد؛ " +
-                                                "از تنظیمات گوشی: امنیت ← Device admin apps ← «سد»",
-                                            Toast.LENGTH_LONG,
-                                        ).show()
-                                        runCatching {
-                                            context.startActivity(
-                                                Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                },
-                                            )
-                                        }
-                                    }
-                                },
+                                text = "تلاش دوباره",
+                                onClick = { openAdminActivationPage(context) },
                                 modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            SaddButton(
+                                text = "باز کردن تنظیمات امنیتی گوشی",
+                                onClick = { openSecuritySettingsPage(context) },
+                                modifier = Modifier.fillMaxWidth(),
+                                style = SaddButtonStyle.SECONDARY,
+                            )
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            Text(
+                                "دستی: تنظیمات ← امنیت ← Device admin apps ← «سد» را فعال کن.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        // خط تشخیص — برای عیب‌یابی از راه دور: وضعیت مدیر دستگاه
+                        // + در دسترس بودن صفحه فعال‌سازی روی این گوشی.
+                        strictState.adminActivationAvailable?.let { available ->
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            Text(
+                                UninstallProtectionGate.adminDiagnosticLine(
+                                    strictState.uninstallAdminActive,
+                                    available,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         Spacer(Modifier.height(SaddSpacing.Small))

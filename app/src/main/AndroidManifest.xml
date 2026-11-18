@@ -17,6 +17,17 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- برای resolveActivity صفحه فعال‌سازی مدیر دستگاه (تشخیص در کارت محافظت)
+         و صفحه امنیت سیستم. بدون این، روی اندروید ۱۱+ ممکن است null بدهد. -->
+    <queries>
+        <intent>
+            <action android:name="android.app.action.ADD_DEVICE_ADMIN" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SECURITY_SETTINGS" />
+        </intent>
+    </queries>
+
     <application
         android:name=".BlockerApp"
         android:allowBackup="false"

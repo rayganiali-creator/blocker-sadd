@@ -50,6 +50,15 @@ class UninstallProtection @Inject constructor(
     fun isAdminActive(): Boolean =
         devicePolicyManager.isAdminActive(adminComponent(context))
 
+    /**
+     * آیا صفحه فعال‌سازی مدیر دستگاه روی این گوشی در دسترس است؟
+     * (تشخیص در کارت محافظت؛ برای قابل‌اعتماد بودن resolveActivity،
+     * اکشن ADD_DEVICE_ADMIN در <queries> مانیفست هم اعلام شده.)
+     */
+    fun isActivationScreenAvailable(): Boolean =
+        runCatching { enableIntent(context).resolveActivity(context.packageManager) }
+            .getOrNull() != null
+
     /** حذف «سد» از مدیر دستگاه (فقط اگر فعال باشد). */
     fun removeAdmin() {
         if (isAdminActive()) {

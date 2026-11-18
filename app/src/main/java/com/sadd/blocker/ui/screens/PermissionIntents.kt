@@ -12,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import com.sadd.blocker.data.system.PermissionStatus
+import com.sadd.blocker.data.system.UninstallProtection
 
 /**
  * لانچرهای سیستمی درخواست مجوز — یک‌بار در صفحه ساخته می‌شوند و به
@@ -53,6 +54,49 @@ fun requestPermission(
         }
         else -> openSettingsPage(context, permission)
     }
+}
+
+/**
+ * باز کردن صفحه فعال‌سازی مدیر دستگاه؛ true یعنی اینتنت فرستاده شد.
+ * اول resolveActivity چک می‌شود؛ اگر صفحه‌ای برایش نباشد، Toast می‌گوید
+ * این گوشی صفحه فعال‌سازی ندارد و کاربر باید از دکمه «تنظیمات امنیتی گوشی»
+ * دستی فعال کند. خطای startActivity هم با متن واقعی خطا Toast می‌شود —
+ * هیچ‌وقت بی‌صدا شکست نمی‌خورد.
+ */
+fun openAdminActivationPage(context: Context): Boolean {
+    val intent = UninstallProtection.enableIntent(context)
+    val resolves = runCatching { intent.resolveActivity(context.packageManager) }.getOrNull() != null
+    if (!resolves) {
+        Toast.makeText(
+            context,
+            "این گوشی صفحه فعال‌سازی مدیر دستگاه ندارد؛ از دکمه «تنظیمات امنیتی گوشی» دستی فعال کن.",
+            Toast.LENGTH_LONG,
+        ).show()
+        return false
+    }
+    return runCatching { context.startActivity(intent) }
+        .onFailure { e ->
+            Toast.makeText(
+                context,
+                "صفحه فعال‌سازی باز نشد: ${e.message ?: "خطای نامشخص"}",
+                Toast.LENGTH_LONG,
+            ).show()
+        }.isSuccess
+}
+
+/** باز کردن صفحه امنیت سیستم (جایی که Device admin apps هست)؛ خطا Toast می‌شود. */
+fun openSecuritySettingsPage(context: Context): Boolean {
+    val intent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    return runCatching { context.startActivity(intent) }
+        .onFailure {
+            Toast.makeText(
+                context,
+                "صفحه امنیت باز نشد؛ از تنظیمات گوشی: امنیت ← Device admin apps ← «سد»",
+                Toast.LENGTH_LONG,
+            ).show()
+        }.isSuccess
 }
 
 /**

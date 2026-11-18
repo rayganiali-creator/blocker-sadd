@@ -17,4 +17,27 @@ object UninstallProtectionGate {
     /** آیا درخواست انتظار ثبت‌شده برای محافظت از حذف نصب است؟ */
     fun isProtectionRequest(request: StrictCooldownRequest?): Boolean =
         request?.pendingKind == StrictPendingKind.PROTECTION
+
+    /**
+     * آیا با روشن‌کردن تاگل باید فوراً صفحه فعال‌سازی باز شود؟
+     * فقط وقتی مدیر دستگاه هنوز فعال نیست — اگر فعال است، چیزی برای باز کردن نیست.
+     * (روشن‌کردن همیشه آزاد است؛ این فقط تصمیم «باز کن یا نه» است.)
+     */
+    fun shouldLaunchActivation(turningOn: Boolean, adminActive: Boolean): Boolean =
+        turningOn && !adminActive
+
+    /**
+     * متن یک‌خطی تشخیص برای کارت محافظت: وضعیت مدیر دستگاه + در دسترس بودن
+     * صفحه فعال‌سازی روی این گوشی. برای عیب‌یابی از راه دور با کاربر است؛
+     * activationAvailable==null یعنی هنوز بررسی نشده.
+     */
+    fun adminDiagnosticLine(adminActive: Boolean, activationAvailable: Boolean?): String {
+        val activeText = if (adminActive) "مدیر دستگاه فعال است" else "مدیر دستگاه فعال نیست"
+        val availableText = when (activationAvailable) {
+            true -> "صفحه فعال‌سازی در دسترس است"
+            false -> "صفحه فعال‌سازی در دسترس نیست"
+            null -> "صفحه فعال‌سازی بررسی نشده"
+        }
+        return "تشخیص: $activeText — $availableText"
+    }
 }
