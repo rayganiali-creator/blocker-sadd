@@ -444,7 +444,6 @@ class ThemeViewModel @Inject constructor(
         }
     }
 }
-}
 
 @HiltViewModel
 class PinViewModel @Inject constructor(
