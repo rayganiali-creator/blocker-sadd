@@ -20,9 +20,10 @@ data class OnboardingUiState(
 )
 
 /**
- * ویزارد راه‌اندازی اول‌نصب: ۶ مجوز به ترتیب، با وضعیت زنده از سیستم.
+ * ویزارد راه‌اندازی اول‌نصب: ۵ مجوز به ترتیب، با وضعیت زنده از سیستم.
  * وضعیت‌ها هیچ‌وقت ساختگی نیستند؛ همه از PermissionHealthChecker خوانده
  * می‌شوند و بعد از هر بازگشت به صفحه و هر نتیجه لانچر تازه می‌شوند.
+ * (VPN از ویزارد حذف شده — بلاک وب با Accessibility انجام می‌شود، نه VPN.)
  */
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
@@ -36,7 +37,6 @@ class OnboardingViewModel @Inject constructor(
             "notification",
             "accessibility",
             "usage",
-            "vpn",
             "battery",
             "alarm",
         )
