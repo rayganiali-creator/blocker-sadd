@@ -120,6 +120,13 @@ fun AppsScreen(
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 )
                 Spacer(Modifier.height(SaddSpacing.Small))
+                SaddButton(
+                    text = "بخش‌های اپ‌ها — جستجو و اکسپلور",
+                    onClick = { onNavigate("section_rules") },
+                    style = SaddButtonStyle.SECONDARY,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(SaddSpacing.Small))
             }
             if (uiState.selected.isNotEmpty()) {
                 item {
