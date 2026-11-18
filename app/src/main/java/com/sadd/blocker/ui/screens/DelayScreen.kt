@@ -28,7 +28,7 @@ import com.sadd.blocker.domain.model.DelayOptions
 import com.sadd.blocker.ui.DelayViewModel
 import com.sadd.blocker.ui.RuleDelayOverride
 import com.sadd.blocker.ui.theme.SaddSpacing
-import com.sadd.blocker.ui.widgets.StrictUnlockDialog
+import com.sadd.blocker.ui.screens.StrictUnlockDialog
 
 /**
  * تنظیمات تاخیر.

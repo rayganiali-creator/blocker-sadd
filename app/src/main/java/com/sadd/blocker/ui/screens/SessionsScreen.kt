@@ -276,7 +276,7 @@ fun SessionsScreen(
                         Row {
                             SaddButton(
                                 text = "تمدید ۱۵ دقیقه",
-                                onClick = { viewModel.extendSession() },
+                                onClick = { viewModel.requestExtendSession() },
                             )
                             Spacer(Modifier.width(SaddSpacing.Small))
                             SaddButton(

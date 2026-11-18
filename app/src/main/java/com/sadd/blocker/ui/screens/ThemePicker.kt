@@ -32,7 +32,7 @@ import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.colorSchemeFor
 import com.sadd.blocker.ui.theme.paletteLabelFa
-import com.sadd.blocker.ui.widgets.StrictUnlockDialog
+import com.sadd.blocker.ui.screens.StrictUnlockDialog
 
 /**
  * انتخاب تم برنامه (روشن / تیره / سیستمی) + رنگ‌بندی — مشترک بین صفحه درباره و عیب‌یابی.

@@ -23,7 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.BackupViewModel
 import com.sadd.blocker.ui.theme.SaddSpacing
-import com.sadd.blocker.ui.widgets.StrictUnlockDialog
+import com.sadd.blocker.ui.screens.StrictUnlockDialog
 import kotlinx.coroutines.launch
 
 /**
