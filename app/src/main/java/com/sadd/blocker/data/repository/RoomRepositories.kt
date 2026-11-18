@@ -1,8 +1,11 @@
 package com.sadd.blocker.data.repository
 
 import androidx.room.withTransaction
+import com.sadd.blocker.core.SectionDetector
 import com.sadd.blocker.core.SessionCalculator
 import com.sadd.blocker.data.db.AppDatabase
+import com.sadd.blocker.data.db.BlockEventDao
+import com.sadd.blocker.data.db.BlockEventEntity
 import com.sadd.blocker.data.db.BlockedAppDao
 import com.sadd.blocker.data.db.BlockedAppEntity
 import com.sadd.blocker.data.db.BlockedWebsiteDao
@@ -13,15 +16,20 @@ import com.sadd.blocker.data.db.KeywordRuleDao
 import com.sadd.blocker.data.db.KeywordRuleEntity
 import com.sadd.blocker.data.db.ScheduleDao
 import com.sadd.blocker.data.db.ScheduleEntity
+import com.sadd.blocker.data.db.SectionRuleDao
+import com.sadd.blocker.data.db.SectionRuleEntity
 import com.sadd.blocker.domain.model.BlockedApp
 import com.sadd.blocker.domain.model.BlockedWebsite
 import com.sadd.blocker.domain.model.BlockingSession
 import com.sadd.blocker.domain.model.KeywordRule
 import com.sadd.blocker.domain.model.Schedule
+import com.sadd.blocker.domain.model.SectionRule
+import com.sadd.blocker.domain.repository.BlockEventRepository
 import com.sadd.blocker.domain.repository.BlockedAppRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
 import com.sadd.blocker.domain.repository.RestoreTransaction
 import com.sadd.blocker.domain.repository.ScheduleRepository
+import com.sadd.blocker.domain.repository.SectionRuleRepository
 import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.domain.repository.WebsiteRepository
 import kotlinx.coroutines.flow.Flow
@@ -271,5 +279,61 @@ class RoomScheduleRepository @Inject constructor(
 
     private fun Schedule.toEntity(): ScheduleEntity {
         return ScheduleEntity(id, daysOfWeek, startMinute, endMinute, strict, ruleScope, enabled)
+    }
+}
+
+/** پیاده‌سازی Room برای SectionRuleRepository. */
+class RoomSectionRuleRepository @Inject constructor(
+    private val dao: SectionRuleDao,
+) : SectionRuleRepository {
+
+    override fun observe(): Flow<List<SectionRule>> {
+        return dao.observeAll().map { list -> list.map { it.toDomain() } }
+    }
+
+    override suspend fun list(): List<SectionRule> {
+        return dao.listAll().map { it.toDomain() }
+    }
+
+    override suspend fun getEnabled(): List<SectionRule> {
+        return dao.getEnabled().map { it.toDomain() }
+    }
+
+    override suspend fun ensurePresets() {
+        for (preset in SectionDetector.PRESETS) {
+            dao.insert(
+                SectionRuleEntity(
+                    packageName = preset.packageName,
+                    sectionKey = preset.sectionKey,
+                    labelFa = preset.labelFa,
+                ),
+            )
+        }
+    }
+
+    override suspend fun setEnabled(packageName: String, sectionKey: String, enabled: Boolean) {
+        dao.setEnabled(packageName, sectionKey, enabled)
+    }
+
+    private fun SectionRuleEntity.toDomain(): SectionRule {
+        return SectionRule(id, packageName, sectionKey, labelFa, enabled)
+    }
+}
+
+/** پیاده‌سازی Room برای BlockEventRepository. */
+class RoomBlockEventRepository @Inject constructor(
+    private val dao: BlockEventDao,
+) : BlockEventRepository {
+
+    override suspend fun log(kind: String, detail: String, timestampMs: Long) {
+        dao.insert(BlockEventEntity(timestampMs = timestampMs, kind = kind, detail = detail))
+    }
+
+    override fun countSince(sinceMs: Long): Flow<Int> {
+        return dao.countSince(sinceMs)
+    }
+
+    override suspend fun countSinceNow(sinceMs: Long): Int {
+        return dao.countSinceNow(sinceMs)
     }
 }
