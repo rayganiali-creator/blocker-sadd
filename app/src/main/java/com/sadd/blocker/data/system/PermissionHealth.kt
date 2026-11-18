@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.pm.PackageManager
-import android.net.VpnService
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -48,13 +47,6 @@ class PermissionHealthChecker @Inject constructor(
                 granted = hasUsageAccess(),
                 description = "برای تشخیص باز شدن اپ بلاک‌شده لازم است.",
                 settingsAction = Settings.ACTION_USAGE_ACCESS_SETTINGS,
-            ),
-            PermissionStatus(
-                key = "vpn",
-                title = "VPN لوکال",
-                granted = isVpnPrepared(),
-                description = "برای بلاک دامنه‌ها؛ کاملاً لوکال، بدون سرور خارجی.",
-                settingsAction = Settings.ACTION_VPN_SETTINGS,
             ),
             PermissionStatus(
                 key = "notification",
@@ -103,11 +95,6 @@ class PermissionHealthChecker @Inject constructor(
             context.packageName,
         )
         return mode == AppOpsManager.MODE_ALLOWED
-    }
-
-    /** VpnService.prepare برمی‌گرداند null یعنی VPN قبلاً آماده/تایید شده است. */
-    fun isVpnPrepared(): Boolean {
-        return VpnService.prepare(context) == null
     }
 
     fun hasNotificationPermission(): Boolean {
