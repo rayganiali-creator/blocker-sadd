@@ -40,7 +40,8 @@ import com.sadd.blocker.ui.theme.SaddSpacing
  * بلاک وب‌سایت‌ها.
  * دامنه نرمال می‌شود (بدون scheme/www/مسیر) و تطابق مرز دامنه دارد:
  * example.com هرگز notexample.com را نمی‌گیرد.
- * صادقانه: مکانیزم بلاک وب (VPN لوکال) هنوز وصل نشده و در فاز بعدی می‌آید.
+ * صادقانه: بلاک وب با سرویس Accessibility انجام می‌شود (خواندن نوار
+ * آدرس/جستجوی مرورگر)؛ بدون VPN است و به مرورگر وابسته است.
  */
 @Composable
 fun WebsitesScreen(
@@ -96,7 +97,7 @@ fun WebsitesScreen(
             item {
                 SaddTopBar(
                     "بلاک وب‌سایت‌ها",
-                    "بلاک دامنه با VPN لوکال در فاز بعدی وصل می‌شود؛ فعلاً فقط لیست ساخته می‌شود.",
+                    "بلاک وب‌سایت با سرویس Accessibility انجام می‌شود؛ دامنه در نوار آدرس مرورگر دیده و بلاک می‌شود.",
                 )
                 SaddTextField(
                     value = hostText,
