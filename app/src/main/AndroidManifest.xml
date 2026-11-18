@@ -13,9 +13,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <!-- VPN لوکال برای بلاک دامنه -->
+    <!-- معافیت باتری: بدون این مجوز، دیالوگ سیستمی ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS باز نمی‌شود. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.BIND_VPN_SERVICE" />
 
     <application
         android:name=".BlockerApp"
@@ -51,16 +51,6 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
-        </service>
-
-        <!-- بلاک دامنه: Local VPN (لوکال، بدون سرور خارجی) -->
-        <service
-            android:name=".service.BlockVpnService"
-            android:exported="false"
-            android:permission="android.permission.BIND_VPN_SERVICE">
-            <intent-filter>
-                <action android:name="android.net.VpnService" />
-            </intent-filter>
         </service>
 
         <!-- سشن فعال: Foreground Service -->
