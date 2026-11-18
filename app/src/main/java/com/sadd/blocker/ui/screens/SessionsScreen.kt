@@ -1,6 +1,9 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,10 +14,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -24,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -35,6 +38,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.domain.JalaliDate
+import com.sadd.blocker.domain.TimeFormat
+import com.sadd.blocker.domain.model.BlockMode
+import com.sadd.blocker.domain.model.SessionDurations
 import com.sadd.blocker.ui.SessionsViewModel
 import com.sadd.blocker.ui.theme.SaddSpacing
 
@@ -60,13 +66,15 @@ private fun endedReasonLabel(reason: String?): String {
 }
 
 /**
- * سشن‌های فعال.
+ * سشن‌های فعال + شروع سشن جدید.
  * باقی‌مانده زنده از endEpochMs، تمدید ۱۵ دقیقه‌ای، پایان سشن؛
  * پایان سشن Strict وقتی PIN تنظیم شده باشد فقط با PIN درست انجام می‌شود.
- * تاریخ‌ها جلالی‌اند. شروع سشن از داشبورد انجام می‌شود؛
+ * تاریخ‌ها جلالی‌اند. شروع سشن (چیپ‌های مدت + مدت دلخواه) از داشبورد
+ * به اینجا منتقل شده؛ چیپ‌ها در FlowRow می‌پیچند تا «۸ ساعت» له نشود.
  * زمان‌بندی خودکار در فاز ۵ وصل می‌شود.
  * تیکر فقط وقتی صفحه دیده می‌شود می‌دود.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SessionsScreen(
     viewModel: SessionsViewModel = hiltViewModel(),
@@ -74,6 +82,9 @@ fun SessionsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var pinText by rememberSaveable { mutableStateOf("") }
+    var selectedDuration by rememberSaveable { mutableStateOf(SessionDurations.OPTIONS[1]) }
+    var customMinutes by rememberSaveable { mutableStateOf("") }
+    var customError by rememberSaveable { mutableStateOf<String?>(null) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -133,7 +144,87 @@ fun SessionsScreen(
             MessageBar(message = uiState.message, onDismiss = { viewModel.dismissMessage() })
         }
         if (uiState.active == null) {
-            item { EmptyState("سشنی فعال نیست. از داشبورد یک سشن شروع کن.", icon = Icons.Filled.Timer) }
+            item {
+                SaddCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
+                        Text(
+                            "شروع سشن جدید",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Text("مدت سشن:", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
+                            verticalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
+                        ) {
+                            for (duration in SessionDurations.OPTIONS) {
+                                FilterChip(
+                                    selected = selectedDuration == duration,
+                                    onClick = { selectedDuration = duration },
+                                    label = { Text(TimeFormat.durationLabel(duration)) },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddButton(
+                            text = "شروع سشن (${TimeFormat.durationLabel(selectedDuration)})",
+                            onClick = { viewModel.startSession(selectedDuration) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Medium))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SaddTextField(
+                                value = customMinutes,
+                                onValueChange = {
+                                    customMinutes = it
+                                    customError = null
+                                },
+                                label = "مدت دلخواه (دقیقه)",
+                                modifier = Modifier.weight(1f),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            )
+                            Spacer(Modifier.width(SaddSpacing.Small))
+                            SaddButton(
+                                text = "شروع",
+                                onClick = {
+                                    val minutes = customMinutes.trim().toIntOrNull()
+                                    if (minutes == null || minutes <= 0) {
+                                        customError = "مدت را به دقیقه وارد کن."
+                                    } else {
+                                        val durationMs = minutes * 60_000L
+                                        if (durationMs < SessionDurations.MIN_MS) {
+                                            customError = "حداقل مدت سشن ۳۰ ثانیه است."
+                                        } else if (durationMs > SessionDurations.MAX_MS) {
+                                            customError = "حداکثر مدت سشن ۹۰ روز (۱۲۹٬۶۰۰ دقیقه) است."
+                                        } else {
+                                            viewModel.startSession(durationMs)
+                                        }
+                                    }
+                                },
+                                style = SaddButtonStyle.SECONDARY,
+                            )
+                        }
+                        if (customError != null) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                customError!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        if (uiState.blockMode == BlockMode.STRICT) {
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            Text(
+                                "حالت Strict فعال است — سشن با قوانین سخت‌گیرانه شروع می‌شود.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
         } else {
             val active = uiState.active!!
             item {
