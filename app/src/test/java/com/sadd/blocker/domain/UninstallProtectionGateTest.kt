@@ -126,4 +126,73 @@ class UninstallProtectionGateTest {
         assertTrue(StrictUnlock.isCooldownElapsed(request, 1_000L + 24L * StrictUnlock.HOUR_MS))
         assertFalse(StrictUnlock.isCooldownElapsed(request, 1_000L + 23L * StrictUnlock.HOUR_MS))
     }
+
+    // ---------- مسلح بودن نگهبان ----------
+
+    @Test
+    fun guardArmedWhenSettingOnEvenIfAdminInactive() {
+        assertTrue(UninstallProtectionGate.isGuardArmed(protectionEnabled = true, adminActive = false))
+    }
+
+    @Test
+    fun guardArmedWhenAdminActiveEvenIfSettingOff() {
+        // فعال‌سازی دستی از تنظیمات سیستم تنظیم داخل اپ را عوض نمی‌کند —
+        // نگهبان در این وضعیت هم باید مسلح باشد (وضعیت واقعی سید).
+        assertTrue(UninstallProtectionGate.isGuardArmed(protectionEnabled = false, adminActive = true))
+    }
+
+    @Test
+    fun guardDisarmedOnlyWhenBothOff() {
+        assertFalse(UninstallProtectionGate.isGuardArmed(protectionEnabled = false, adminActive = false))
+        assertTrue(UninstallProtectionGate.isGuardArmed(protectionEnabled = true, adminActive = true))
+    }
+
+    @Test
+    fun guardStatusLineShowsAllFourParts() {
+        val armed = UninstallProtectionGate.guardStatusLine(
+            protectionEnabled = true,
+            adminActive = true,
+            accessibilityEnabled = true,
+        )
+        assertTrue(armed.contains("محافظت روشن"))
+        assertTrue(armed.contains("مدیر دستگاه فعال"))
+        assertTrue(armed.contains("دسترسی‌پذیری روشن"))
+        assertTrue(armed.contains("نگهبان مسلح"))
+        val disarmed = UninstallProtectionGate.guardStatusLine(
+            protectionEnabled = false,
+            adminActive = false,
+            accessibilityEnabled = false,
+        )
+        assertTrue(disarmed.contains("محافظت خاموش"))
+        assertTrue(disarmed.contains("مدیر دستگاه غیرفعال"))
+        assertTrue(disarmed.contains("دسترسی‌پذیری خاموش"))
+        assertTrue(disarmed.contains("نگهبان خاموش"))
+    }
+
+    @Test
+    fun guardStatusLineDisarmedWhenAccessibilityOffEvenIfArmed() {
+        // مسلح بودن بدون Accessibility یعنی نگهبان عملاً کار نمی‌کند.
+        val line = UninstallProtectionGate.guardStatusLine(
+            protectionEnabled = true,
+            adminActive = true,
+            accessibilityEnabled = false,
+        )
+        assertTrue(line.contains("نگهبان خاموش"))
+    }
+
+    @Test
+    fun adminDiagnosticLineMentionsDeviceAdminListUnavailable() {
+        val line = UninstallProtectionGate.adminDiagnosticLine(
+            adminActive = false,
+            activationAvailable = true,
+            deviceAdminListAvailable = false,
+        )
+        assertTrue(line.contains("فهرست Device admin apps مستقیم باز نمی‌شود"))
+        val okLine = UninstallProtectionGate.adminDiagnosticLine(
+            adminActive = true,
+            activationAvailable = true,
+            deviceAdminListAvailable = true,
+        )
+        assertFalse(okLine.contains("فهرست Device admin apps"))
+    }
 }

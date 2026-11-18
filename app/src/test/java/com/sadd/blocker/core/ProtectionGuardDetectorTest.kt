@@ -217,4 +217,162 @@ class ProtectionGuardDetectorTest {
     fun unlockWindowInactiveWhenNeverSet() {
         assertFalse(ProtectionGuardDetector.isGuardUnlockWindowActive(nowMs = 1_000L, unlockUntilMs = 0L))
     }
+
+    // ---------- DEVICE_ADMIN_LIST ----------
+
+    @Test
+    fun deviceAdminListHitPersian() {
+        val hit = ProtectionGuardDetector.detect(
+            signals(settingsPackage, listOf("Device admin apps", "سد", "مدیر دستگاه")),
+            ownPackage,
+        )
+        assertEquals(GuardHit.DEVICE_ADMIN_LIST, hit)
+    }
+
+    @Test
+    fun deviceAdminListHitSamsungSettingsEnglish() {
+        val hit = ProtectionGuardDetector.detect(
+            signals(samsungSettingsPackage, listOf("Device admin apps", "سد")),
+            ownPackage,
+        )
+        assertEquals(GuardHit.DEVICE_ADMIN_LIST, hit)
+    }
+
+    @Test
+    fun deviceAdminListWithoutAppNameNeverMatches() {
+        // فهرست Device admin apps بدون ورودی «سد» نباید مچ بسازد.
+        assertNull(
+            ProtectionGuardDetector.detect(
+                signals(settingsPackage, listOf("Device admin apps", "مدیر دستگاه")),
+                ownPackage,
+            ),
+        )
+    }
+
+    @Test
+    fun securityPageWithDeviceAdminRowButNoAppNeverMatches() {
+        // صفحه امنیت فقط ردیف «Device admin apps» را دارد، نه ورودی «سد».
+        assertNull(
+            ProtectionGuardDetector.detect(
+                signals(settingsPackage, listOf("امنیت", "Device admin apps", "قفل صفحه")),
+                ownPackage,
+            ),
+        )
+    }
+
+    // ---------- DEACTIVATE_ADMIN_DIALOG ----------
+
+    @Test
+    fun deactivateAdminDialogHitPersian() {
+        val hit = ProtectionGuardDetector.detect(
+            signals(settingsPackage, listOf("سد", "غیرفعال‌کردن مدیر دستگاه", "تأیید", "لغو")),
+            ownPackage,
+        )
+        assertEquals(GuardHit.DEACTIVATE_ADMIN_DIALOG, hit)
+    }
+
+    @Test
+    fun deactivateAdminDialogHitEnglish() {
+        val hit = ProtectionGuardDetector.detect(
+            signals(settingsPackage, listOf("سد", "Deactivate device administrator?", "Deactivate", "Cancel")),
+            ownPackage,
+        )
+        assertEquals(GuardHit.DEACTIVATE_ADMIN_DIALOG, hit)
+    }
+
+    @Test
+    fun deactivateAdminDialogHitWithoutAppNameButWithDeviceAdminMarker() {
+        // دیالوگ غیرفعال‌سازی حتی بدون نام اپ هم مچ می‌سازد، چون «مدیر دستگاه» هست.
+        val hit = ProtectionGuardDetector.detect(
+            signals(settingsPackage, listOf("غیرفعال‌کردن مدیر دستگاه", "تأیید", "لغو")),
+            ownPackage,
+        )
+        assertEquals(GuardHit.DEACTIVATE_ADMIN_DIALOG, hit)
+    }
+
+    @Test
+    fun deactivateInterstitialBeatsUninstall() {
+        // پنجره میانی «این برنامه مدیر دستگاه است» هم «حذف نصب» دارد و هم
+        // «غیرفعال» — باید غیرفعال‌سازی برگردد، نه حذف نصب.
+        val hit = ProtectionGuardDetector.detect(
+            signals(
+                settingsPackage,
+                listOf("سد", "این برنامه مدیر دستگاه است", "برای حذف نصب، اول آن را غیرفعال کن", "غیرفعال کردن", "لغو"),
+            ),
+            ownPackage,
+        )
+        assertEquals(GuardHit.DEACTIVATE_ADMIN_DIALOG, hit)
+    }
+
+    @Test
+    fun disableAppDialogForAnotherAppNeverMatches() {
+        // دیالوگ «غیرفعال کردن برنامه» برای اپ دیگر: نه نام هست، نه «مدیر دستگاه».
+        assertNull(
+            ProtectionGuardDetector.detect(
+                signals(settingsPackage, listOf("غیرفعال کردن برنامه", "تأیید", "لغو")),
+                ownPackage,
+            ),
+        )
+    }
+
+    // ---------- LAUNCHER ----------
+
+    @Test
+    fun launcherUninstallHitSamsungPersian() {
+        val hit = ProtectionGuardDetector.detect(
+            signals("com.sec.android.app.launcher", listOf("سد", "حذف نصب", "تأیید", "لغو")),
+            ownPackage,
+        )
+        assertEquals(GuardHit.UNINSTALL_DIALOG, hit)
+    }
+
+    @Test
+    fun launcherUninstallHitEnglish() {
+        val hit = ProtectionGuardDetector.detect(
+            signals("com.google.android.apps.nexuslauncher", listOf("سد", "Uninstall", "OK", "Cancel")),
+            ownPackage,
+        )
+        assertEquals(GuardHit.UNINSTALL_DIALOG, hit)
+    }
+
+    @Test
+    fun launcherUninstallWithoutAppNameNeverMatches() {
+        // لانچر برای همه اپ‌ها دیالوگ نشان می‌دهد؛ بدون نام «سد» نباید مچ بسازد.
+        assertNull(
+            ProtectionGuardDetector.detect(
+                signals("com.sec.android.app.launcher", listOf("حذف نصب", "تأیید", "لغو")),
+                ownPackage,
+            ),
+        )
+    }
+
+    @Test
+    fun installerDialogWithoutAppNameNeverMatches() {
+        assertNull(
+            ProtectionGuardDetector.detect(
+                signals(installerPackage, listOf("حذف نصب", "تأیید", "لغو")),
+                ownPackage,
+            ),
+        )
+    }
+
+    // ---------- پکیج‌های تحت پوشش ----------
+
+    @Test
+    fun guardedPackagesCoverSettingsInstallerLauncher() {
+        assertTrue(ProtectionGuardDetector.isGuardedPackage(settingsPackage))
+        assertTrue(ProtectionGuardDetector.isGuardedPackage(samsungSettingsPackage))
+        assertTrue(ProtectionGuardDetector.isGuardedPackage(installerPackage))
+        assertTrue(ProtectionGuardDetector.isGuardedPackage(samsungInstallerPackage))
+        assertTrue(ProtectionGuardDetector.isGuardedPackage("com.sec.android.app.launcher"))
+        assertFalse(ProtectionGuardDetector.isGuardedPackage("com.android.chrome"))
+        assertFalse(ProtectionGuardDetector.isGuardedPackage(ownPackage))
+    }
+
+    @Test
+    fun launcherHeuristicMatchesUnknownLaunchers() {
+        assertTrue(ProtectionGuardDetector.isLauncherPackage("com.example.foo.launcher"))
+        assertTrue(ProtectionGuardDetector.isLauncherPackage("com.example.launcher"))
+        assertFalse(ProtectionGuardDetector.isLauncherPackage("com.android.settings"))
+    }
 }

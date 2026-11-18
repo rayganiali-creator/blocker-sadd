@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.sadd.blocker.R
 import com.sadd.blocker.core.ProtectionGuardDetector
 import com.sadd.blocker.data.datastore.AppTheme
+import com.sadd.blocker.data.datastore.ColorTheme
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
@@ -62,6 +63,8 @@ class BlockedActivity : ComponentActivity() {
     private val guardMethodState = mutableStateOf(StrictUnlockMethod.PASSAGE)
     private val guardHoursState = mutableStateOf(StrictUnlock.DEFAULT_COOLDOWN_HOURS)
     private val guardRequestState = mutableStateOf<StrictCooldownRequest?>(null)
+    /** رنگ‌بندی انتخاب‌شده؛ صفحه بلاک همیشه تیره است، ولی با پالت انتخاب‌شده. */
+    private val colorThemeState = mutableStateOf(ColorTheme.SADD)
 
     // Hilt ندارد؛ SettingsStore مستقیم ساخته می‌شود.
     private val settingsStore by lazy { SettingsStore(applicationContext) }
@@ -73,8 +76,15 @@ class BlockedActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyIntent(intent)
+        activityScope.launch {
+            try {
+                colorThemeState.value = settingsStore.colorTheme.first()
+            } catch (_: Exception) {
+                // fail-open: پالت پیش‌فرض «سد» می‌ماند.
+            }
+        }
         setContent {
-            BlockerTheme(theme = AppTheme.DARK) {
+            BlockerTheme(theme = AppTheme.DARK, colorTheme = colorThemeState.value) {
                 if (guardUnlockState.value) {
                     StrictUnlockDialog(
                         method = guardMethodState.value,

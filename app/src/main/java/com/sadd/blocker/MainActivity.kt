@@ -26,6 +26,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.sadd.blocker.data.datastore.AppTheme
+import com.sadd.blocker.data.datastore.ColorTheme
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.ui.screens.AboutScreen
 import com.sadd.blocker.ui.screens.AppsScreen
@@ -60,11 +61,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             val theme by settingsStore.theme.collectAsStateWithLifecycle(initialValue = AppTheme.DARK)
+            val colorTheme by settingsStore.colorTheme.collectAsStateWithLifecycle(initialValue = ColorTheme.SADD)
             // مقصد شروع به راه‌اندازی وابسته است؛ null یعنی هنوز از DataStore خوانده نشده
             // و نباید با مقدار پیش‌فرض اشتباه (ویزارد برای کاربر قدیمی) گراف ساخته شود.
             val onboardingDone by settingsStore.onboardingDone
                 .collectAsStateWithLifecycle<Boolean?>(initialValue = null)
-            BlockerTheme(theme = theme) {
+            BlockerTheme(theme = theme, colorTheme = colorTheme) {
                 if (onboardingDone != null) {
                     BlockerNav(onboardingDone = onboardingDone == true)
                 }

@@ -41,6 +41,12 @@ class UninstallProtection @Inject constructor(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         }
+        /** اینتنت فهرست «Device admin apps» در تنظیمات سیستم. */
+        fun deviceAdminListIntent(): Intent {
+            return Intent(android.provider.Settings.ACTION_DEVICE_ADMIN_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
     }
 
     private val devicePolicyManager: DevicePolicyManager =
@@ -57,6 +63,11 @@ class UninstallProtection @Inject constructor(
      */
     fun isActivationScreenAvailable(): Boolean =
         runCatching { enableIntent(context).resolveActivity(context.packageManager) }
+            .getOrNull() != null
+
+    /** آیا فهرست «Device admin apps» روی این گوشی مستقیم باز می‌شود؟ */
+    fun isDeviceAdminListAvailable(): Boolean =
+        runCatching { deviceAdminListIntent().resolveActivity(context.packageManager) }
             .getOrNull() != null
 
     /** حذف «سد» از مدیر دستگاه (فقط اگر فعال باشد). */

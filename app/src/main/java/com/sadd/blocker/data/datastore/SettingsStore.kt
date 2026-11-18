@@ -35,6 +35,16 @@ enum class AppTheme {
     SYSTEM,
 }
 
+/** رنگ‌بندی برنامه — مستقل از روشن/تیره؛ هر رنگ‌بندی روشن و تیره خودش را دارد. */
+enum class ColorTheme {
+    SADD,
+    SUNSET,
+    FOREST,
+    OCEAN,
+    GRAPE,
+    ROSE,
+}
+
 /**
  * تنظیمات + امنیت PIN در DataStore.
  * PIN هرگز plaintext ذخیره نمی‌شود: فقط PBKDF2(salt, PIN) + salt نگه داشته
@@ -50,6 +60,7 @@ class SettingsStore @Inject constructor(
     companion object {
         val GLOBAL_DELAY = intPreferencesKey("global_delay_seconds")
         val APP_THEME = stringPreferencesKey("app_theme")
+        val COLOR_THEME = stringPreferencesKey("color_theme")
         val DARK_THEME = booleanPreferencesKey("dark_theme")
         val BLOCK_MODE = stringPreferencesKey("block_mode")
         val PIN_HASH = stringPreferencesKey("pin_hash_hex")
@@ -141,6 +152,23 @@ class SettingsStore @Inject constructor(
     suspend fun setTheme(theme: AppTheme) {
         context.settingsDataStore.edit { prefs ->
             prefs[APP_THEME] = theme.name
+        }
+    }
+
+    /** رنگ‌بندی فعلی؛ پیش‌فرض «سد» (سرمه‌ای + مینت) است. */
+    val colorTheme: Flow<ColorTheme> = safeData
+        .map { prefs ->
+            val raw = prefs[COLOR_THEME]
+            if (raw == null) {
+                ColorTheme.SADD
+            } else {
+                runCatching { ColorTheme.valueOf(raw) }.getOrDefault(ColorTheme.SADD)
+            }
+        }
+
+    suspend fun setColorTheme(theme: ColorTheme) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[COLOR_THEME] = theme.name
         }
     }
 

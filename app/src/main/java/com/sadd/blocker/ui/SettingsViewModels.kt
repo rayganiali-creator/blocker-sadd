@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.PinCrypto
 import com.sadd.blocker.data.datastore.AppTheme
+import com.sadd.blocker.data.datastore.ColorTheme
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.DelayOptions
@@ -139,6 +140,7 @@ data class PinUiState(
 
 data class ThemeUiState(
     val theme: AppTheme = AppTheme.DARK,
+    val colorTheme: ColorTheme = ColorTheme.SADD,
 )
 
 @HiltViewModel
@@ -155,11 +157,22 @@ class ThemeViewModel @Inject constructor(
                 _uiState.update { it.copy(theme = theme) }
             }
         }
+        viewModelScope.launch {
+            settingsStore.colorTheme.collect { colorTheme ->
+                _uiState.update { it.copy(colorTheme = colorTheme) }
+            }
+        }
     }
 
     fun setTheme(theme: AppTheme) {
         viewModelScope.launch {
             settingsStore.setTheme(theme)
+        }
+    }
+
+    fun setColorTheme(colorTheme: ColorTheme) {
+        viewModelScope.launch {
+            settingsStore.setColorTheme(colorTheme)
         }
     }
 }

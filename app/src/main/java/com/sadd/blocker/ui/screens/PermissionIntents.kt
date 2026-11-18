@@ -100,6 +100,35 @@ fun openSecuritySettingsPage(context: Context): Boolean {
 }
 
 /**
+ * باز کردن مستقیم فهرست «Device admin apps»؛ true یعنی فهرست باز شد.
+ * اگر روی این گوشی مستقیم باز نشود (resolveActivity null)، به صفحه امنیت
+ * سیستم می‌رود و false برمی‌گردد تا کارت بگوید مستقیم باز نشد — هیچ‌وقت
+ * بی‌صدا شکست نمی‌خورد. خطای startActivity هم با متن واقعی Toast می‌شود.
+ */
+fun openDeviceAdminAppsPage(context: Context): Boolean {
+    val intent = UninstallProtection.deviceAdminListIntent()
+    val resolves = runCatching { intent.resolveActivity(context.packageManager) }.getOrNull() != null
+    if (!resolves) {
+        Toast.makeText(
+            context,
+            "فهرست Device admin apps مستقیم باز نشد؛ تنظیمات امنیتی باز شد.",
+            Toast.LENGTH_LONG,
+        ).show()
+        openSecuritySettingsPage(context)
+        return false
+    }
+    return runCatching { context.startActivity(intent) }
+        .onFailure { e ->
+            Toast.makeText(
+                context,
+                "فهرست Device admin apps باز نشد: ${e.message ?: "خطای نامشخص"}",
+                Toast.LENGTH_LONG,
+            ).show()
+            openSecuritySettingsPage(context)
+        }.isSuccess
+}
+
+/**
  * باز کردن صفحه اطلاعات برنامه (App info)؛ برای مرحله دوم دنباله
  * دسترسی‌پذیری (Allow restricted settings از ⋮). خطا Toast + fallback
  * دارد، مثل openSettingsPage — هیچ‌وقت بی‌صدا شکست نمی‌خورد.

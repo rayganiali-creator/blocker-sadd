@@ -2,6 +2,7 @@ package com.sadd.blocker.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sadd.blocker.R
 import com.sadd.blocker.data.datastore.AppTheme
+import com.sadd.blocker.data.datastore.ColorTheme
 
 // سد — توکن‌های تاییدشده (AUDIT.md §۳٫۲ + موکاپ‌های v2):
 // سرمه‌ای عمیق + مینت/تیل، پس‌زمینه روشن off-white، بدون مشکی خالص.
@@ -78,6 +80,223 @@ private val DarkColors = darkColorScheme(
     onSurfaceVariant = Color(0xFFB9C6DA),
     outline = Color(0xFF3A4A66),
 )
+
+/**
+ * رنگ‌بندی‌ها — ۶ پالت، هر کدام روشن و تیره خودش را دارد.
+ * قرارداد کنتراست: در روشن، primary تیره است (متن سفید روی آن خواناست و
+ * خودش روی پس‌زمینه روشن خواناست)؛ در تیره، primary روشن است و onPrimary
+ * تیره. رنگ خطا در همه پالت‌ها یکی است تا معنای خطا ثابت بماند.
+ */
+private fun paletteColors(
+    dark: Boolean,
+    primary: Color,
+    onPrimary: Color,
+    primaryContainer: Color,
+    onPrimaryContainer: Color,
+    secondary: Color,
+    onSecondary: Color,
+    tertiary: Color,
+    onTertiary: Color,
+    background: Color,
+    onBackground: Color,
+    surface: Color,
+    onSurface: Color,
+    surfaceVariant: Color,
+    onSurfaceVariant: Color,
+    outline: Color,
+): ColorScheme {
+    return if (dark) {
+        darkColorScheme(
+            primary = primary, onPrimary = onPrimary,
+            primaryContainer = primaryContainer, onPrimaryContainer = onPrimaryContainer,
+            secondary = secondary, onSecondary = onSecondary,
+            tertiary = tertiary, onTertiary = onTertiary,
+            error = Coral, onError = NavyDeep,
+            errorContainer = Color(0xFF4A1E12), onErrorContainer = Color(0xFFFFC9B8),
+            background = background, onBackground = onBackground,
+            surface = surface, onSurface = onSurface,
+            surfaceVariant = surfaceVariant, onSurfaceVariant = onSurfaceVariant,
+            outline = outline,
+        )
+    } else {
+        lightColorScheme(
+            primary = primary, onPrimary = onPrimary,
+            primaryContainer = primaryContainer, onPrimaryContainer = onPrimaryContainer,
+            secondary = secondary, onSecondary = onSecondary,
+            tertiary = tertiary, onTertiary = onTertiary,
+            error = Color(0xFFC93A1E), onError = Color.White,
+            errorContainer = Color(0xFFFFE3DA), onErrorContainer = Color(0xFF5C130A),
+            background = background, onBackground = onBackground,
+            surface = surface, onSurface = onSurface,
+            surfaceVariant = surfaceVariant, onSurfaceVariant = onSurfaceVariant,
+            outline = outline,
+        )
+    }
+}
+
+private fun sunsetColors(dark: Boolean): ColorScheme {
+    return if (dark) {
+        paletteColors(
+            dark = true,
+            primary = Color(0xFFFFB59A), onPrimary = Color(0xFF3A130A),
+            primaryContainer = Color(0xFF7A2E12), onPrimaryContainer = Color(0xFFFFDCC8),
+            secondary = Color(0xFFF5B544), onSecondary = Color(0xFF2A1C00),
+            tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
+            background = Color(0xFF1C100A), onBackground = Color(0xFFFFF1E6),
+            surface = Color(0xFF281710), onSurface = Color(0xFFFFF1E6),
+            surfaceVariant = Color(0xFF3D2718), onSurfaceVariant = Color(0xFFE3BFA4),
+            outline = Color(0xFF6B4A38),
+        )
+    } else {
+        paletteColors(
+            dark = false,
+            primary = Color(0xFFB43A12), onPrimary = Color.White,
+            primaryContainer = Color(0xFFFFDCC8), onPrimaryContainer = Color(0xFF4A1500),
+            secondary = Color(0xFF8A5A00), onSecondary = Color.White,
+            tertiary = Color(0xFF6D28D9), onTertiary = Color.White,
+            background = Color(0xFFFFF8F3), onBackground = Color(0xFF2B160B),
+            surface = Color.White, onSurface = Color(0xFF2B160B),
+            surfaceVariant = Color(0xFFF6E4D6), onSurfaceVariant = Color(0xFF6E4B34),
+            outline = Color(0xFFC4A894),
+        )
+    }
+}
+
+private fun forestColors(dark: Boolean): ColorScheme {
+    return if (dark) {
+        paletteColors(
+            dark = true,
+            primary = Color(0xFF7EDFA0), onPrimary = Color(0xFF062B16),
+            primaryContainer = Color(0xFF14532D), onPrimaryContainer = Color(0xFFC9EED6),
+            secondary = Color(0xFFA8D98A), onSecondary = Color(0xFF16290A),
+            tertiary = Color(0xFF7FD8E0), onTertiary = Color(0xFF00363C),
+            background = Color(0xFF0A1A10), onBackground = Color(0xFFEAF6EC),
+            surface = Color(0xFF122619), onSurface = Color(0xFFEAF6EC),
+            surfaceVariant = Color(0xFF1F3A28), onSurfaceVariant = Color(0xFFB3CDB8),
+            outline = Color(0xFF4A6B52),
+        )
+    } else {
+        paletteColors(
+            dark = false,
+            primary = Color(0xFF1D6B38), onPrimary = Color.White,
+            primaryContainer = Color(0xFFC9EED6), onPrimaryContainer = Color(0xFF062B16),
+            secondary = Color(0xFF5B7C2A), onSecondary = Color.White,
+            tertiary = Color(0xFF0E7C86), onTertiary = Color.White,
+            background = Color(0xFFF3F9F3), onBackground = Color(0xFF12261A),
+            surface = Color.White, onSurface = Color(0xFF12261A),
+            surfaceVariant = Color(0xFFE2EEE2), onSurfaceVariant = Color(0xFF44564A),
+            outline = Color(0xFFA8BFAE),
+        )
+    }
+}
+
+private fun oceanColors(dark: Boolean): ColorScheme {
+    return if (dark) {
+        paletteColors(
+            dark = true,
+            primary = Color(0xFF7CC4FF), onPrimary = Color(0xFF062A44),
+            primaryContainer = Color(0xFF0F3D5C), onPrimaryContainer = Color(0xFFCFE8FF),
+            secondary = Color(0xFF7FD8E0), onSecondary = Color(0xFF00363C),
+            tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
+            background = Color(0xFF081826), onBackground = Color(0xFFEAF3FA),
+            surface = Color(0xFF0F2438), onSurface = Color(0xFFEAF3FA),
+            surfaceVariant = Color(0xFF1B3549), onSurfaceVariant = Color(0xFFB1C7D8),
+            outline = Color(0xFF45617A),
+        )
+    } else {
+        paletteColors(
+            dark = false,
+            primary = Color(0xFF0B5FA5), onPrimary = Color.White,
+            primaryContainer = Color(0xFFCFE8FF), onPrimaryContainer = Color(0xFF062A44),
+            secondary = Color(0xFF0E7C86), onSecondary = Color.White,
+            tertiary = Color(0xFF6D28D9), onTertiary = Color.White,
+            background = Color(0xFFF2F8FC), onBackground = Color(0xFF0C1F2E),
+            surface = Color.White, onSurface = Color(0xFF0C1F2E),
+            surfaceVariant = Color(0xFFE0EBF3), onSurfaceVariant = Color(0xFF41586C),
+            outline = Color(0xFFA9BECD),
+        )
+    }
+}
+
+private fun grapeColors(dark: Boolean): ColorScheme {
+    return if (dark) {
+        paletteColors(
+            dark = true,
+            primary = Color(0xFFC4A5FF), onPrimary = Color(0xFF240B4D),
+            primaryContainer = Color(0xFF4A2A86), onPrimaryContainer = Color(0xFFE4D8FF),
+            secondary = Color(0xFFF0A0D0), onSecondary = Color(0xFF3D0A2E),
+            tertiary = Color(0xFF7FD8E0), onTertiary = Color(0xFF00363C),
+            background = Color(0xFF150A26), onBackground = Color(0xFFF2ECFD),
+            surface = Color(0xFF1F1238), onSurface = Color(0xFFF2ECFD),
+            surfaceVariant = Color(0xFF2E2149), onSurfaceVariant = Color(0xFFC3B6DE),
+            outline = Color(0xFF5E4E80),
+        )
+    } else {
+        paletteColors(
+            dark = false,
+            primary = Color(0xFF6D28D9), onPrimary = Color.White,
+            primaryContainer = Color(0xFFE4D8FF), onPrimaryContainer = Color(0xFF240B4D),
+            secondary = Color(0xFFA03D7A), onSecondary = Color.White,
+            tertiary = Color(0xFF0E7C86), onTertiary = Color.White,
+            background = Color(0xFFF8F5FE), onBackground = Color(0xFF1D1030),
+            surface = Color.White, onSurface = Color(0xFF1D1030),
+            surfaceVariant = Color(0xFFEAE4F6), onSurfaceVariant = Color(0xFF51456E),
+            outline = Color(0xFFB7A9D1),
+        )
+    }
+}
+
+private fun roseColors(dark: Boolean): ColorScheme {
+    return if (dark) {
+        paletteColors(
+            dark = true,
+            primary = Color(0xFFFF9EC7), onPrimary = Color(0xFF3D0A24),
+            primaryContainer = Color(0xFF7A2450), onPrimaryContainer = Color(0xFFFFD6E7),
+            secondary = Color(0xFFFBBF24), onSecondary = Color(0xFF2A1C00),
+            tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
+            background = Color(0xFF220D18), onBackground = Color(0xFFFBEFF4),
+            surface = Color(0xFF301221), onSurface = Color(0xFFFBEFF4),
+            surfaceVariant = Color(0xFF42202F), onSurfaceVariant = Color(0xFFD6A9BE),
+            outline = Color(0xFF6E4456),
+        )
+    } else {
+        paletteColors(
+            dark = false,
+            primary = Color(0xFFBE185D), onPrimary = Color.White,
+            primaryContainer = Color(0xFFFFD6E7), onPrimaryContainer = Color(0xFF3D0A24),
+            secondary = Color(0xFFB45309), onSecondary = Color.White,
+            tertiary = Color(0xFF6D28D9), onTertiary = Color.White,
+            background = Color(0xFFFDF5F8), onBackground = Color(0xFF2B1019),
+            surface = Color.White, onSurface = Color(0xFF2B1019),
+            surfaceVariant = Color(0xFFF6E2EA), onSurfaceVariant = Color(0xFF6E4456),
+            outline = Color(0xFFD0A9BC),
+        )
+    }
+}
+
+/** نام فارسی رنگ‌بندی برای انتخاب‌گر تم. */
+fun paletteLabelFa(colorTheme: ColorTheme): String {
+    return when (colorTheme) {
+        ColorTheme.SADD -> "سد"
+        ColorTheme.SUNSET -> "غروب"
+        ColorTheme.FOREST -> "جنگل"
+        ColorTheme.OCEAN -> "اقیانوس"
+        ColorTheme.GRAPE -> "انگور"
+        ColorTheme.ROSE -> "رز"
+    }
+}
+
+/** رنگ‌بندی کامل برای حالت روشن/تیره داده‌شده. */
+fun colorSchemeFor(colorTheme: ColorTheme, dark: Boolean): ColorScheme {
+    return when (colorTheme) {
+        ColorTheme.SADD -> if (dark) DarkColors else LightColors
+        ColorTheme.SUNSET -> sunsetColors(dark)
+        ColorTheme.FOREST -> forestColors(dark)
+        ColorTheme.OCEAN -> oceanColors(dark)
+        ColorTheme.GRAPE -> grapeColors(dark)
+        ColorTheme.ROSE -> roseColors(dark)
+    }
+}
 
 /** فونت وزیرمتن (res/font) — Regular / Medium / Bold. */
 val Vazirmatn = FontFamily(
@@ -162,12 +381,18 @@ private val SaddShapes = Shapes(
 )
 
 /**
- * تم «سد»: روشن / تیره / سیستمی.
+ * تم «سد»: روشن / تیره / سیستمی + رنگ‌بندی (پیش‌فرض «سد»).
+ * رنگ‌بندی و روشن/تیره دو انتخاب جدا هستند: رنگ‌بندی پالت را عوض می‌کند و
+ * روشن/تیره نسخه روشن یا تیره همان پالت را می‌دهد.
  * در SYSTEM از تنظیم سیستم پیروی می‌کند؛ پیش‌فرض DARK است.
  * جهت چیدمان کل اپ همیشه RTL است (فارسی) — همه صفحه‌ها از اینجا به ارث می‌برند.
  */
 @Composable
-fun BlockerTheme(theme: AppTheme = AppTheme.DARK, content: @Composable () -> Unit) {
+fun BlockerTheme(
+    theme: AppTheme = AppTheme.DARK,
+    colorTheme: ColorTheme = ColorTheme.SADD,
+    content: @Composable () -> Unit,
+) {
     val dark = when (theme) {
         AppTheme.LIGHT -> false
         AppTheme.DARK -> true
@@ -175,7 +400,7 @@ fun BlockerTheme(theme: AppTheme = AppTheme.DARK, content: @Composable () -> Uni
     }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(
-            colorScheme = if (dark) DarkColors else LightColors,
+            colorScheme = colorSchemeFor(colorTheme, dark),
             typography = SaddTypography,
             shapes = SaddShapes,
             content = content,

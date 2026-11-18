@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.system.PermissionHealthChecker
 import com.sadd.blocker.data.system.UninstallProtection
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
@@ -83,6 +84,12 @@ data class StrictSettingsUiState(
     val uninstallAdminActive: Boolean = false,
     /** صفحه فعال‌سازی مدیر دستگاه روی این گوشی در دسترس است یا نه (تشخیص؛ null = هنوز بررسی نشده). */
     val adminActivationAvailable: Boolean? = null,
+    /** فهرست «Device admin apps» روی این گوشی مستقیم باز می‌شود یا نه (null = هنوز بررسی نشده). */
+    val deviceAdminListAvailable: Boolean? = null,
+    /** سرویس Accessibility «سد» الان روشن است یا نه (وضعیت زنده سیستم). */
+    val accessibilityEnabled: Boolean = false,
+    /** نگهبان مسلح است یا نه: تنظیم روشن، یا مدیر دستگاه واقعاً فعال. */
+    val guardArmed: Boolean = false,
     /** محافظت روشن بود ولی مدیر دستگاه از تنظیمات سیستم غیرفعال شد (تشخیص، فقط در کارت نشان داده می‌شود). */
     val adminDeactivatedNotice: Boolean = false,
     /** نتیجه آخرین تلاش فعال‌سازی مدیر دستگاه (فقط در حافظه؛ با تلاش بعدی پاک می‌شود). */
@@ -105,6 +112,7 @@ class StrictSettingsViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
     private val sessionRepository: SessionRepository,
     private val uninstallProtection: UninstallProtection,
+    private val permissionHealthChecker: PermissionHealthChecker,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StrictSettingsUiState())
@@ -155,12 +163,27 @@ class StrictSettingsViewModel @Inject constructor(
      * در این صورت اعلان «غیرفعال شد» در کارت نشان داده می‌شود تا وقتی کاربر آن را ببندد
      * (با فعال‌شدن دوباره مدیر دستگاه هم اعلان پاک می‌شود). وقتی محافظت خاموش است،
      * وضعیتِ ثبت‌شده با وضعیت فعلی همگام می‌شود تا خاموش‌کردنِ خودِ اپ اشتباه گرفته نشود.
+     *
+     * همگام‌سازی مهم: اگر مدیر دستگاه دستی از تنظیمات سیستم فعال شده باشد،
+     * تنظیم داخل اپ را هم روشن می‌کند — وگرنه نگهبان (که به تنظیم نگاه
+     * می‌کرد) در وضعیت واقعی کاربر بی‌صدا خاموش می‌ماند. وضعیت
+     * دسترسی‌پذیری و در دسترس بودن فهرست «Device admin apps» هم همین‌جا
+     * تازه می‌شود تا خط «وضعیت محافظ» و خط تشخیص درست باشند.
      */
     fun refreshAdminState() {
         viewModelScope.launch {
             val active = runCatching { uninstallProtection.isAdminActive() }.getOrDefault(false)
             val available = runCatching { uninstallProtection.isActivationScreenAvailable() }.getOrNull()
-            val enabled = _uiState.value.uninstallProtectionEnabled
+            val listAvailable = runCatching { uninstallProtection.isDeviceAdminListAvailable() }.getOrNull()
+            val accessibilityOn = runCatching { permissionHealthChecker.isAccessibilityEnabled() }.getOrDefault(false)
+            var enabled = _uiState.value.uninstallProtectionEnabled
+            // مدیر دستگاه دستی فعال شده ولی تنظیم خاموش است → تنظیم را روشن کن
+            // تا نگهبان مسلح شود؛ بدون این همگام‌سازی، فعال‌سازی دستی نگهبان
+            // را بیدار نمی‌کرد و حذف نصب از تنظیمات آزاد می‌ماند.
+            if (active && !enabled) {
+                runCatching { settingsStore.setUninstallProtectionEnabled(true) }
+                enabled = true
+            }
             val wasActive = runCatching { settingsStore.uninstallAdminWasActive.first() }.getOrDefault(false)
             val notice = UninstallProtectionGate.shouldShowDeactivatedNotice(enabled, wasActive, active)
             val newWasActive = when {
@@ -189,6 +212,9 @@ class StrictSettingsViewModel @Inject constructor(
                 it.copy(
                     uninstallAdminActive = active,
                     adminActivationAvailable = available,
+                    deviceAdminListAvailable = listAvailable,
+                    accessibilityEnabled = accessibilityOn,
+                    guardArmed = UninstallProtectionGate.isGuardArmed(enabled, active),
                     adminDeactivatedNotice = if (active) {
                         false
                     } else {
@@ -221,6 +247,18 @@ class StrictSettingsViewModel @Inject constructor(
     /** بستن نتیجه تلاش فعال‌سازی. */
     fun dismissActivationResult() {
         _uiState.update { it.copy(activationResult = null) }
+    }
+
+    /**
+     * فهرست «Device admin apps» مستقیم باز نشد و به تنظیمات امنیتی رفت —
+     * تا کاربر بداند از آنجا باید ادامه بدهد (خط تشخیص هم همین را می‌گوید).
+     */
+    fun noteDeviceAdminListFallback() {
+        _uiState.update {
+            it.copy(
+                activationResult = "فهرست Device admin apps مستقیم باز نشد — تنظیمات امنیتی باز شد؛ از آنجا: Device admin apps ← «سد».",
+            )
+        }
     }
 
     /** بستن اعلان «محافظت از تنظیمات سیستم غیرفعال شد». */
@@ -500,8 +538,10 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
  * بلاک واقعی (تشخیص نیت و بلاک وب با Accessibility) وصل است و فقط وسط سشن
  * فعال کار می‌کند؛ حالت‌ها نحوه شروع سشن و قفل قوانین وسط سشن را تعیین می‌کنند.
  * محدودیت صادقانه: اپ معمولی نمی‌تواند جلوی حذف نصب یا force-stop را قطعی بگیرد؛
- * مدیر دستگاه (پایین همین صفحه) حذف نصب را مسدود می‌کند، ولی غیرفعال‌سازی آن
- * از تنظیمات سیستم همیشه ممکن است و فقط یک هشدار نشان می‌دهد.
+ * مدیر دستگاه (پایین همین صفحه) حذف نصب را مسدود می‌کند و نگهبان، صفحه
+ * غیرفعال‌سازی آن و حذف نصب/توقف اجباری را رهگیری می‌کند و بازگشایی
+ * می‌خواهد — ولی خود صفحه سیستمی را نمی‌توان قفل کرد و اگر Accessibility
+ * خاموش شود، نگهبان هم خاموش می‌شود.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -712,6 +752,17 @@ fun ModesScreen(
                             "مدیر دستگاه فعال است؛ حذف نصب «سد» مسدود است.",
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                        Spacer(Modifier.height(SaddSpacing.Medium))
+                        SaddButton(
+                            text = "رفتن به Device admin apps",
+                            onClick = {
+                                if (!openDeviceAdminAppsPage(context)) {
+                                    strictViewModel.noteDeviceAdminListFallback()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            style = SaddButtonStyle.SECONDARY,
+                        )
                     } else {
                         Text(
                             "مدیر دستگاه هنوز فعال نشده؛ تا فعال نشود، حذف نصب مسدود نیست.",
@@ -734,6 +785,17 @@ fun ModesScreen(
                         )
                         Spacer(Modifier.height(SaddSpacing.Small))
                         SaddButton(
+                            text = "رفتن به Device admin apps",
+                            onClick = {
+                                if (!openDeviceAdminAppsPage(context)) {
+                                    strictViewModel.noteDeviceAdminListFallback()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            style = SaddButtonStyle.SECONDARY,
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddButton(
                             text = "باز کردن تنظیمات امنیتی گوشی",
                             onClick = { openSecuritySettingsPage(context) },
                             modifier = Modifier.fillMaxWidth(),
@@ -747,21 +809,37 @@ fun ModesScreen(
                         )
                     }
                     // خط تشخیص — برای عیب‌یابی از راه دور: وضعیت مدیر دستگاه
-                    // + در دسترس بودن صفحه فعال‌سازی روی این گوشی.
+                    // + در دسترس بودن صفحه فعال‌سازی و فهرست Device admin apps.
                     strictState.adminActivationAvailable?.let { available ->
                         Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
                             UninstallProtectionGate.adminDiagnosticLine(
                                 strictState.uninstallAdminActive,
                                 available,
+                                strictState.deviceAdminListAvailable,
                             ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    // خط وضعیت محافظ — نگهبان مسلح است یا نه، روی همین گوشی.
                     Spacer(Modifier.height(SaddSpacing.Small))
                     Text(
-                        "غیرفعال‌کردن مدیر دستگاه از تنظیمات سیستم همیشه ممکن است؛ این محافظت جلوی \u2066force-stop\u2069 را نمی‌گیرد.",
+                        UninstallProtectionGate.guardStatusLine(
+                            strictState.uninstallProtectionEnabled,
+                            strictState.uninstallAdminActive,
+                            strictState.accessibilityEnabled,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (strictState.guardArmed && strictState.accessibilityEnabled) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                    )
+                    Spacer(Modifier.height(SaddSpacing.Small))
+                    Text(
+                        "نگهبان صفحه غیرفعال‌سازی مدیر دستگاه و حذف نصب را رهگیری می‌کند و بازگشایی می‌خواهد؛ ولی خود صفحه سیستمی را نمی‌توان قفل کرد و اگر دسترسی‌پذیری خاموش شود، نگهبان هم خاموش می‌شود.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

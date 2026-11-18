@@ -10,6 +10,8 @@ import com.sadd.blocker.core.ProtectionGuardDetector
 import com.sadd.blocker.core.SectionDetector
 import com.sadd.blocker.core.TextRedactor
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.system.UninstallProtection
+import com.sadd.blocker.domain.UninstallProtectionGate
 import com.sadd.blocker.domain.model.BlockEventKind
 import com.sadd.blocker.domain.model.BlockedWebsite
 import com.sadd.blocker.domain.model.KeywordRule
@@ -78,14 +80,19 @@ import javax.inject.Inject
  * غیرفعال/حذف نمی‌شود؛ پایان سشن Strict PIN می‌خواهد) — نه با عوض
  * کردن معیار مچ، تا رفتار موتور قابل پیش‌بینی بماند.
  *
- * نگهبان حذف نصب / توقف اجباری (ProtectionGuardDetector): مستقل از سشن
- * فعال است و فقط وقتی محافظت از حذف نصب روشن باشد کار می‌کند؛ روی تغییر
- * پنجره، صفحه اطلاعات برنامه «سد» در تنظیمات یا دیالوگ حذف نصب/توقف
- * اجباری را از روی متن صفحه تشخیص می‌دهد، BACK می‌زند و صفحه بازگشایی
- * Strict را باز می‌کند. محدودیت صادقانه: فقط وقتی Accessibility روشن
- * است کار می‌کند؛ یک ضربه خیلی سریع ممکن است از BACK جلو بزند؛ و صفحه
- * غیرفعال‌سازی مدیر دستگاه یا خودِ سرویس Accessibility را نمی‌توان
- * مسدود کرد — فقط هشدار غیرفعال‌شدن آن‌ها نشان داده می‌شود.
+ * نگهبان حذف نصب / توقف اجباری / غیرفعال‌سازی مدیر دستگاه
+ * (ProtectionGuardDetector + GuardOverlay): مستقل از سشن فعال است و وقتی
+ * مسلح است کار می‌کند — مسلح یعنی تنظیم محافظت روشن باشد یا مدیر دستگاه
+ * واقعاً فعال باشد (فعال‌سازی دستی از تنظیمات سیستم تنظیم داخل اپ را
+ * عوض نمی‌کند). روی تغییر پنجره و تغییر محتوای پنجره، صفحه اطلاعات برنامه
+ * «سد» در تنظیمات، دیالوگ حذف نصب/توقف اجباری، فهرست «Device admin apps»
+ * یا دیالوگ غیرفعال‌کردن مدیر دستگاه را از روی متن صفحه تشخیص می‌دهد؛
+ * همان لحظه پرده رهگیری (TYPE_ACCESSIBILITY_OVERLAY) را نشان می‌دهد تا
+ * ضربه سریع روی دکمه زیرین ثبت نشود، BACK می‌زند و صفحه بازگشایی Strict
+ * را باز می‌کند. محدودیت صادقانه: فقط وقتی Accessibility روشن است کار
+ * می‌کند؛ صفحه غیرفعال‌سازی مدیر دستگاه یا خودِ سرویس Accessibility را
+ * نمی‌توان مسدود کرد — فقط رهگیری مسیر رسیدن به آن‌ها ممکن است، و اگر
+ * سرویس خاموش شود نگهبان هم خاموش می‌شود.
  *
  * توجه: فایل res/xml/accessibility_service_config.xml باید
  * typeWindowContentChanged را هم شامل شود تا تغییر محتوای پنجره
@@ -113,7 +120,20 @@ class BlockAccessibilityService : AccessibilityService() {
     @Inject
     lateinit var settingsStore: SettingsStore
 
+    @Inject
+    lateinit var uninstallProtection: UninstallProtection
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** پرده رهگیری نگهبان — ضربه سریع روی «حذف نصب»/«تایید» را می‌خورد. */
+    private val guardOverlay by lazy { GuardOverlay(this) }
+
+    /** کش وضعیت زنده مدیر دستگاه برای مسلح بودن نگهبان (۵ ثانیه). */
+    @Volatile
+    private var adminActiveCache: Boolean? = null
+
+    @Volatile
+    private var adminActiveCacheAtMs: Long = 0L
 
     /** عکس لحظه‌ای قوانین + وضعیت سشن؛ حداکثر ۵ ثانیه کش می‌شود. */
     private data class Snapshot(
@@ -196,6 +216,11 @@ class BlockAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        try {
+            guardOverlay.hide()
+        } catch (_: Exception) {
+            // نادیده
+        }
         scope.cancel()
         super.onDestroy()
     }
@@ -344,20 +369,40 @@ class BlockAccessibilityService : AccessibilityService() {
     // ---------- نگهبان حذف نصب / توقف اجباری ----------
 
     /**
-     * نگهبان: مستقل از سشن فعال؛ فقط وقتی محافظت از حذف نصب روشن است و
-     * پنجره بازگشایی ۵دقیقه‌ای باز نیست. روی تغییر پنجره، صفحه اطلاعات
-     * برنامه «سد» در تنظیمات یا دیالوگ حذف نصب/توقف اجباری را از روی
-     * متن صفحه تشخیص می‌دهد، BACK می‌زند و صفحه بازگشایی Strict را باز
-     * می‌کند. متن خود اپ هرگز نگهبان را فعال نمی‌کند (هم چک پکیج
-     * پیش‌زمینه در onAccessibilityEvent و هم چک داخل detector).
-     * ضد حلقه ۱۵ ثانیه‌ای برای هر نوع hit، مثل بقیه بلاک‌ها.
+     * نگهبان: مستقل از سشن فعال؛ وقتی مسلح است (تنظیم محافظت روشن باشد
+     * یا مدیر دستگاه واقعاً فعال باشد — فعال‌سازی دستی از تنظیمات سیستم
+     * تنظیم داخل اپ را عوض نمی‌کند، پس فقط به تنظیم تکیه کردن یعنی
+     * نگهبان در وضعیت واقعی کاربر بی‌صدا خاموش می‌ماند) و پنجره بازگشایی
+     * ۵دقیقه‌ای باز نیست. روی تغییر پنجره و تغییر محتوای پنجره، صفحه
+     * اطلاعات برنامه «سد» در تنظیمات، دیالوگ حذف نصب/توقف اجباری، فهرست
+     * «Device admin apps» یا دیالوگ غیرفعال‌کردن مدیر دستگاه را از روی
+     * متن صفحه تشخیص می‌دهد؛ همان لحظه پرده رهگیری را نشان می‌دهد تا
+     * ضربه سریع روی دکمه زیرین ثبت نشود، BACK می‌زند و صفحه بازگشایی
+     * Strict را باز می‌کند. اگر صفحه محافظت‌شده دیگر جلوی چشم نباشد
+     * (مثلاً کاربر با بازگشت بیرون رفته باشد)، پرده برداشته می‌شود.
+     * متن خود اپ هرگز نگهبان را فعال نمی‌کند (هم چک پکیج پیش‌زمینه در
+     * onAccessibilityEvent و هم چک داخل detector). ضد حلقه ۱۵ ثانیه‌ای
+     * فقط برای BACK و صفحه بازگشایی است؛ پرده خودش idempotent است و با
+     * هر رویداد دوباره نشان داده نمی‌شود.
      */
     private suspend fun evaluateGuard(packageName: String, windowClassName: String?) {
         try {
-            if (!settingsStore.uninstallProtectionEnabled.first()) return
+            if (!isGuardArmed()) {
+                guardOverlay.hide()
+                return
+            }
             val now = System.currentTimeMillis()
             val unlockUntil = settingsStore.protectionUnlockUntilMs.first()
-            if (ProtectionGuardDetector.isGuardUnlockWindowActive(now, unlockUntil)) return
+            if (ProtectionGuardDetector.isGuardUnlockWindowActive(now, unlockUntil)) {
+                guardOverlay.hide()
+                return
+            }
+            // پیش‌فیلتر ارزان: فقط پکیج‌های تنظیمات/نصب‌کننده/لانچر درخت
+            // را می‌خوانند — تغییر محتوای بقیه اپ‌ها نگهبان را بیدار نمی‌کند.
+            if (!ProtectionGuardDetector.isGuardedPackage(packageName)) {
+                guardOverlay.hide()
+                return
+            }
             val root = activeRootOrNull() ?: return
             val signals = collectSignals(root, windowClassName)
             val hit = ProtectionGuardDetector.detect(
@@ -368,11 +413,21 @@ class BlockAccessibilityService : AccessibilityService() {
                     windowClassName = windowClassName,
                 ),
                 ownPackageName = this.packageName,
-            ) ?: return
+            )
+            if (hit == null) {
+                guardOverlay.hide()
+                return
+            }
+            val reason = guardReason(hit)
+            guardOverlay.show(hit, reason) { showGuardUnlock(hit) }
             val key = "guard:$hit"
             val last = cooldownUntil[key] ?: 0L
             if (now - last < COOLDOWN_MS) return
             cooldownUntil[key] = now
+            logBlock(
+                BlockEventKind.GUARD_BLOCKED,
+                "guard:$hit pkg=$packageName",
+            )
             performGlobalAction(GLOBAL_ACTION_BACK)
             showGuardUnlock(hit)
         } catch (_: Exception) {
@@ -380,17 +435,42 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** نگهبان مسلح است؟ تنظیم روشن، یا مدیر دستگاه واقعاً فعال. */
+    private suspend fun isGuardArmed(): Boolean {
+        return try {
+            val enabled = settingsStore.uninstallProtectionEnabled.first()
+            if (enabled) return true
+            val now = System.currentTimeMillis()
+            val cached = adminActiveCache
+            if (cached != null && now - adminActiveCacheAtMs < SNAPSHOT_TTL_MS) return cached
+            val active = runCatching { uninstallProtection.isAdminActive() }.getOrDefault(false)
+            adminActiveCache = active
+            adminActiveCacheAtMs = now
+            UninstallProtectionGate.isGuardArmed(enabled, active)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun guardReason(hit: ProtectionGuardDetector.GuardHit): String {
+        return when (hit) {
+            ProtectionGuardDetector.GuardHit.APP_INFO ->
+                "برای ادامه، اول محافظت را بازگشایی کن"
+            ProtectionGuardDetector.GuardHit.UNINSTALL_DIALOG ->
+                "حذف نصب «سد» نیازمند بازگشایی محافظت است"
+            ProtectionGuardDetector.GuardHit.FORCE_STOP_DIALOG ->
+                "توقف اجباری «سد» نیازمند بازگشایی محافظت است"
+            ProtectionGuardDetector.GuardHit.DEVICE_ADMIN_LIST ->
+                "فهرست مدیر دستگاه نیازمند بازگشایی محافظت است"
+            ProtectionGuardDetector.GuardHit.DEACTIVATE_ADMIN_DIALOG ->
+                "غیرفعال‌کردن مدیر دستگاه نیازمند بازگشایی محافظت است"
+        }
+    }
+
     /** صفحه بازگشایی Strict برای نگهبان (BlockedActivity با extra guardUnlock). */
     private fun showGuardUnlock(hit: ProtectionGuardDetector.GuardHit) {
         try {
-            val reason = when (hit) {
-                ProtectionGuardDetector.GuardHit.APP_INFO ->
-                    "برای ادامه، اول محافظت را بازگشایی کن"
-                ProtectionGuardDetector.GuardHit.UNINSTALL_DIALOG ->
-                    "حذف نصب «سد» نیازمند بازگشایی محافظت است"
-                ProtectionGuardDetector.GuardHit.FORCE_STOP_DIALOG ->
-                    "توقف اجباری «سد» نیازمند بازگشایی محافظت است"
-            }
+            val reason = guardReason(hit)
             val intent = Intent(this, BlockedActivity::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             intent.putExtra("reason", reason)

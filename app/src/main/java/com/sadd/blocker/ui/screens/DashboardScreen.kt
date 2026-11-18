@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -35,6 +36,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -370,6 +372,14 @@ private fun SessionRing(progress: Float, remainingText: String, active: Boolean)
         modifier = ringModifier.size(180.dp),
         contentAlignment = Alignment.Center,
     ) {
+        // پس‌زمینه قفل: وکتور قفل بزرگ و کم‌رنگ پشت حلقه — در هر دو تم
+        // خواناست و متن تایمر را نمی‌پوشاند؛ حلقه و پیشرفتش دست نخورده‌اند.
+        Icon(
+            imageVector = Icons.Filled.Lock,
+            contentDescription = null,
+            modifier = Modifier.size(150.dp).alpha(0.10f),
+            tint = MaterialTheme.colorScheme.primary,
+        )
         Canvas(modifier = Modifier.size(180.dp)) {
             drawArc(
                 color = trackColor,

@@ -26,6 +26,9 @@
         <intent>
             <action android:name="android.settings.SECURITY_SETTINGS" />
         </intent>
+        <intent>
+            <action android:name="android.settings.DEVICE_ADMIN_SETTINGS" />
+        </intent>
     </queries>
 
     <application
