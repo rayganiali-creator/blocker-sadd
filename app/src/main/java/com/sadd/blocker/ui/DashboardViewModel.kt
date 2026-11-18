@@ -1,6 +1,5 @@
 package com.sadd.blocker.ui
 
-import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
@@ -8,14 +7,16 @@ import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.data.system.PermissionHealthChecker
 import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.domain.model.BlockMode
+import com.sadd.blocker.domain.model.BlockedApp
+import com.sadd.blocker.domain.model.BlockedWebsite
+import com.sadd.blocker.domain.model.KeywordRule
+import com.sadd.blocker.domain.repository.BlockEventRepository
 import com.sadd.blocker.domain.repository.BlockedAppRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
 import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.domain.repository.WebsiteRepository
 import com.sadd.blocker.domain.usecase.EndSessionResult
 import com.sadd.blocker.domain.usecase.EndSessionUseCase
-import com.sadd.blocker.domain.usecase.StartSessionResult
-import com.sadd.blocker.domain.usecase.StartSessionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -24,7 +25,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import javax.inject.Inject
+
+/** نوع قانون در ردیف «قوانین فعال» داشبورد. */
+enum class DashboardRuleKind {
+    KEYWORD, APP, WEBSITE,
+}
+
+/** یک قانون فعال برای ردیف تاگل داشبورد — مستقیم از Room خوانده می‌شود. */
+data class DashboardRule(
+    val kind: DashboardRuleKind,
+    /** برای کلمه/وب‌سایت: id؛ برای اپ: 0. */
+    val id: Long = 0L,
+    /** برای اپ: packageName؛ بقیه: خالی. */
+    val packageName: String = "",
+    val label: String,
+    val detail: String,
+    val enabled: Boolean = true,
+)
 
 data class DashboardUiState(
     val sessionActive: Boolean = false,
@@ -37,6 +56,13 @@ data class DashboardUiState(
     val websitesCount: Int = 0,
     val keywordsCount: Int = 0,
     val activeRulesCount: Int = 0,
+    /** قوانین فعال (کلمه + اپ + وب‌سایت) برای ردیف‌های تاگل داشبورد. */
+    val activeRules: List<DashboardRule> = emptyList(),
+    /**
+     * بلاک‌های امروز: رویدادهای بلاک ثبت‌شده از نیمه‌شب امروز
+     * (از جدول block_events که سرویس Accessibility می‌نویسد).
+     */
+    val blocksTodayCount: Int = 0,
     val missingPermissions: Int = 0,
     val message: String? = null,
     /** پایان سشن Strict نیازمند PIN است (H-1). */
@@ -58,7 +84,7 @@ class DashboardViewModel @Inject constructor(
     private val appRepository: BlockedAppRepository,
     private val websiteRepository: WebsiteRepository,
     private val keywordRepository: KeywordRepository,
-    private val startSessionUseCase: StartSessionUseCase,
+    private val blockEventRepository: BlockEventRepository,
     private val endSessionUseCase: EndSessionUseCase,
     private val permissionHealth: PermissionHealthChecker,
     private val settingsStore: SettingsStore,
@@ -68,6 +94,9 @@ class DashboardViewModel @Inject constructor(
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
     private var tickCount = 0
     private var tickerJob: Job? = null
+    private var latestApps: List<BlockedApp> = emptyList()
+    private var latestWebsites: List<BlockedWebsite> = emptyList()
+    private var latestKeywords: List<KeywordRule> = emptyList()
 
     init {
         viewModelScope.launch {
@@ -78,29 +107,88 @@ class DashboardViewModel @Inject constructor(
         // تعداد قوانین: فقط موقع تغییر جدول به‌روز می‌شود، نه هر ثانیه.
         viewModelScope.launch {
             appRepository.observe().collect { list ->
-                val enabled = list.count { it.enabled }
-                _uiState.update {
-                    it.copy(appsCount = enabled, activeRulesCount = enabled + it.websitesCount + it.keywordsCount)
-                }
+                latestApps = list
+                refreshRuleCounts()
             }
         }
         viewModelScope.launch {
             websiteRepository.observe().collect { list ->
-                val enabled = list.count { it.enabled }
-                _uiState.update {
-                    it.copy(websitesCount = enabled, activeRulesCount = it.appsCount + enabled + it.keywordsCount)
-                }
+                latestWebsites = list
+                refreshRuleCounts()
             }
         }
         viewModelScope.launch {
             keywordRepository.observe().collect { list ->
-                val enabled = list.count { it.enabled }
-                _uiState.update {
-                    it.copy(keywordsCount = enabled, activeRulesCount = it.appsCount + it.websitesCount + enabled)
-                }
+                latestKeywords = list
+                refreshRuleCounts()
             }
         }
         setTicking(true)
+    }
+
+    /** تعداد قوانین فعال + ردیف‌های تاگل را از سه لیست آخر بازسازی می‌کند. */
+    private fun refreshRuleCounts() {
+        val appsEnabled = latestApps.count { it.enabled }
+        val websitesEnabled = latestWebsites.count { it.enabled }
+        val keywordsEnabled = latestKeywords.count { it.enabled }
+        val rules = buildList {
+            for (rule in latestKeywords) {
+                if (rule.enabled) {
+                    add(
+                        DashboardRule(
+                            kind = DashboardRuleKind.KEYWORD,
+                            id = rule.id,
+                            label = rule.rawText,
+                            detail = rule.category,
+                        ),
+                    )
+                }
+            }
+            for (app in latestApps) {
+                if (app.enabled) {
+                    add(
+                        DashboardRule(
+                            kind = DashboardRuleKind.APP,
+                            packageName = app.packageName,
+                            label = app.label,
+                            detail = app.packageName,
+                        ),
+                    )
+                }
+            }
+            for (site in latestWebsites) {
+                if (site.enabled) {
+                    add(
+                        DashboardRule(
+                            kind = DashboardRuleKind.WEBSITE,
+                            id = site.id,
+                            label = site.host,
+                            detail = "وب‌سایت",
+                        ),
+                    )
+                }
+            }
+        }
+        _uiState.update {
+            it.copy(
+                appsCount = appsEnabled,
+                websitesCount = websitesEnabled,
+                keywordsCount = keywordsEnabled,
+                activeRulesCount = appsEnabled + websitesEnabled + keywordsEnabled,
+                activeRules = rules,
+            )
+        }
+    }
+
+    /** تاگل یک قانون فعال از داشبورد — مستقیم روی همان Repository واقعی. */
+    fun toggleRule(rule: DashboardRule) {
+        viewModelScope.launch {
+            when (rule.kind) {
+                DashboardRuleKind.KEYWORD -> keywordRepository.setEnabled(rule.id, !rule.enabled)
+                DashboardRuleKind.APP -> appRepository.setEnabled(rule.packageName, !rule.enabled)
+                DashboardRuleKind.WEBSITE -> websiteRepository.setEnabled(rule.id, !rule.enabled)
+            }
+        }
     }
 
     /** تیکر شمارش معکوس را روشن/خاموش می‌کند (M-5: فقط وقتی صفحه دیده می‌شود). */
@@ -125,27 +213,6 @@ class DashboardViewModel @Inject constructor(
     fun refreshPermissions() {
         viewModelScope.launch {
             _uiState.update { it.copy(missingPermissions = permissionHealth.missingCount()) }
-        }
-    }
-
-    fun startSession(durationMs: Long) {
-        viewModelScope.launch {
-            val strict = _uiState.value.blockMode == BlockMode.STRICT
-            val result = startSessionUseCase.execute(
-                durationMs,
-                strict,
-                nowElapsedMs = SystemClock.elapsedRealtime(),
-            )
-            if (result is StartSessionResult.Started) {
-                _uiState.update { it.copy(message = "سشن ${TimeFormat.durationLabel(durationMs)} شروع شد.") }
-            }
-            if (result is StartSessionResult.AlreadyActive) {
-                _uiState.update { it.copy(message = "یک سشن فعال وجود دارد؛ اول آن را پایان بده.") }
-            }
-            if (result is StartSessionResult.InvalidDuration) {
-                _uiState.update { it.copy(message = result.reason) }
-            }
-            refresh()
         }
     }
 
@@ -229,11 +296,17 @@ class DashboardViewModel @Inject constructor(
         } else {
             0L
         }
-        // سلامت مجوزها (شامل فراخوانی سیستمی VpnService.prepare) فقط هر ۱۰ ثانیه چک می‌شود.
+        // سلامت مجوزها فقط هر ۱۰ ثانیه چک می‌شود.
         val missing = if (tickCount % 10 == 1) {
             permissionHealth.missingCount()
         } else {
             _uiState.value.missingPermissions
+        }
+        // بلاک‌های امروز هم فقط هر ۱۰ ثانیه از رویدادهای بلاک خوانده می‌شود.
+        val blocksToday = if (tickCount % 10 == 1) {
+            blockEventRepository.countSinceNow(startOfTodayMs(now))
+        } else {
+            _uiState.value.blocksTodayCount
         }
         _uiState.update {
             it.copy(
@@ -243,7 +316,19 @@ class DashboardViewModel @Inject constructor(
                 totalMs = total,
                 strict = active?.strict ?: false,
                 missingPermissions = missing,
+                blocksTodayCount = blocksToday,
             )
         }
+    }
+
+    /** نیمه‌شب امروز به وقت دستگاه. */
+    private fun startOfTodayMs(nowMs: Long): Long {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = nowMs
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
     }
 }
