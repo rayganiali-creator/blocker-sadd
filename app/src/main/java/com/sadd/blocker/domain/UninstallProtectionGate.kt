@@ -19,12 +19,13 @@ object UninstallProtectionGate {
         request?.pendingKind == StrictPendingKind.PROTECTION
 
     /**
-     * آیا با روشن‌کردن تاگل باید فوراً صفحه فعال‌سازی باز شود؟
+     * آیا با ضربه کاربر باید صفحه فعال‌سازی باز شود؟
      * فقط وقتی مدیر دستگاه هنوز فعال نیست — اگر فعال است، چیزی برای باز کردن نیست.
-     * (روشن‌کردن همیشه آزاد است؛ این فقط تصمیم «باز کن یا نه» است.)
+     * عمداً به جهت تاگل وابسته نیست: تاگل وضعیت واقعی مدیر دستگاه را نشان
+     * می‌دهد، پس ضربه روی تاگلِ خاموش همیشه یعنی «فعال کن» و ضربه روی
+     * تاگلِ روشن (مدیر فعال) هرگز به اینجا نمی‌رسد (اول دیالوگ تایید می‌آید).
      */
-    fun shouldLaunchActivation(turningOn: Boolean, adminActive: Boolean): Boolean =
-        turningOn && !adminActive
+    fun shouldLaunchActivation(adminActive: Boolean): Boolean = !adminActive
 
     /**
      * آیا باید اعلان «محافظت از تنظیمات سیستم غیرفعال شد» نشان داده شود؟

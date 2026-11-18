@@ -1,5 +1,6 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +49,7 @@ import com.sadd.blocker.domain.UninstallProtectionGate
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.ui.ModesViewModel
+import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -81,6 +84,8 @@ data class StrictSettingsUiState(
     val adminActivationAvailable: Boolean? = null,
     /** محافظت روشن بود ولی مدیر دستگاه از تنظیمات سیستم غیرفعال شد (تشخیص، فقط در کارت نشان داده می‌شود). */
     val adminDeactivatedNotice: Boolean = false,
+    /** نتیجه آخرین تلاش فعال‌سازی مدیر دستگاه (فقط در حافظه؛ با تلاش بعدی پاک می‌شود). */
+    val activationResult: String? = null,
 )
 
 /**
@@ -104,6 +109,8 @@ class StrictSettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(StrictSettingsUiState())
     val uiState: StateFlow<StrictSettingsUiState> = _uiState.asStateFlow()
     private var pendingChange: PendingStrictChange? = null
+    /** تلاش فعال‌سازی مدیر دستگاه در جریان است (فقط در حافظه؛ با refresh بعدی مصرف می‌شود). */
+    private var activationAttempted = false
 
     init {
         viewModelScope.launch {
@@ -165,6 +172,19 @@ class StrictSettingsViewModel @Inject constructor(
                 runCatching { settingsStore.setUninstallAdminWasActive(newWasActive) }
             }
             _uiState.update {
+                // اگر تلاش فعال‌سازی در جریان بود، نتیجه‌اش را از وضعیت زنده
+                // همین refresh می‌سازیم و پرچم را مصرف می‌کنیم؛ اگر تلاشی در
+                // جریان نبود و مدیر دستگاه فعال است، نتیجه قدیمی (مثلاً
+                // «فعال نشد») دیگر معتبر نیست و پاک می‌شود.
+                val result = when {
+                    activationAttempted -> if (active) {
+                        "فعال شد ✓ — حذف نصب «سد» مسدود است."
+                    } else {
+                        "فعال نشد — از دکمه «فعال‌سازی مدیر دستگاه» زیر دستی انجام بده."
+                    }
+                    active -> null
+                    else -> it.activationResult
+                }
                 it.copy(
                     uninstallAdminActive = active,
                     adminActivationAvailable = available,
@@ -173,9 +193,33 @@ class StrictSettingsViewModel @Inject constructor(
                     } else {
                         notice || it.adminDeactivatedNotice
                     },
+                    activationResult = result,
                 )
             }
+            activationAttempted = false
         }
+    }
+
+    /**
+     * ثبت تلاش فعال‌سازی مدیر دستگاه — درست موقع ضربه روی دکمه/تاگل صدا
+     * زده می‌شود تا refresh بعد از برگشت از صفحه سیستمی نتیجه را نشان بدهد.
+     */
+    fun markActivationAttempted() {
+        activationAttempted = true
+        _uiState.update { it.copy(activationResult = null) }
+    }
+
+    /** باز کردن صفحه فعال‌سازی همان‌جا شکست خورد (Toast خطا هم نشان داده شد). */
+    fun markActivationLaunchFailed() {
+        activationAttempted = false
+        _uiState.update {
+            it.copy(activationResult = "صفحه فعال‌سازی باز نشد — از دکمه «باز کردن تنظیمات امنیتی گوشی» زیر دستی انجام بده.")
+        }
+    }
+
+    /** بستن نتیجه تلاش فعال‌سازی. */
+    fun dismissActivationResult() {
+        _uiState.update { it.copy(activationResult = null) }
     }
 
     /** بستن اعلان «محافظت از تنظیمات سیستم غیرفعال شد». */
@@ -247,25 +291,31 @@ class StrictSettingsViewModel @Inject constructor(
     }
 
     /**
-     * درخواست روشن/خاموش کردن محافظت از حذف نصب.
-     * روشن‌کردن همیشه آزاد است. خاموش‌کردن وسط سشن Strict فعال نیازمند
-     * بازگشایی Strict با روش فعلی است؛ بیرون از سشن Strict آزاد است و
-     * همان‌جا «سد» را از مدیر دستگاه هم حذف می‌کند.
+     * روشن‌کردن تنظیم محافظت (بدون باز کردن صفحه و بدون refresh — refreshِ
+     * بعد از آن نباید پرچم تلاش فعال‌سازی را زودتر از برگشت کاربر از صفحه
+     * سیستمی مصرف کند). روشن‌کردن همیشه آزاد است.
      */
-    fun requestUninstallProtection(enabled: Boolean) {
+    fun ensureProtectionEnabled() {
         val state = _uiState.value
-        if (enabled == state.uninstallProtectionEnabled) return
+        if (state.uninstallProtectionEnabled) return
         viewModelScope.launch {
-            if (!UninstallProtectionGate.requiresUnlock(state.strictSessionActive, enabled)) {
-                settingsStore.setUninstallProtectionEnabled(enabled)
-                if (!enabled) {
-                    runCatching { uninstallProtection.removeAdmin() }
-                }
-                // روشن‌کردن تاگل دیگر اینجا صفحه فعال‌سازی را باز نمی‌کند؛
-                // باز کردن صفحه هم‌زمان با ضربه کاربر و مستقیم در onCheckedChange
-                // انجام می‌شود (بدون رویداد یک‌بارمصرف — رویداد حافظه‌ای با
-                // تنظیمِ ماندگار در DataStore همگام نبود و اگر تاگل از قبل روشن
-                // بود، هیچ انتقالی برای باز کردن صفحه رخ نمی‌داد).
+            settingsStore.setUninstallProtectionEnabled(true)
+        }
+    }
+
+    /**
+     * خاموش‌کردن محافظت — فقط بعد از دیالوگ تایید صریح «خاموش‌کردن محافظت؟»
+     * در UI صدا زده می‌شود؛ هرگز اثر جانبی ضربه‌ای که برای فعال‌کردن بوده
+     * نیست. خاموش‌کردن وسط سشن Strict فعال نیازمند بازگشایی Strict با روش
+     * فعلی است؛ بیرون از سشن Strict آزاد است و همان‌جا «سد» را از مدیر
+     * دستگاه هم حذف می‌کند.
+     */
+    fun requestProtectionOff() {
+        val state = _uiState.value
+        viewModelScope.launch {
+            if (!UninstallProtectionGate.requiresUnlock(state.strictSessionActive, false)) {
+                settingsStore.setUninstallProtectionEnabled(false)
+                runCatching { uninstallProtection.removeAdmin() }
                 refreshAdminState()
                 return@launch
             }
@@ -381,6 +431,9 @@ class StrictSettingsViewModel @Inject constructor(
             }
             StrictPendingKind.END_SESSION -> return false
             StrictPendingKind.RULE_CHANGE -> return false
+            // درخواست نگهبان اینجا اعمال نمی‌شود؛ مال BlockedActivity (حالت guard)
+            // است و دست نخورده می‌ماند تا همان‌جا پنجره ۵دقیقه‌ای را تنظیم کند.
+            StrictPendingKind.GUARD_UNLOCK -> return false
         }
         settingsStore.clearStrictCooldownRequest()
         return true
@@ -419,6 +472,7 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
             "تغییر مدت انتظار به $hours ساعت"
         }
         StrictPendingKind.PROTECTION -> "خاموش‌کردن محافظت از حذف نصب"
+        StrictPendingKind.GUARD_UNLOCK -> "بازگشایی محافظت (حذف نصب/توقف اجباری)"
         StrictPendingKind.RULE_CHANGE -> {
             val change = request.pendingRuleChange
             if (change != null) {
@@ -495,6 +549,22 @@ fun ModesScreen(
         )
     }
 
+    // تایید صریح خاموش‌کردن محافظت — بدون آن، ضربه روی تاگل هرگز مدیر
+    // دستگاه را حذف نمی‌کند.
+    var showProtectionOffConfirm by remember { mutableStateOf(false) }
+    if (showProtectionOffConfirm) {
+        SaddDialog(
+            title = "خاموش‌کردن محافظت؟",
+            text = "مدیر دستگاه حذف می‌شود و حذف نصب «سد» دوباره ممکن می‌شود.",
+            confirmText = "خاموش کن",
+            onConfirm = {
+                showProtectionOffConfirm = false
+                strictViewModel.requestProtectionOff()
+            },
+            onDismiss = { showProtectionOffConfirm = false },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -503,25 +573,23 @@ fun ModesScreen(
     ) {
         SaddTopBar(
             "حالت بلاک",
-            "پیش‌فرض انتخاب موقع شروع سشن؛ هر بار موقع شروع، Strict یا معمولی پرسیده می‌شود. سشن فعال با حالت خودش ادامه می‌یابد.",
+            "پیش‌فرض شروع سشن؛ هر بار موقع شروع پرسیده می‌شود.",
             onBack = onBack,
         )
         MessageBar(message = strictState.message, onDismiss = { strictViewModel.dismissMessage() })
         ModeCard(
             selected = uiState.blockMode == BlockMode.NORMAL,
-            title = "Normal — عادی",
-            description = "صفحه مداخله نشان داده می‌شود، تاخیر تنظیم‌شده اعمال می‌شود " +
-                "و می‌توانی با دکمه بازگشت از اقدام صرف‌نظر کنی.",
+            title = "\u2066Normal\u2069 — عادی",
+            description = "صفحه مداخله با فرصت تجدیدنظر؛ با بازگشت می‌توانی صرف‌نظر کنی.",
             onClick = { viewModel.setBlockMode(BlockMode.NORMAL) },
         )
         Spacer(Modifier.height(SaddSpacing.Medium))
         ModeCard(
             selected = uiState.blockMode == BlockMode.STRICT,
-            title = "Strict — سخت‌گیرانه",
-            description = "وسط سشن فعال نمی‌توان قانون را غیرفعال یا حذف کرد و پایان سشن " +
-                "فقط با بازگشایی Strict (تایپ متن طولانی یا انتظار) انجام می‌شود. " +
-                "Strict به‌تنهایی جلوی حذف نصب را نمی‌گیرد؛ برای آن، «جلوگیری از حذف نصب» " +
-                "را پایین همین صفحه فعال کن. force-stop را هیچ اپ معمولی نمی‌تواند بگیرد.",
+            title = "\u2066Strict\u2069 — سخت‌گیرانه",
+            description = "وسط سشن، تغییر قانون و پایان سشن فقط با بازگشایی Strict ممکن است. " +
+                "جلوی حذف نصب را نمی‌گیرد؛ آن را پایین همین صفحه فعال کن. " +
+                "\u2066force-stop\u2069 را هیچ اپ معمولی نمی‌تواند بگیرد.",
             onClick = { viewModel.setBlockMode(BlockMode.STRICT) },
         )
         if (uiState.blockMode == BlockMode.STRICT) {
@@ -530,24 +598,21 @@ fun ModesScreen(
             SaddCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
                     Text(
-                        "پایان سشن Strict و تغییر تنظیمات Strict فقط با بازگشایی انجام می‌شود. " +
-                            "شروع سشن Strict همیشه آزاد است؛ قفل فقط برای پایان و تغییر است.",
+                        "پایان سشن و تغییر تنظیمات فقط با بازگشایی انجام می‌شود؛ شروع همیشه آزاد است.",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.height(SaddSpacing.Medium))
                     ModeCard(
                         selected = strictState.unlockMethod == StrictUnlockMethod.PASSAGE,
                         title = "تایپ متن طولانی",
-                        description = "یک متن طولانی (حدود ۵۰۰ کاراکتر) را دقیقاً تایپ می‌کنی؛ " +
-                            "سخن امامان یا جمله انگیزشی. تا کامل تایپ نشود، بازگشایی نمی‌شود.",
+                        description = "متن طولانی (حدود ۵۰۰ کاراکتر) را دقیقاً تایپ کن؛ تا کامل نشود، بازگشایی نمی‌شود.",
                         onClick = { strictViewModel.requestUnlockMethod(StrictUnlockMethod.PASSAGE) },
                     )
                     Spacer(Modifier.height(SaddSpacing.Small))
                     ModeCard(
                         selected = strictState.unlockMethod == StrictUnlockMethod.COOLDOWN,
                         title = "انتظار",
-                        description = "درخواست ثبت می‌شود و باید مدت انتخاب‌شده کامل بگذرد؛ " +
-                            "بستن اپ یا ری‌استارت گوشی زمان را صفر نمی‌کند.",
+                        description = "مدت انتخاب‌شده باید کامل بگذرد؛ بستن اپ یا ری‌استارت زمان را صفر نمی‌کند.",
                         onClick = { strictViewModel.requestUnlockMethod(StrictUnlockMethod.COOLDOWN) },
                     )
                     Spacer(Modifier.height(SaddSpacing.Medium))
@@ -581,99 +646,124 @@ fun ModesScreen(
             }
             Spacer(Modifier.height(SaddSpacing.Medium))
             SectionTitle("جلوگیری از حذف نصب")
-            SaddCard(modifier = Modifier.fillMaxWidth()) {
+            SaddCard(modifier = Modifier.fillMaxWidth(), hero = true) {
                 Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
+                    // تاگل وضعیت واقعی مدیر دستگاه را نشان می‌دهد، نه فقط تنظیم
+                    // ذخیره‌شده را: اگر تنظیم روشن ولی مدیر دستگاه فعال نباشد،
+                    // تاگل خاموش است و ضربه روی آن فعال‌سازی را باز می‌کند —
+                    // ضربه‌ای که برای فعال‌کردن است هرگز مدیر دستگاه را حذف نمی‌کند.
                     SaddSwitchRow(
                         label = "جلوگیری از حذف نصب",
-                        description = "وقتی روشن است، «سد» مدیر دستگاه می‌شود و اندروید حذف نصب آن را مسدود می‌کند. " +
-                            "با روشن‌کردن، صفحه فعال‌سازی مدیر دستگاه فوراً باز می‌شود. " +
-                            "خاموش‌کردن آن وسط سشن Strict فقط با بازگشایی Strict (تایپ متن طولانی یا انتظار) انجام می‌شود.",
-                        checked = strictState.uninstallProtectionEnabled,
-                        // باز کردن صفحه فعال‌سازی هم‌زمان با ضربه کاربر و مستقیم
-                        // اینجا انجام می‌شود، نه با رویداد یک‌بارمصرف در ViewModel:
-                        // اگر تاگل از قبل روشن بود، هیچ انتقالی رخ نمی‌داد و صفحه
-                        // هیچ‌وقت باز نمی‌شد (همین باگ ران ۱۷۱ بود).
-                        onCheckedChange = { enabled ->
-                            strictViewModel.requestUninstallProtection(enabled)
-                            if (UninstallProtectionGate.shouldLaunchActivation(enabled, strictState.uninstallAdminActive)) {
-                                openAdminActivationPage(context)
+                        description = "«سد» مدیر دستگاه می‌شود و حذف نصب آن مسدود می‌شود.",
+                        checked = strictState.uninstallAdminActive,
+                        onCheckedChange = {
+                            if (!strictState.uninstallAdminActive) {
+                                // فعال‌کردن: مستقیم در همین ضربه، صفحه فعال‌سازی
+                                // باز می‌شود (نه با تغییر وضعیت — اگر تنظیم از
+                                // قبل روشن بود، هیچ انتقالی رخ نمی‌داد).
+                                strictViewModel.ensureProtectionEnabled()
+                                strictViewModel.markActivationAttempted()
+                                if (UninstallProtectionGate.shouldLaunchActivation(strictState.uninstallAdminActive)) {
+                                    if (!openAdminActivationPage(context)) {
+                                        strictViewModel.markActivationLaunchFailed()
+                                    }
+                                }
+                            } else {
+                                // خاموش‌کردن: اول دیالوگ تایید، بعد (در صورت
+                                // نیاز) بازگشایی Strict؛ هرگز حذف بی‌صدا نیست.
+                                showProtectionOffConfirm = true
                             }
                         },
                     )
-                    if (strictState.uninstallProtectionEnabled) {
-                        // اعلان: محافظت روشن بود ولی مدیر دستگاه از تنظیمات سیستم
-                        // غیرفعال شد (اپ نمی‌تواند جلوی آن را بگیرد؛ فقط خبر می‌دهد).
-                        if (strictState.adminDeactivatedNotice) {
-                            Spacer(Modifier.height(SaddSpacing.Small))
-                            Text(
-                                "محافظت از تنظیمات سیستم غیرفعال شد — مدیر دستگاه از تنظیمات گوشی غیرفعال شده است. " +
-                                    "برای فعال‌کردن دوباره، «تلاش دوباره» را بزن.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                            SaddButton(
-                                text = "فهمیدم",
-                                onClick = { strictViewModel.dismissAdminDeactivatedNotice() },
-                                modifier = Modifier.fillMaxWidth(),
-                                style = SaddButtonStyle.SECONDARY,
-                            )
-                        }
-                        Spacer(Modifier.height(SaddSpacing.Small))
-                        if (strictState.uninstallAdminActive) {
-                            Text(
-                                "مدیر دستگاه فعال است؛ حذف نصب «سد» مسدود است.",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        } else {
-                            Text(
-                                "مدیر دستگاه هنوز فعال نشده؛ تا فعال نشود، حذف نصب مسدود نیست.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                            Spacer(Modifier.height(SaddSpacing.Medium))
-                            // «تلاش دوباره»: روشن‌کردن تاگل خودش صفحه فعال‌سازی را
-                            // باز می‌کند؛ این دکمه برای وقتی است که کاربر از آن
-                            // صفحه برگشته و هنوز فعال نکرده.
-                            SaddButton(
-                                text = "تلاش دوباره",
-                                onClick = { openAdminActivationPage(context) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Spacer(Modifier.height(SaddSpacing.Small))
-                            SaddButton(
-                                text = "باز کردن تنظیمات امنیتی گوشی",
-                                onClick = { openSecuritySettingsPage(context) },
-                                modifier = Modifier.fillMaxWidth(),
-                                style = SaddButtonStyle.SECONDARY,
-                            )
-                            Spacer(Modifier.height(SaddSpacing.Small))
-                            Text(
-                                "دستی: تنظیمات ← امنیت ← Device admin apps ← «سد» را فعال کن.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        // خط تشخیص — برای عیب‌یابی از راه دور: وضعیت مدیر دستگاه
-                        // + در دسترس بودن صفحه فعال‌سازی روی این گوشی.
-                        strictState.adminActivationAvailable?.let { available ->
-                            Spacer(Modifier.height(SaddSpacing.Small))
-                            Text(
-                                UninstallProtectionGate.adminDiagnosticLine(
-                                    strictState.uninstallAdminActive,
-                                    available,
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                    // اعلان: محافظت روشن بود ولی مدیر دستگاه از تنظیمات سیستم
+                    // غیرفعال شد (اپ نمی‌تواند جلوی آن را بگیرد؛ فقط خبر می‌دهد).
+                    if (strictState.adminDeactivatedNotice) {
                         Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
-                            "صادقانه: غیرفعال‌کردن مدیر دستگاه از تنظیمات سیستم همیشه ممکن است و فقط یک هشدار نشان می‌دهد؛ " +
-                                "این محافظت جلوی force-stop را هم نمی‌گیرد. قفل مطلق فقط با Device Owner ممکن است که نیازمند ریست فکتوری است.",
+                            "محافظت از تنظیمات سیستم غیرفعال شد — برای فعال‌کردن دوباره، دکمه زیر را بزن.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddButton(
+                            text = "فهمیدم",
+                            onClick = { strictViewModel.dismissAdminDeactivatedNotice() },
+                            modifier = Modifier.fillMaxWidth(),
+                            style = SaddButtonStyle.SECONDARY,
+                        )
+                    }
+                    // نتیجه آخرین تلاش فعال‌سازی (بعد از برگشت از صفحه سیستمی).
+                    strictState.activationResult?.let { result ->
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Text(
+                            result,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (strictState.uninstallAdminActive) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            },
+                        )
+                    }
+                    Spacer(Modifier.height(SaddSpacing.Small))
+                    if (strictState.uninstallAdminActive) {
+                        Text(
+                            "مدیر دستگاه فعال است؛ حذف نصب «سد» مسدود است.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        Text(
+                            "مدیر دستگاه هنوز فعال نشده؛ تا فعال نشود، حذف نصب مسدود نیست.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Medium))
+                        // مسیر اصلی فعال‌سازی: همیشه و مستقیم صفحه فعال‌سازی
+                        // را باز می‌کند، هرچه تاگل بگوید.
+                        SaddButton(
+                            text = "فعال‌سازی مدیر دستگاه",
+                            onClick = {
+                                strictViewModel.ensureProtectionEnabled()
+                                strictViewModel.markActivationAttempted()
+                                if (!openAdminActivationPage(context)) {
+                                    strictViewModel.markActivationLaunchFailed()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddButton(
+                            text = "باز کردن تنظیمات امنیتی گوشی",
+                            onClick = { openSecuritySettingsPage(context) },
+                            modifier = Modifier.fillMaxWidth(),
+                            style = SaddButtonStyle.SECONDARY,
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Text(
+                            "دستی: تنظیمات ← امنیت ← \u2066Device admin apps\u2069 ← «سد» را فعال کن.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    // خط تشخیص — برای عیب‌یابی از راه دور: وضعیت مدیر دستگاه
+                    // + در دسترس بودن صفحه فعال‌سازی روی این گوشی.
+                    strictState.adminActivationAvailable?.let { available ->
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Text(
+                            UninstallProtectionGate.adminDiagnosticLine(
+                                strictState.uninstallAdminActive,
+                                available,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.height(SaddSpacing.Small))
+                    Text(
+                        "غیرفعال‌کردن مدیر دستگاه از تنظیمات سیستم همیشه ممکن است؛ این محافظت جلوی \u2066force-stop\u2069 را نمی‌گیرد.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
             val request = strictState.cooldownRequest
@@ -732,8 +822,7 @@ fun ModesScreen(
         Spacer(Modifier.height(SaddSpacing.Large))
         SaddCard(modifier = Modifier.fillMaxWidth()) {
             Text(
-                "مکانیزم بلاک واقعی با Accessibility وصل است و فقط وسط سشن فعال کار می‌کند: " +
-                    "جستجوی عمدی سابمیت‌شده، ناوبری به دامنه ممنوعه و باز کردن اپ ممنوعه بلاک می‌شوند؛ " +
+                "بلاک فقط وسط سشن فعال کار می‌کند: جستجوی عمدی، ناوبری ممنوعه و باز کردن اپ ممنوعه. " +
                     "خواندن و تایپ عادی هرگز بلاک نمی‌شود.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -746,7 +835,20 @@ fun ModesScreen(
 
 @Composable
 private fun ModeCard(selected: Boolean, title: String, description: String, onClick: () -> Unit) {
-    SaddCard(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
+    SaddCard(
+        modifier = Modifier.fillMaxWidth().then(
+            if (selected) {
+                Modifier.border(
+                    1.dp,
+                    MaterialTheme.colorScheme.primary,
+                    RoundedCornerShape(SaddRadius.Card),
+                )
+            } else {
+                Modifier
+            },
+        ),
+        onClick = onClick,
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
             verticalAlignment = Alignment.CenterVertically,

@@ -32,6 +32,14 @@ enum class StrictPendingKind {
     RULE_CHANGE,
     /** خاموش‌کردن محافظت از حذف نصب؛ pendingValue خالی است. */
     PROTECTION,
+    /**
+     * بازگشایی پنجره ۵دقیقه‌ای نگهبان حذف نصب/توقف اجباری؛ pendingValue خالی است.
+     * جدا از PROTECTION است: PROTECTION یعنی «محافظت را خاموش کن»، GUARD_UNLOCK
+     * یعنی «۵ دقیقه بگذار از صفحه حذف نصب/توقف اجباری رد شوم» و محافظت روشن می‌ماند.
+     * این درخواست را ModesScreen اعمال نمی‌کند؛ فقط BlockedActivity (حالت guard) است
+     * که بعد از بازگشایی، پنجره را تنظیم می‌کند.
+     */
+    GUARD_UNLOCK,
 }
 
 /**

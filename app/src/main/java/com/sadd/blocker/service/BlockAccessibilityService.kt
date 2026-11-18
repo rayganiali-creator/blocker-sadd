@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.sadd.blocker.core.KeywordMatcher
+import com.sadd.blocker.core.ProtectionGuardDetector
 import com.sadd.blocker.core.SectionDetector
 import com.sadd.blocker.core.TextRedactor
 import com.sadd.blocker.data.datastore.SettingsStore
@@ -76,6 +77,15 @@ import javax.inject.Inject
  * بودنش در لایه سشن/قانون اعمال می‌شود (قانون فعال وسط سشن Strict
  * غیرفعال/حذف نمی‌شود؛ پایان سشن Strict PIN می‌خواهد) — نه با عوض
  * کردن معیار مچ، تا رفتار موتور قابل پیش‌بینی بماند.
+ *
+ * نگهبان حذف نصب / توقف اجباری (ProtectionGuardDetector): مستقل از سشن
+ * فعال است و فقط وقتی محافظت از حذف نصب روشن باشد کار می‌کند؛ روی تغییر
+ * پنجره، صفحه اطلاعات برنامه «سد» در تنظیمات یا دیالوگ حذف نصب/توقف
+ * اجباری را از روی متن صفحه تشخیص می‌دهد، BACK می‌زند و صفحه بازگشایی
+ * Strict را باز می‌کند. محدودیت صادقانه: فقط وقتی Accessibility روشن
+ * است کار می‌کند؛ یک ضربه خیلی سریع ممکن است از BACK جلو بزند؛ و صفحه
+ * غیرفعال‌سازی مدیر دستگاه یا خودِ سرویس Accessibility را نمی‌توان
+ * مسدود کرد — فقط هشدار غیرفعال‌شدن آن‌ها نشان داده می‌شود.
  *
  * توجه: فایل res/xml/accessibility_service_config.xml باید
  * typeWindowContentChanged را هم شامل شود تا تغییر محتوای پنجره
@@ -161,6 +171,13 @@ class BlockAccessibilityService : AccessibilityService() {
             } else {
                 val windowClass = event.className?.toString()
                 scope.launch {
+                    try {
+                        // نگهبان حذف نصب/توقف اجباری: قبل از چک سشن —
+                        // مستقل از سشن فعال است و فقط به «محافظت روشن» وابسته است.
+                        evaluateGuard(foregroundPkg, windowClass)
+                    } catch (_: Exception) {
+                        // fail-open
+                    }
                     try {
                         // ریشه تازه خوانده می‌شود؛ گره زمان رویداد تا اینجا کهنه شده است.
                         evaluateWindow(foregroundPkg, windowClass)
@@ -321,6 +338,66 @@ class BlockAccessibilityService : AccessibilityService() {
             delaySeconds = delaySeconds,
         ) {
             actOnKeyword(packageName, rule, delaySeconds, snapshot.strict)
+        }
+    }
+
+    // ---------- نگهبان حذف نصب / توقف اجباری ----------
+
+    /**
+     * نگهبان: مستقل از سشن فعال؛ فقط وقتی محافظت از حذف نصب روشن است و
+     * پنجره بازگشایی ۵دقیقه‌ای باز نیست. روی تغییر پنجره، صفحه اطلاعات
+     * برنامه «سد» در تنظیمات یا دیالوگ حذف نصب/توقف اجباری را از روی
+     * متن صفحه تشخیص می‌دهد، BACK می‌زند و صفحه بازگشایی Strict را باز
+     * می‌کند. متن خود اپ هرگز نگهبان را فعال نمی‌کند (هم چک پکیج
+     * پیش‌زمینه در onAccessibilityEvent و هم چک داخل detector).
+     * ضد حلقه ۱۵ ثانیه‌ای برای هر نوع hit، مثل بقیه بلاک‌ها.
+     */
+    private suspend fun evaluateGuard(packageName: String, windowClassName: String?) {
+        try {
+            if (!settingsStore.uninstallProtectionEnabled.first()) return
+            val now = System.currentTimeMillis()
+            val unlockUntil = settingsStore.protectionUnlockUntilMs.first()
+            if (ProtectionGuardDetector.isGuardUnlockWindowActive(now, unlockUntil)) return
+            val root = activeRootOrNull() ?: return
+            val signals = collectSignals(root, windowClassName)
+            val hit = ProtectionGuardDetector.detect(
+                ProtectionGuardDetector.GuardSignals(
+                    packageName = packageName,
+                    texts = signals.texts,
+                    contentDescriptions = signals.contentDescriptions,
+                    windowClassName = windowClassName,
+                ),
+                ownPackageName = this.packageName,
+            ) ?: return
+            val key = "guard:$hit"
+            val last = cooldownUntil[key] ?: 0L
+            if (now - last < COOLDOWN_MS) return
+            cooldownUntil[key] = now
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            showGuardUnlock(hit)
+        } catch (_: Exception) {
+            // fail-open: خطا در نگهبان = عدم مداخله.
+        }
+    }
+
+    /** صفحه بازگشایی Strict برای نگهبان (BlockedActivity با extra guardUnlock). */
+    private fun showGuardUnlock(hit: ProtectionGuardDetector.GuardHit) {
+        try {
+            val reason = when (hit) {
+                ProtectionGuardDetector.GuardHit.APP_INFO ->
+                    "برای ادامه، اول محافظت را بازگشایی کن"
+                ProtectionGuardDetector.GuardHit.UNINSTALL_DIALOG ->
+                    "حذف نصب «سد» نیازمند بازگشایی محافظت است"
+                ProtectionGuardDetector.GuardHit.FORCE_STOP_DIALOG ->
+                    "توقف اجباری «سد» نیازمند بازگشایی محافظت است"
+            }
+            val intent = Intent(this, BlockedActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            intent.putExtra("reason", reason)
+            intent.putExtra("guardUnlock", true)
+            startActivity(intent)
+        } catch (_: Exception) {
+            // fail-open: اگر صفحه بازگشایی باز نشد، گوشی قفل نمی‌شود.
         }
     }
 

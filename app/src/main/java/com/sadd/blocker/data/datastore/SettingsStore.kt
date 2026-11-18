@@ -74,6 +74,14 @@ class SettingsStore @Inject constructor(
         /** محافظت از حذف نصب (مدیر دستگاه) روشن است یا نه؛ پیش‌فرض خاموش. */
         val UNINSTALL_PROTECTION_ENABLED = booleanPreferencesKey("uninstall_protection_enabled")
         /**
+         * پایان پنجره بازگشایی محافظت (زمان دیواری، میلی‌ثانیه)؛ تا این لحظه
+         * نگهبان حذف نصب/توقف اجباری (ProtectionGuardDetector) کاری نمی‌کند تا
+         * کاربر بعد از بازگشایی Strict بتواند از تنظیمات ادامه بدهد. ۰ یعنی
+         * پنجره‌ای باز نیست. با [ProtectionGuardDetector.PROTECTION_UNLOCK_WINDOW_MS]
+         * (۵ دقیقه) بعد از بازگشایی تنظیم می‌شود.
+         */
+        val PROTECTION_UNLOCK_UNTIL_MS = longPreferencesKey("protection_unlock_until_ms")
+        /**
          * آخرین وضعیتِ شناخته‌شده مدیر دستگاه (فعال بوده یا نه)؛ برای تشخیص
          * اینکه مدیر دستگاه از تنظیمات سیستم غیرفعال شده است. پیش‌فرض خاموش.
          */
@@ -242,6 +250,16 @@ class SettingsStore @Inject constructor(
     suspend fun setUninstallProtectionEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[UNINSTALL_PROTECTION_ENABLED] = enabled
+        }
+    }
+
+    /** پایان پنجره بازگشایی محافظت (زمان دیواری)؛ پیش‌فرض ۰ یعنی پنجره‌ای باز نیست. */
+    val protectionUnlockUntilMs: Flow<Long> = safeData
+        .map { prefs -> prefs[PROTECTION_UNLOCK_UNTIL_MS] ?: 0L }
+
+    suspend fun setProtectionUnlockUntil(untilMs: Long) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[PROTECTION_UNLOCK_UNTIL_MS] = untilMs
         }
     }
 

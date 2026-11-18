@@ -132,7 +132,7 @@ fun DashboardScreen(
         Spacer(Modifier.height(SaddSpacing.Large))
         MessageBar(message = uiState.message, onDismiss = { viewModel.dismissMessage() })
 
-        SaddCard(modifier = Modifier.fillMaxWidth()) {
+        SaddCard(modifier = Modifier.fillMaxWidth(), hero = true) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -157,7 +157,7 @@ fun DashboardScreen(
                 )
                 if (uiState.sessionActive && uiState.strict) {
                     Spacer(Modifier.height(SaddSpacing.Small))
-                    AssistChip(onClick = {}, label = { Text("Strict — سخت‌گیرانه") })
+                    AssistChip(onClick = {}, label = { Text("\u2066Strict\u2069 — سخت‌گیرانه") })
                 }
                 Spacer(Modifier.height(SaddSpacing.Medium))
                 if (uiState.sessionActive) {
@@ -253,7 +253,7 @@ fun DashboardScreen(
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "بدون مجوزهای لازم، بلاک کار نمی‌کند. وضعیت دقیق را در عیب‌یابی ببین.",
+                    "بدون مجوزها، بلاک کار نمی‌کند.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

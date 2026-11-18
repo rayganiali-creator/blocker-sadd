@@ -8,11 +8,14 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sadd.blocker.R
@@ -140,12 +143,14 @@ object SaddSpacing {
     val XLarge = 24.dp
 }
 
-/** شعاع: کارت 16dp، دکمه 12dp، چیپ 8dp، دیالوگ 20dp. */
+/** شعاع نرم و بالشتی: کارت ۲۴dp، کارت hero ‏۲۸dp، دکمه ۲۸dp، چیپ ۸dp، دیالوگ ۲۴dp، فیلد متنی ۲۰dp. */
 object SaddRadius {
-    val Card = 16.dp
-    val Button = 12.dp
+    val Card = 24.dp
+    val Hero = 28.dp
+    val Button = 28.dp
     val Chip = 8.dp
-    val Dialog = 20.dp
+    val Dialog = 24.dp
+    val TextField = 20.dp
 }
 
 private val SaddShapes = Shapes(
@@ -159,6 +164,7 @@ private val SaddShapes = Shapes(
 /**
  * تم «سد»: روشن / تیره / سیستمی.
  * در SYSTEM از تنظیم سیستم پیروی می‌کند؛ پیش‌فرض DARK است.
+ * جهت چیدمان کل اپ همیشه RTL است (فارسی) — همه صفحه‌ها از اینجا به ارث می‌برند.
  */
 @Composable
 fun BlockerTheme(theme: AppTheme = AppTheme.DARK, content: @Composable () -> Unit) {
@@ -167,10 +173,12 @@ fun BlockerTheme(theme: AppTheme = AppTheme.DARK, content: @Composable () -> Uni
         AppTheme.DARK -> true
         AppTheme.SYSTEM -> isSystemInDarkTheme()
     }
-    MaterialTheme(
-        colorScheme = if (dark) DarkColors else LightColors,
-        typography = SaddTypography,
-        shapes = SaddShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+        MaterialTheme(
+            colorScheme = if (dark) DarkColors else LightColors,
+            typography = SaddTypography,
+            shapes = SaddShapes,
+            content = content,
+        )
+    }
 }

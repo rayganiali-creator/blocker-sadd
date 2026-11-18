@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sadd.blocker.domain.model.DelayOptions
 import com.sadd.blocker.ui.theme.SaddRadius
@@ -69,12 +70,18 @@ fun SaddTopBar(title: String, subtitle: String? = null, onBack: (() -> Unit)? = 
             }
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Start,
+            )
             if (subtitle != null) {
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Start,
                 )
             }
         }
@@ -93,23 +100,31 @@ fun SectionTitle(text: String) {
         text,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Start,
         modifier = Modifier.padding(top = SaddSpacing.Large, bottom = SaddSpacing.Small),
     )
 }
 
-/** کارت مشترک «سد»: شعاع 16dp، elevation حداقلی، سطح تم. */
+/**
+ * کارت مشترک «سد»: نرم و بالشتی — شعاع ۲۴dp (کارت hero ‏۲۸dp)، سطح تونال
+ * (surfaceVariant) با elevation ملایم ۲dp (hero ‏۴dp)؛ هرگز سایه سیاه تند ندارد.
+ */
 @Composable
 fun SaddCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    hero: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    val shape = RoundedCornerShape(if (hero) SaddRadius.Hero else SaddRadius.Card)
+    val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    val elevation = CardDefaults.cardElevation(defaultElevation = if (hero) 4.dp else 2.dp)
     if (onClick != null) {
         Card(
             modifier = modifier,
-            shape = RoundedCornerShape(SaddRadius.Card),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            shape = shape,
+            colors = colors,
+            elevation = elevation,
             onClick = onClick,
         ) {
             content()
@@ -117,9 +132,9 @@ fun SaddCard(
     } else {
         Card(
             modifier = modifier,
-            shape = RoundedCornerShape(SaddRadius.Card),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            shape = shape,
+            colors = colors,
+            elevation = elevation,
         ) {
             content()
         }
@@ -130,7 +145,7 @@ enum class SaddButtonStyle {
     PRIMARY, SECONDARY, GHOST,
 }
 
-/** دکمه مشترک «سد»: اصلی / ثانویه (outlined) / شبح (text). */
+/** دکمه مشترک «سد»: اصلی / ثانویه (outlined) / شبح (text) — بالشتی، شعاع ۲۸dp و ارتفاع ۵۲dp. */
 @Composable
 fun SaddButton(
     text: String,
@@ -140,10 +155,12 @@ fun SaddButton(
     enabled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(SaddRadius.Button)
+    // ارتفاع راحت برای دکمه‌های اصلی و ثانویه؛ شبح (text) ارتفاع طبیعی خودش را دارد.
+    val tallModifier = modifier.height(52.dp)
     when (style) {
         SaddButtonStyle.PRIMARY -> Button(
             onClick = onClick,
-            modifier = modifier,
+            modifier = tallModifier,
             enabled = enabled,
             shape = shape,
             colors = ButtonDefaults.buttonColors(
@@ -151,11 +168,11 @@ fun SaddButton(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
         ) {
-            Text(text)
+            Text(text, fontWeight = FontWeight.SemiBold)
         }
         SaddButtonStyle.SECONDARY -> OutlinedButton(
             onClick = onClick,
-            modifier = modifier,
+            modifier = tallModifier,
             enabled = enabled,
             shape = shape,
         ) {
@@ -172,7 +189,7 @@ fun SaddButton(
     }
 }
 
-/** فیلد متنی مشترک «سد» با شعاع 12dp. */
+/** فیلد متنی مشترک «سد» با شعاع ۲۰dp. */
 @Composable
 fun SaddTextField(
     value: String,
@@ -193,7 +210,7 @@ fun SaddTextField(
         keyboardOptions = keyboardOptions,
         visualTransformation = visualTransformation,
         leadingIcon = leadingIcon,
-        shape = RoundedCornerShape(SaddRadius.Button),
+        shape = RoundedCornerShape(SaddRadius.TextField),
     )
 }
 
@@ -209,6 +226,7 @@ fun SaddDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(SaddRadius.Dialog),
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = { Text(text) },
         confirmButton = {
@@ -353,6 +371,7 @@ fun DelayPickerDialog(
     val options: List<Int?> = listOf(null) + DelayOptions.VALUES
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(SaddRadius.Dialog),
         title = { Text("تاخیر این قانون", fontWeight = FontWeight.Bold) },
         text = {
             Column {
@@ -419,9 +438,14 @@ fun SaddSwitchRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Start,
+            )
             if (description != null) {
-                Text(description, style = MaterialTheme.typography.bodySmall)
+                Text(description, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Start)
             }
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)

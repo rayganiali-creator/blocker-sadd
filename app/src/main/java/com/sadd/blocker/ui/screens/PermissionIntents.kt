@@ -93,7 +93,7 @@ fun openSecuritySettingsPage(context: Context): Boolean {
         .onFailure {
             Toast.makeText(
                 context,
-                "صفحه امنیت باز نشد؛ از تنظیمات گوشی: امنیت ← Device admin apps ← «سد»",
+                "صفحه امنیت باز نشد؛ از تنظیمات گوشی: امنیت ← \u2066Device admin apps\u2069 ← «سد»",
                 Toast.LENGTH_LONG,
             ).show()
         }.isSuccess

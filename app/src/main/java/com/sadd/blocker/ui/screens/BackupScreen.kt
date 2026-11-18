@@ -102,9 +102,7 @@ fun BackupScreen(
         )
         Spacer(Modifier.height(SaddSpacing.Large))
         Text(
-            "فایل بکاپ فقط روی همین دستگاه ساخته می‌شود و هیچ‌جا آپلود نمی‌شود. " +
-                "ورود فایل ناشناس امن است: نسخه بررسی می‌شود، آیتم خراب skip می‌شود " +
-                "و قانون تکراری دوباره اضافه نمی‌شود.",
+            "فایل بکاپ فقط روی همین دستگاه ساخته می‌شود و هیچ‌جا آپلود نمی‌شود.",
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(SaddSpacing.Large))

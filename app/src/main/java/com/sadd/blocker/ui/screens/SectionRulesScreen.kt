@@ -94,7 +94,7 @@ fun SectionRulesScreen(
                     onBack = onBack,
                 )
                 Text(
-                    "«خود اپ» یعنی باز شدن آن اپ وسط سشن بلاک می‌شود. تشخیص جستجو، اکسپلور، ریلز، شورتس، وضعیت، For You و تایم‌لاین خانه بر اساس عنوان پنجره، فیلد جستجو و توضیح محتوایی انجام می‌شود؛ بهترین تلاش است و ممکن است با نسخه‌های جدید این اپ‌ها تغییر کند — این بخش‌ها گاهی صفحه اصلی را هم بلاک می‌کنند.",
+                    "«خود اپ» قطعی است؛ تشخیص بخش‌ها (جستجو، ریلز، شورتس…) بهترین تلاش است و گاهی صفحه اصلی را هم بلاک می‌کند.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -260,12 +260,12 @@ private fun AddSectionPanel(
                 SaddTextField(
                     value = customSignal,
                     onValueChange = onCustomSignalChange,
-                    label = "متن نشانه، مثلاً For You",
+                    label = "متن نشانه، مثلاً \u2066For You\u2069",
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(SaddSpacing.Small))
                 Text(
-                    "وقتی این متن روی صفحه آن اپ دیده شود، وسط سشن بلاک می‌شود. بهترین تلاش است: نشانه کوتاه یا عمومی بیش‌بلاک می‌کند.",
+                    "وقتی این متن روی صفحه دیده شود، وسط سشن بلاک می‌شود؛ نشانه کوتاه یا عمومی بیش‌بلاک می‌کند.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -332,7 +332,7 @@ private fun sectionDescription(sectionKey: String): String {
         SectionDetector.SECTION_INSTAGRAM_REELS -> "باز شدن ریلز وسط سشن بلاک می‌شود"
         SectionDetector.SECTION_YOUTUBE_SHORTS -> "باز شدن شورتس وسط سشن بلاک می‌شود"
         SectionDetector.SECTION_WHATSAPP_STATUS -> "باز شدن وضعیت وسط سشن بلاک می‌شود"
-        SectionDetector.SECTION_TIKTOK_FORYOU -> "باز شدن فید For You وسط سشن بلاک می‌شود"
+        SectionDetector.SECTION_TIKTOK_FORYOU -> "باز شدن فید \u2066For You\u2069 وسط سشن بلاک می‌شود"
         SectionDetector.SECTION_X_HOME -> "باز شدن تایم‌لاین خانه وسط سشن بلاک می‌شود"
         SectionDetector.SECTION_FACEBOOK_REELS -> "باز شدن ریلز و واچ وسط سشن بلاک می‌شود"
         SectionDetector.SECTION_SNAPCHAT_SPOTLIGHT -> "باز شدن اسپات‌لایت وسط سشن بلاک می‌شود"

@@ -52,11 +52,11 @@ class UninstallProtectionGateTest {
     }
 
     @Test
-    fun shouldLaunchActivationOnlyWhenTurningOnAndNotActive() {
-        assertTrue(UninstallProtectionGate.shouldLaunchActivation(turningOn = true, adminActive = false))
-        assertFalse(UninstallProtectionGate.shouldLaunchActivation(turningOn = true, adminActive = true))
-        assertFalse(UninstallProtectionGate.shouldLaunchActivation(turningOn = false, adminActive = false))
-        assertFalse(UninstallProtectionGate.shouldLaunchActivation(turningOn = false, adminActive = true))
+    fun shouldLaunchActivationOnlyWhenAdminInactive() {
+        // ضربه برای فعال‌کردن فقط وقتی مدیر دستگاه فعال نیست صفحه را باز می‌کند؛
+        // به جهت تاگل وابسته نیست (تاگل وضعیت واقعی مدیر دستگاه را نشان می‌دهد).
+        assertTrue(UninstallProtectionGate.shouldLaunchActivation(adminActive = false))
+        assertFalse(UninstallProtectionGate.shouldLaunchActivation(adminActive = true))
     }
 
     @Test

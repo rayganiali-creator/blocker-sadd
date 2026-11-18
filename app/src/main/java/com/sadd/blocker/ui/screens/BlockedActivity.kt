@@ -2,6 +2,7 @@ package com.sadd.blocker.ui.screens
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -24,33 +25,101 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sadd.blocker.R
+import com.sadd.blocker.core.ProtectionGuardDetector
 import com.sadd.blocker.data.datastore.AppTheme
+import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.domain.StrictCooldownRequest
+import com.sadd.blocker.domain.StrictPendingKind
+import com.sadd.blocker.domain.StrictUnlock
+import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.ui.theme.BlockerTheme
 import com.sadd.blocker.ui.theme.Mint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * صفحه بلاک — همیشه تیره سرمه‌ای، خرس «سد» به‌عنوان ماسکوت (حفظ هویت نسخه قبلی).
  * طبق موکاپ تاییدشده: خرس، دلیل بلاک، دسته و فقط دکمه «بازگشت».
  * شمارش معکوس تاخیر و منطق مداخله در فاز ۴ وصل می‌شود؛
  * هرگز HOME یا قفل گوشی فراخوانی نمی‌شود — فقط بازگشت (fail-open).
+ *
+ * حالت نگهبان (extra guardUnlock=true): به‌جای صفحه بلاک، دیالوگ بازگشایی
+ * Strict نشان داده می‌شود تا کاربر با تایپ متن طولانی یا انتظار کامل،
+ * پنجره ۵دقیقه‌ای بازگشایی محافظت را باز کند و بعد از تنظیمات ادامه بدهد.
+ * بازگشایی موفق پنجره را تنظیم می‌کند، درخواست انتظار نگهبان را پاک می‌کند
+ * و صفحه را می‌بندد؛ لغو هم صفحه را می‌بندد (محافظت روشن می‌ماند).
  */
 class BlockedActivity : ComponentActivity() {
     // M-8: با launchMode=singleTop، بازفرستادن intent باید دلیل بلاک را به‌روز کند.
     private val reasonState = mutableStateOf("قانون فعال")
     private val categoryState = mutableStateOf<String?>(null)
     private val delayState = mutableStateOf<Int?>(null)
+    private val guardUnlockState = mutableStateOf(false)
+    private val guardMethodState = mutableStateOf(StrictUnlockMethod.PASSAGE)
+    private val guardHoursState = mutableStateOf(StrictUnlock.DEFAULT_COOLDOWN_HOURS)
+    private val guardRequestState = mutableStateOf<StrictCooldownRequest?>(null)
+
+    // Hilt ندارد؛ SettingsStore مستقیم ساخته می‌شود.
+    private val settingsStore by lazy { SettingsStore(applicationContext) }
+
+    // اسکوپ خود اکتیویتی — lifecycle-runtime-ktx وابستگی پروژه نیست،
+    // پس lifecycleScope در دسترس نیست؛ در onDestroy لغو می‌شود.
+    private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyIntent(intent)
         setContent {
             BlockerTheme(theme = AppTheme.DARK) {
-                BlockedContent(
-                    reason = reasonState.value,
-                    category = categoryState.value,
-                    delaySeconds = delayState.value,
-                    onBack = { finish() },
-                )
+                if (guardUnlockState.value) {
+                    StrictUnlockDialog(
+                        method = guardMethodState.value,
+                        cooldownHours = guardHoursState.value,
+                        cooldownRequest = guardRequestState.value,
+                        onRecordCooldownRequest = {
+                            activityScope.launch {
+                                settingsStore.recordStrictCooldownRequest(
+                                    kind = StrictPendingKind.GUARD_UNLOCK,
+                                    value = "",
+                                    durationHours = guardHoursState.value,
+                                )
+                                refreshGuardState()
+                            }
+                        },
+                        onUnlocked = {
+                            activityScope.launch {
+                                val now = System.currentTimeMillis()
+                                settingsStore.setProtectionUnlockUntil(
+                                    now + ProtectionGuardDetector.PROTECTION_UNLOCK_WINDOW_MS,
+                                )
+                                // فقط درخواست نگهبان پاک می‌شود؛ درخواست دیگری
+                                // (مثلاً پایان سشن) دست نخورده می‌ماند.
+                                val request = settingsStore.strictCooldownRequest.first()
+                                if (request?.pendingKind == StrictPendingKind.GUARD_UNLOCK) {
+                                    settingsStore.clearStrictCooldownRequest()
+                                }
+                                Toast.makeText(
+                                    this@BlockedActivity,
+                                    "۵ دقیقه فرصت داری — حالا می‌توانی ادامه بدهی",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                                finish()
+                            }
+                        },
+                        onDismiss = { finish() },
+                    )
+                } else {
+                    BlockedContent(
+                        reason = reasonState.value,
+                        category = categoryState.value,
+                        delaySeconds = delayState.value,
+                        onBack = { finish() },
+                    )
+                }
             }
         }
     }
@@ -61,11 +130,36 @@ class BlockedActivity : ComponentActivity() {
         applyIntent(intent)
     }
 
+    override fun onDestroy() {
+        activityScope.cancel()
+        super.onDestroy()
+    }
+
     private fun applyIntent(intent: Intent?) {
         reasonState.value = intent?.getStringExtra("reason") ?: "قانون فعال"
         categoryState.value = intent?.getStringExtra("category")
         val delay = intent?.getIntExtra("delaySeconds", -1) ?: -1
         delayState.value = if (delay >= 0) delay else null
+        guardUnlockState.value = intent?.getBooleanExtra("guardUnlock", false) ?: false
+        if (guardUnlockState.value) refreshGuardState()
+    }
+
+    /**
+     * خواندن روش/مدت بازگشایی و درخواست انتظار نگهبان از DataStore.
+     * فقط درخواست GUARD_UNLOCK نشان داده می‌شود؛ درخواست دیگری (مثلاً
+     * پایان سشن) اینجا null حساب می‌شود تا شمارش معکوس اشتباهی نیاید.
+     */
+    private fun refreshGuardState() {
+        activityScope.launch {
+            try {
+                guardMethodState.value = settingsStore.strictUnlockMethod.first()
+                guardHoursState.value = settingsStore.strictCooldownHours.first()
+                guardRequestState.value = settingsStore.strictCooldownRequest.first()
+                    ?.takeIf { it.pendingKind == StrictPendingKind.GUARD_UNLOCK }
+            } catch (_: Exception) {
+                // fail-open: پیش‌فرض‌ها می‌مانند و دیالوگ با آن‌ها باز می‌شود.
+            }
+        }
     }
 }
 

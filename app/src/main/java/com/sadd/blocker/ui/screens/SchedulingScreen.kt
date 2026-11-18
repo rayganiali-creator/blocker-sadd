@@ -146,7 +146,7 @@ fun SchedulingScreen(
                 }
                 Spacer(Modifier.height(SaddSpacing.Small))
                 SaddSwitchRow(
-                    label = "Strict (سخت‌گیرانه)",
+                    label = "سخت‌گیرانه (\u2066Strict\u2069)",
                     checked = strict,
                     onCheckedChange = { strict = it },
                 )

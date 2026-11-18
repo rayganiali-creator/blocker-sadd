@@ -68,7 +68,7 @@ fun StrictUnlockDialog(
     var typed by rememberSaveable { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
-        SaddCard(modifier = Modifier.fillMaxWidth()) {
+        SaddCard(modifier = Modifier.fillMaxWidth(), hero = true) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -87,8 +87,7 @@ fun StrictUnlockDialog(
                     val progress = StrictUnlock.passageProgress(typed, passage.text)
                     val isPrefix = typed.isBlank() || StrictUnlock.isPassagePrefix(typed, passage.text)
                     Text(
-                        "برای بازگشایی، متن زیر را دقیقاً تایپ کن. " +
-                            "این کار عمداً طول می‌کشد تا در لحظه هوس، تصمیم عجولانه نگیری.",
+                        "متن زیر را دقیقاً تایپ کن؛ عمداً طول می‌کشد تا تصمیم عجولانه نگیری.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -184,9 +183,8 @@ private fun CooldownUnlockBody(
 ) {
     if (cooldownRequest == null) {
         Text(
-            "برای این کار باید $cooldownHours ساعت صبر کنی. " +
-                "با زدن دکمه زیر، زمان انتظار از همین حالا ثبت می‌شود؛ " +
-                "حتی اگر اپ را ببندی یا گوشی را ری‌استارت کنی، زمان می‌شمرد.",
+            "باید $cooldownHours ساعت صبر کنی؛ زمان از همین حالا ثبت می‌شود و " +
+                "با بستن اپ یا ری‌استارت صفر نمی‌شود.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -208,8 +206,7 @@ private fun CooldownUnlockBody(
     val remaining = StrictUnlock.cooldownRemainingMs(cooldownRequest, nowMs)
     if (remaining > 0L) {
         Text(
-            "زمان انتظار ثبت شده است. تا پایان آن، این کار انجام نمی‌شود؛ " +
-                "بستن اپ یا ری‌استارت گوشی هم زمان را صفر نمی‌کند.",
+            "زمان انتظار ثبت شده است؛ بستن اپ یا ری‌استارت هم آن را صفر نمی‌کند.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

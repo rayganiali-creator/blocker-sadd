@@ -46,6 +46,7 @@ import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.SessionDurations
 import com.sadd.blocker.ui.SessionsViewModel
+import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /** برچسب فارسی وضعیت سشن. */
@@ -215,8 +216,7 @@ fun SessionsScreen(
                         }
                         Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
-                            "حالت سشن (Strict یا معمولی) موقع هر شروع پرسیده می‌شود؛ " +
-                                "حالت انتخاب‌شده در صفحه «حالت بلاک» فقط پیش‌فرضِ پیشنهادی است.",
+                            "حالت سشن موقع هر شروع پرسیده می‌شود؛ انتخاب «حالت بلاک» فقط پیش‌فرض است.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -249,7 +249,7 @@ fun SessionsScreen(
                         )
                         if (active.strict) {
                             Spacer(Modifier.height(SaddSpacing.Small))
-                            AssistChip(onClick = {}, label = { Text("Strict — سخت‌گیرانه") })
+                            AssistChip(onClick = {}, label = { Text("\u2066Strict\u2069 — سخت‌گیرانه") })
                         }
                         if (active.strict && uiState.uninstallProtectionOn && !uiState.uninstallAdminActive) {
                             Spacer(Modifier.height(SaddSpacing.Medium))
@@ -330,6 +330,7 @@ private fun StartModeDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(SaddRadius.Dialog),
         title = { Text("سشن $durationLabel را با کدام حالت شروع کنم؟", fontWeight = FontWeight.Bold) },
         text = {
             Column {
@@ -340,7 +341,7 @@ private fun StartModeDialog(
                 )
                 Spacer(Modifier.height(SaddSpacing.Medium))
                 StartModeOption(
-                    title = "Strict — سخت‌گیرانه",
+                    title = "\u2066Strict\u2069 — سخت‌گیرانه",
                     description = "پایان سشن و تغییر قانون فقط با تایپ متن طولانی یا انتظار ممکن است.",
                     isDefault = defaultStrict,
                     onClick = { onPick(true) },
@@ -378,7 +379,7 @@ private fun StartModeOption(
                 } else {
                     MaterialTheme.colorScheme.outline
                 },
-                RoundedCornerShape(12.dp),
+                RoundedCornerShape(SaddRadius.Card),
             )
             .clickable(onClick = onClick)
             .padding(SaddSpacing.Medium),
