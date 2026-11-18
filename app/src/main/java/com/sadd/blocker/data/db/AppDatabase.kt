@@ -6,7 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * دیتابیس Room — نسخه ۳.
+ * دیتابیس Room — نسخه ۴.
  * مهاجرت‌ها از نسخه ۲ به بعد اینجا ثبت می‌شوند (Migration)؛
  * fallbackToDestructiveMigration ممنوع است تا قانون کاربر با آپدیت پاک نشود.
  *
@@ -14,6 +14,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * راستی‌آزمایی سشن در برابر عقب کشیدن ساعت سیستم).
  * نسخه ۳: جدول‌های section_rules (بخش‌های اپ) و block_events (گزارش
  * بلاک‌ها) اضافه شدند؛ پیش‌فرض‌های بخش در مهاجرت seed می‌شوند.
+ * نسخه ۴: بدون تغییر اسکیما — فقط ۵ پیش‌فرض جدید بخش seed می‌شوند
+ * (کل تلگرام/اینستاگرام/یوتیوب، ریلز اینستاگرام، شورتس یوتیوب).
+ * ثبت مهاجرت در AppModule لازم است: .addMigrations(..., MIGRATION_3_4).
  */
 @Database(
     entities = [
@@ -25,7 +28,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SectionRuleEntity::class,
         BlockEventEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -90,6 +93,43 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
                 "('com.google.android.youtube', 'youtube_search', 'جستجوی یوتیوب', 1)",
+        )
+    }
+}
+
+/**
+ * مهاجرت ۳ به ۴: بدون تغییر اسکیما — فقط ۵ پیش‌فرض جدید بخش برای
+ * نصب‌های موجود seed می‌شوند (همان الگوی MIGRATION_2_3).
+ * INSERT OR IGNORE: اگر کاربر پیش‌تر دستی ساخته باشد، دست نمی‌خورد؛
+ * و اگر قانون را غیرفعال کرده باشد، enabled=1 بازنویسی نمی‌شود چون
+ * سطر موجود نادیده گرفته می‌شود.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "INSERT OR IGNORE INTO section_rules " +
+                "(packageName, sectionKey, labelFa, enabled) VALUES " +
+                "('org.telegram.messenger', 'telegram_app', 'خود تلگرام', 1)",
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO section_rules " +
+                "(packageName, sectionKey, labelFa, enabled) VALUES " +
+                "('com.instagram.android', 'instagram_app', 'خود اینستاگرام', 1)",
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO section_rules " +
+                "(packageName, sectionKey, labelFa, enabled) VALUES " +
+                "('com.instagram.android', 'instagram_reels', 'ریلز اینستاگرام', 1)",
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO section_rules " +
+                "(packageName, sectionKey, labelFa, enabled) VALUES " +
+                "('com.google.android.youtube', 'youtube_app', 'خود یوتیوب', 1)",
+        )
+        db.execSQL(
+            "INSERT OR IGNORE INTO section_rules " +
+                "(packageName, sectionKey, labelFa, enabled) VALUES " +
+                "('com.google.android.youtube', 'youtube_shorts', 'شورتس یوتیوب', 1)",
         )
     }
 }

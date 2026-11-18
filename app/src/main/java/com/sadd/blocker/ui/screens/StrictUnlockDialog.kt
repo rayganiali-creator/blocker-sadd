@@ -1,0 +1,254 @@
+package com.sadd.blocker.ui.screens
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import com.sadd.blocker.domain.STRICT_PASSAGES
+import com.sadd.blocker.domain.StrictCooldownRequest
+import com.sadd.blocker.domain.StrictUnlock
+import com.sadd.blocker.domain.StrictUnlockMethod
+import com.sadd.blocker.ui.theme.SaddSpacing
+import kotlinx.coroutines.delay
+
+/**
+ * دیالوگ بازگشایی Strict — قابل استفاده از هر صفحه‌ای که یک تغییرِ
+ * محافظت‌شده در Strict را می‌خواهد (پایان سشن، تغییر تنظیمات Strict و…).
+ *
+ * - PASSAGE: کاربر باید متن نشان‌داده‌شده را دقیقاً تایپ کند؛ نوار پیشرفت
+ *   و پیام عدم تطابق زنده نشان داده می‌شود؛ «متن دیگر» متن دیگری می‌آورد.
+ * - COOLDOWN: اگر درخواستی ثبت نشده باشد، دکمه «شروع انتظار» آن را با زمان
+ *   دیواری همین حالا ثبت می‌کند ([onRecordCooldownRequest])؛ اگر ثبت شده باشد،
+ *   شمارش معکوس زنده (هر ثانیه) نشان داده می‌شود و دکمه تایید فقط وقتی
+ *   انتظار کامل گذشته باشد فعال است.
+ *
+ * تایید (تطابق کامل متن یا پایان انتظار) فقط از راه [onUnlocked] به
+ * فراخواننده خبر داده می‌شود؛ خود دیالوگ هیچ کاری را اعمال نمی‌کند.
+ */
+@Composable
+fun StrictUnlockDialog(
+    method: StrictUnlockMethod,
+    cooldownHours: Int,
+    cooldownRequest: StrictCooldownRequest?,
+    onRecordCooldownRequest: () -> Unit,
+    onUnlocked: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // تیکر شمارش معکوس: فقط برای حالت COOLDOWN لازم است، ولی ساده‌ترین
+    // شکل این است که دیالوگ خودش ساعت را هر ثانیه به‌روز کند.
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            nowMs = System.currentTimeMillis()
+        }
+    }
+    var passageIndex by rememberSaveable {
+        mutableStateOf(StrictUnlock.randomPassageIndex())
+    }
+    var typed by rememberSaveable { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(SaddSpacing.Large)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    "بازگشایی Strict",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(SaddSpacing.Small))
+                if (method == StrictUnlockMethod.PASSAGE) {
+                    val passage = STRICT_PASSAGES[passageIndex]
+                    val matched = StrictUnlock.isPassageMatch(typed, passage.text)
+                    val progress = StrictUnlock.passageProgress(typed, passage.text)
+                    val isPrefix = typed.isBlank() || StrictUnlock.isPassagePrefix(typed, passage.text)
+                    Text(
+                        "برای بازگشایی، متن زیر را دقیقاً تایپ کن. " +
+                            "این کار عمداً طول می‌کشد تا در لحظه هوس، تصمیم عجولانه نگیری.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(SaddSpacing.Medium))
+                    SaddCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                            Text(passage.text, style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            Text(
+                                "منبع: ${passage.source}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(SaddSpacing.Medium))
+                    SaddTextField(
+                        value = typed,
+                        onValueChange = { typed = it },
+                        label = "متن را اینجا تایپ کن",
+                        singleLine = false,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(SaddSpacing.Small))
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "${(progress * 100).toInt()}% کامل شده",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (!isPrefix) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "متن تایپ‌شده با متن بالا مطابقت ندارد؛ " +
+                                "از جایی که اشتباه شده، دوباره بنویس.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    Spacer(Modifier.height(SaddSpacing.Medium))
+                    SaddButton(
+                        text = "تایید و بازگشایی",
+                        onClick = onUnlocked,
+                        enabled = matched,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(SaddSpacing.Small))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        SaddButton(
+                            text = "متن دیگر",
+                            onClick = {
+                                passageIndex = StrictUnlock.randomPassageIndex(except = passageIndex)
+                                typed = ""
+                            },
+                            style = SaddButtonStyle.SECONDARY,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(SaddSpacing.Small))
+                        SaddButton(
+                            text = "لغو",
+                            onClick = onDismiss,
+                            style = SaddButtonStyle.GHOST,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                } else {
+                    CooldownUnlockBody(
+                        cooldownHours = cooldownHours,
+                        cooldownRequest = cooldownRequest,
+                        nowMs = nowMs,
+                        onRecordCooldownRequest = onRecordCooldownRequest,
+                        onUnlocked = onUnlocked,
+                        onDismiss = onDismiss,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CooldownUnlockBody(
+    cooldownHours: Int,
+    cooldownRequest: StrictCooldownRequest?,
+    nowMs: Long,
+    onRecordCooldownRequest: () -> Unit,
+    onUnlocked: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (cooldownRequest == null) {
+        Text(
+            "برای این کار باید $cooldownHours ساعت صبر کنی. " +
+                "با زدن دکمه زیر، زمان انتظار از همین حالا ثبت می‌شود؛ " +
+                "حتی اگر اپ را ببندی یا گوشی را ری‌استارت کنی، زمان می‌شمرد.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(SaddSpacing.Medium))
+        SaddButton(
+            text = "شروع انتظار ($cooldownHours ساعت)",
+            onClick = onRecordCooldownRequest,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(SaddSpacing.Small))
+        SaddButton(
+            text = "لغو",
+            onClick = onDismiss,
+            style = SaddButtonStyle.GHOST,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        return
+    }
+    val remaining = StrictUnlock.cooldownRemainingMs(cooldownRequest, nowMs)
+    if (remaining > 0L) {
+        Text(
+            "زمان انتظار ثبت شده است. تا پایان آن، این کار انجام نمی‌شود؛ " +
+                "بستن اپ یا ری‌استارت گوشی هم زمان را صفر نمی‌کند.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(SaddSpacing.Medium))
+        Text(
+            StrictUnlock.formatCooldownRemaining(remaining),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            "باقی‌مانده تا پایان انتظار",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(SaddSpacing.Medium))
+        SaddButton(
+            text = "باشه",
+            onClick = onDismiss,
+            style = SaddButtonStyle.SECONDARY,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    } else {
+        Text(
+            "زمان انتظار کامل گذشت. اگر هنوز مطمئنی، تایید کن.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(SaddSpacing.Medium))
+        SaddButton(
+            text = "تایید و بازگشایی",
+            onClick = onUnlocked,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(SaddSpacing.Small))
+        SaddButton(
+            text = "لغو",
+            onClick = onDismiss,
+            style = SaddButtonStyle.GHOST,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}

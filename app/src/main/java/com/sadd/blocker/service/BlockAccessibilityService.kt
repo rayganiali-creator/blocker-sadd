@@ -39,9 +39,12 @@ import javax.inject.Inject
  *    خوانده می‌شود؛ اگر کلمه‌ای whole-word مچ شود، بعد از تاخیر قانون،
  *    همان کلمه از فیلد حذف می‌شود (ACTION_SET_TEXT؛ اگر نشد backspace)
  *    و صفحه بلاک نشان داده می‌شود.
- * 2. بخش‌های اپ: روی تغییر پنجره، اگر بخش فعالِ قانون (جستجوی تلگرام/
- *    اینستاگرام/یوتیوب، اکسپلور اینستاگرام) روی صفحه باشد، بعد از تاخیر
- *    سراسری BACK زده می‌شود و صفحه بلاک می‌آید.
+ * 2. بخش‌های اپ: روی تغییر پنجره، اگر بخش فعالِ قانون (کل تلگرام/
+ *    اینستاگرام/یوتیوب، جستجوی هر سه، اکسپلور و ریلز اینستاگرام،
+ *    شورتس یوتیوب) روی صفحه باشد، بعد از تاخیر سراسری BACK زده
+ *    می‌شود و صفحه بلاک می‌آید. «کل اپ» بقیه بخش‌های همان اپ را
+ *    دربر می‌گیرد: اگر مچ شد، بخش‌های دیگر آن اپ همان دور رد
+ *    می‌شوند تا دو BACK پشت سر هم زمان‌بندی نشود.
  * 3. مرورگر (کروم): متن omnibox/جعبه جستجو خوانده می‌شود؛ دامنه بلاک‌شده
  *    یا کلمه ممنوعه → بعد از تاخیر BACK + صفحه بلاک.
  *
@@ -325,6 +328,23 @@ class BlockAccessibilityService : AccessibilityService() {
             evaluateBrowserWindow(packageName, signals, snapshot)
             return
         }
+        // «کل اپ» بقیه بخش‌های همان اپ را دربر می‌گیرد: اگر مچ شد، فقط
+        // همان یک بلاک زمان‌بندی می‌شود (یک BACK، نه چند BACK پشت سر هم).
+        // جدا از ترتیب لیست قوانین چک می‌شود تا وابسته به ORDER BY نباشد.
+        val wholeAppRule = snapshot.sections.firstOrNull { rule ->
+            rule.packageName == packageName &&
+                SectionDetector.isWholeAppSection(rule.sectionKey) &&
+                SectionDetector.isSectionShowing(packageName, rule.sectionKey, signals)
+        }
+        if (wholeAppRule != null) {
+            scheduleBlock(
+                key = "section:$packageName:${wholeAppRule.sectionKey}",
+                delaySeconds = snapshot.globalDelaySeconds,
+            ) {
+                actOnSection(packageName, wholeAppRule, snapshot.globalDelaySeconds, snapshot.strict)
+            }
+            return
+        }
         for (rule in snapshot.sections) {
             if (rule.packageName != packageName) continue
             if (!SectionDetector.isSectionShowing(packageName, rule.sectionKey, signals)) continue
@@ -428,6 +448,16 @@ class BlockAccessibilityService : AccessibilityService() {
     ) {
         val root = activeRootOrNull() ?: return
         try {
+            // راستی‌آزمایی دوباره: اپ قانون هنوز پیش‌زمینه است؟
+            // برای «کل اپ» سیگنال‌ها خالی هم مچ می‌شوند، پس بدون این چک
+            // بلاک دیرکرده می‌توانست روی صفحه دیگری (مثلاً خانه) BACK بزند؛
+            // اگر کاربر خودش وسط تاخیر از اپ بیرون رفته باشد، بلاک لغو می‌شود.
+            val currentPkg = try {
+                root.packageName?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            if (currentPkg != packageName) return
             // راستی‌آزمایی دوباره: بخش هنوز روی صفحه است؟
             val signals = collectSignals(root, null)
             if (!SectionDetector.isSectionShowing(packageName, rule.sectionKey, signals)) return

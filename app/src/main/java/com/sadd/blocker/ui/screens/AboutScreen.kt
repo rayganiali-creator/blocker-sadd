@@ -5,27 +5,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.BuildConfig
 import com.sadd.blocker.R
-import com.sadd.blocker.data.datastore.AppTheme
 import com.sadd.blocker.ui.ThemeViewModel
 import com.sadd.blocker.ui.theme.SaddSpacing
 
@@ -42,7 +37,6 @@ fun AboutScreen(
     onNavigate: (String) -> Unit = {},
     onBack: () -> Unit = {},
 ) {
-    val themeState by themeViewModel.uiState.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -67,29 +61,7 @@ fun AboutScreen(
             }
         }
         Spacer(Modifier.height(SaddSpacing.Large))
-        SectionTitle("تم")
-        for ((theme, label) in listOf(
-            AppTheme.LIGHT to "روشن",
-            AppTheme.DARK to "تیره",
-            AppTheme.SYSTEM to "سیستمی (پیروی از سیستم)",
-        )) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(
-                    selected = themeState.theme == theme,
-                    onClick = { themeViewModel.setTheme(theme) },
-                )
-                Spacer(Modifier.size(SaddSpacing.Small))
-                Text(label, style = MaterialTheme.typography.bodyLarge)
-            }
-        }
-        Text(
-            "تم روشن و تیره کامل پشتیبانی می‌شود؛ صفحه بلاک همیشه تیره سرمه‌ای است.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        ThemePickerSection(themeViewModel = themeViewModel)
         Spacer(Modifier.height(SaddSpacing.Large))
         Text(
             "«سد» کمک می‌کند عادت‌های دیجیتال ناخواسته را با تصمیم آگاهانه قطع کنی. " +

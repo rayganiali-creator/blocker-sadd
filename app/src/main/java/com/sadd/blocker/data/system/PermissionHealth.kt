@@ -45,7 +45,7 @@ class PermissionHealthChecker @Inject constructor(
                 key = "usage",
                 title = "دسترسی به مصرف اپ‌ها (Usage Access)",
                 granted = hasUsageAccess(),
-                description = "برای تشخیص باز شدن اپ بلاک‌شده لازم است.",
+                description = "فعلاً برای تشخیص استفاده نمی‌شود؛ باز شدن اپ با سرویس Accessibility تشخیص داده می‌شود.",
                 settingsAction = Settings.ACTION_USAGE_ACCESS_SETTINGS,
             ),
             PermissionStatus(

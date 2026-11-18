@@ -9,6 +9,10 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.sadd.blocker.core.PinCrypto
+import com.sadd.blocker.domain.StrictCooldownRequest
+import com.sadd.blocker.domain.StrictPendingKind
+import com.sadd.blocker.domain.StrictUnlock
+import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.DelayOptions
 import com.sadd.blocker.domain.repository.PinCheckResult
@@ -55,6 +59,18 @@ class SettingsStore @Inject constructor(
         val PIN_LOCKED_UNTIL = longPreferencesKey("pin_locked_until_ms")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val BATTERY_EXEMPTION_ASKED = booleanPreferencesKey("battery_exemption_asked")
+        /** روش بازگشایی Strict: PASSAGE (تایپ متن) یا COOLDOWN (انتظار). */
+        val STRICT_UNLOCK_METHOD = stringPreferencesKey("strict_unlock_method")
+        /** مدت انتظار بازگشایی Strict (ساعت): ۱۲، ۲۴ یا ۴۸. */
+        val STRICT_COOLDOWN_HOURS = intPreferencesKey("strict_cooldown_hours")
+        /** زمان دیواری ثبت درخواست انتظار (۰ یعنی درخواستی نیست). */
+        val STRICT_COOLDOWN_REQUESTED_AT = longPreferencesKey("strict_cooldown_requested_at_ms")
+        /** کاری که درخواست انتظار برای آن ثبت شده (نام StrictPendingKind). */
+        val STRICT_COOLDOWN_PENDING_KIND = stringPreferencesKey("strict_cooldown_pending_kind")
+        /** مقدار درخواست انتظار: نام روش (METHOD) یا عدد ساعت (HOURS). */
+        val STRICT_COOLDOWN_PENDING_VALUE = stringPreferencesKey("strict_cooldown_pending_value")
+        /** مدت انتظار ثبت‌شده موقع درخواست (ساعت) — تا پایان درخواست ثابت است. */
+        val STRICT_COOLDOWN_DURATION_HOURS = intPreferencesKey("strict_cooldown_duration_hours")
 
         /** بعد از ۵ تلاش اشتباه، PIN قفل می‌شود (H-8). */
         const val PIN_MAX_ATTEMPTS = 5
@@ -115,6 +131,93 @@ class SettingsStore @Inject constructor(
     suspend fun setBlockMode(mode: BlockMode) {
         context.settingsDataStore.edit { prefs ->
             prefs[BLOCK_MODE] = mode.name
+        }
+    }
+
+    /** روش بازگشایی Strict؛ پیش‌فرض تایپ متن (PASSAGE) است. */
+    val strictUnlockMethod: Flow<StrictUnlockMethod> = safeData
+        .map { prefs ->
+            val raw = prefs[STRICT_UNLOCK_METHOD]
+            if (raw == null) {
+                StrictUnlockMethod.PASSAGE
+            } else {
+                runCatching { StrictUnlockMethod.valueOf(raw) }
+                    .getOrDefault(StrictUnlockMethod.PASSAGE)
+            }
+        }
+
+    suspend fun setStrictUnlockMethod(method: StrictUnlockMethod) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[STRICT_UNLOCK_METHOD] = method.name
+        }
+    }
+
+    /** مدت انتظار بازگشایی Strict (ساعت)؛ فقط ۱۲/۲۴/۴۸ معتبر است. */
+    val strictCooldownHours: Flow<Int> = safeData
+        .map { prefs ->
+            val hours = prefs[STRICT_COOLDOWN_HOURS] ?: StrictUnlock.DEFAULT_COOLDOWN_HOURS
+            if (StrictUnlock.COOLDOWN_HOUR_OPTIONS.contains(hours)) {
+                hours
+            } else {
+                StrictUnlock.DEFAULT_COOLDOWN_HOURS
+            }
+        }
+
+    suspend fun setStrictCooldownHours(hours: Int) {
+        if (!StrictUnlock.COOLDOWN_HOUR_OPTIONS.contains(hours)) return
+        context.settingsDataStore.edit { prefs ->
+            prefs[STRICT_COOLDOWN_HOURS] = hours
+        }
+    }
+
+    /**
+     * درخواست انتظار ثبت‌شده، یا null اگر درخواستی نیست.
+     * در DataStore می‌ماند و با ری‌استارت اپ پاک نمی‌شود.
+     */
+    val strictCooldownRequest: Flow<StrictCooldownRequest?> = safeData
+        .map { prefs ->
+            val requestedAt = prefs[STRICT_COOLDOWN_REQUESTED_AT] ?: 0L
+            if (requestedAt <= 0L) {
+                null
+            } else {
+                val kindRaw = prefs[STRICT_COOLDOWN_PENDING_KIND]
+                    ?: StrictPendingKind.END_SESSION.name
+                val kind = runCatching { StrictPendingKind.valueOf(kindRaw) }
+                    .getOrDefault(StrictPendingKind.END_SESSION)
+                StrictCooldownRequest(
+                    requestedAtMs = requestedAt,
+                    pendingKind = kind,
+                    pendingValue = prefs[STRICT_COOLDOWN_PENDING_VALUE] ?: "",
+                    durationHours = prefs[STRICT_COOLDOWN_DURATION_HOURS]
+                        ?: StrictUnlock.DEFAULT_COOLDOWN_HOURS,
+                )
+            }
+        }
+
+    /**
+     * ثبت درخواست انتظار با زمان دیواری همین حالا.
+     * درخواست جدید جای درخواست قبلی را می‌گیرد و زمان انتظار از اول شمرده می‌شود.
+     */
+    suspend fun recordStrictCooldownRequest(
+        kind: StrictPendingKind,
+        value: String,
+        durationHours: Int,
+        nowMs: Long = System.currentTimeMillis(),
+    ) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[STRICT_COOLDOWN_REQUESTED_AT] = nowMs
+            prefs[STRICT_COOLDOWN_PENDING_KIND] = kind.name
+            prefs[STRICT_COOLDOWN_PENDING_VALUE] = value
+            prefs[STRICT_COOLDOWN_DURATION_HOURS] = durationHours
+        }
+    }
+
+    suspend fun clearStrictCooldownRequest() {
+        context.settingsDataStore.edit { prefs ->
+            prefs.remove(STRICT_COOLDOWN_REQUESTED_AT)
+            prefs.remove(STRICT_COOLDOWN_PENDING_KIND)
+            prefs.remove(STRICT_COOLDOWN_PENDING_VALUE)
+            prefs.remove(STRICT_COOLDOWN_DURATION_HOURS)
         }
     }
 

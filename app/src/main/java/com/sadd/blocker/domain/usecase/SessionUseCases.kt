@@ -2,8 +2,6 @@ package com.sadd.blocker.domain.usecase
 
 import com.sadd.blocker.core.SessionCalculator
 import com.sadd.blocker.domain.model.BlockingSession
-import com.sadd.blocker.domain.repository.PinCheckResult
-import com.sadd.blocker.domain.repository.PinGate
 import com.sadd.blocker.domain.repository.SessionRepository
 
 /**
@@ -59,38 +57,21 @@ class StartSessionUseCase(private val repo: SessionRepository) {
 sealed class EndSessionResult {
     object Ended : EndSessionResult()
     object NoActive : EndSessionResult()
-    /** سشن Strict است و PIN تنظیم شده؛ بدون PIN نمی‌شود پایانش داد. */
-    object PinRequired : EndSessionResult()
-    data class WrongPin(val attemptsLeft: Int) : EndSessionResult()
-    data class Locked(val lockedUntilMs: Long) : EndSessionResult()
 }
 
 class EndSessionUseCase(
     private val repo: SessionRepository,
-    private val pinGate: PinGate? = null,
 ) {
     /**
-     * پایان سشن فعال. اگر سشن Strict باشد و PIN تنظیم شده باشد،
-     * پایان فقط با PIN درست انجام می‌شود — این بررسی در UseCase است،
-     * نه در ViewModel، تا هیچ مسیری (داشبورد/سشن‌ها/آینده) آن را دور نزند.
+     * پایان سشن فعال. سشن Strict فقط بعد از بازگشایی Strict (تایپ متن /
+     * انتظار) در UI به اینجا می‌رسد؛ خود UseCase دیگر PIN نمی‌خواهد —
+     * PIN فقط مدیریت خودش را در PinScreen گیت می‌کند.
      */
     suspend fun execute(
         reason: String,
-        pin: String? = null,
         nowMs: Long = System.currentTimeMillis(),
     ): EndSessionResult {
         val active = repo.getActive(nowMs) ?: return EndSessionResult.NoActive
-        val gate = pinGate
-        if (active.strict && gate != null && gate.isPinSet()) {
-            if (pin == null) return EndSessionResult.PinRequired
-            when (val check = gate.verify(pin)) {
-                is PinCheckResult.Ok -> Unit
-                is PinCheckResult.Wrong -> return EndSessionResult.WrongPin(check.attemptsLeft)
-                is PinCheckResult.Locked -> return EndSessionResult.Locked(check.lockedUntilMs)
-                // PIN بین دو بررسی حذف شده؛ پایان ادامه می‌یابد.
-                is PinCheckResult.NotSet -> Unit
-            }
-        }
         repo.end(active.id, reason)
         return EndSessionResult.Ended
     }

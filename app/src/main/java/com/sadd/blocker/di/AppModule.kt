@@ -2,7 +2,6 @@ package com.sadd.blocker.di
 
 import android.content.Context
 import androidx.room.Room
-import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.data.db.AppDatabase
 import com.sadd.blocker.data.db.BlockedAppDao
 import com.sadd.blocker.data.db.BlockedWebsiteDao
@@ -10,6 +9,7 @@ import com.sadd.blocker.data.db.BlockingSessionDao
 import com.sadd.blocker.data.db.KeywordRuleDao
 import com.sadd.blocker.data.db.MIGRATION_1_2
 import com.sadd.blocker.data.db.MIGRATION_2_3
+import com.sadd.blocker.data.db.MIGRATION_3_4
 import com.sadd.blocker.data.db.ScheduleDao
 import com.sadd.blocker.data.repository.RoomBlockedAppRepository
 import com.sadd.blocker.data.repository.RoomKeywordRepository
@@ -45,7 +45,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(context, AppDatabase::class.java, "blocker.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             // عمداً بدون fallbackToDestructiveMigration: قانون کاربر با آپدیت پاک نشود.
             .build()
     }
@@ -118,10 +118,10 @@ object AppModule {
     @Provides
     fun provideEndSessionUseCase(
         repo: SessionRepository,
-        settingsStore: SettingsStore,
     ): EndSessionUseCase {
-        // SettingsStore درگاه PinGate است: بررسی PIN در UseCase انجام می‌شود (H-1).
-        return EndSessionUseCase(repo, settingsStore)
+        // PIN دیگر پایان سشن Strict را گیت نمی‌کند (جایگزین آن بازگشایی Strict
+        // در UI است)؛ پس UseCase دوباره مسیر واحد پایان (H-1) است.
+        return EndSessionUseCase(repo)
     }
 
     @Provides

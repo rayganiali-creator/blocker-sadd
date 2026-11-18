@@ -18,8 +18,8 @@ import javax.inject.Singleton
  * جدا از AppModule نگه داشته شده تا مالک آن فایل درگیر نشود.
  *
  * توجه مالک AppModule: ساخت دیتابیس آنجا باید
- * `.addMigrations(MIGRATION_1_2, MIGRATION_2_3)` شود؛ در غیر این صورت
- * Room موقع آپدیت از نسخه ۲ به ۳ (جدول‌های section_rules و block_events)
+ * `.addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)` شود؛ در غیر این صورت
+ * Room موقع آپدیت از نسخه ۳ به ۴ (seed پنج پیش‌فرض جدید بخش)
  * خطای «no migration path» می‌دهد و اپ در استارت کرش می‌کند.
  */
 @Module

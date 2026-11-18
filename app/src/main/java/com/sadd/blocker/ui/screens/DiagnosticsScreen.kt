@@ -32,6 +32,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.DiagnosticsViewModel
+import com.sadd.blocker.ui.ThemeViewModel
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /**
@@ -43,6 +44,7 @@ import com.sadd.blocker.ui.theme.SaddSpacing
 @Composable
 fun DiagnosticsScreen(
     viewModel: DiagnosticsViewModel = hiltViewModel(),
+    themeViewModel: ThemeViewModel = hiltViewModel(),
     onNavigate: (String) -> Unit = {},
     onBack: () -> Unit = {},
 ) {
@@ -89,6 +91,8 @@ fun DiagnosticsScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
+            // چرخ‌دنده تنظیمات داشبورد به اینجا می‌رسد، پس انتخاب تم هم اینجاست.
+            ThemePickerSection(themeViewModel = themeViewModel)
             SectionTitle("مجوزها")
         }
         items(uiState.permissions, key = { it.key }) { permission ->

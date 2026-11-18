@@ -14,12 +14,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -30,7 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -68,7 +65,7 @@ private fun endedReasonLabel(reason: String?): String {
 /**
  * سشن‌های فعال + شروع سشن جدید.
  * باقی‌مانده زنده از endEpochMs، تمدید ۱۵ دقیقه‌ای، پایان سشن؛
- * پایان سشن Strict وقتی PIN تنظیم شده باشد فقط با PIN درست انجام می‌شود.
+ * پایان سشن Strict فقط با بازگشایی Strict (تایپ متن / انتظار) انجام می‌شود.
  * تاریخ‌ها جلالی‌اند. شروع سشن (چیپ‌های مدت + مدت دلخواه) از داشبورد
  * به اینجا منتقل شده؛ چیپ‌ها در FlowRow می‌پیچند تا «۸ ساعت» له نشود.
  * زمان‌بندی خودکار در فاز ۵ وصل می‌شود.
@@ -81,7 +78,6 @@ fun SessionsScreen(
     onNavigate: (String) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var pinText by rememberSaveable { mutableStateOf("") }
     var selectedDuration by rememberSaveable { mutableStateOf(SessionDurations.OPTIONS[1]) }
     var customMinutes by rememberSaveable { mutableStateOf("") }
     var customError by rememberSaveable { mutableStateOf<String?>(null) }
@@ -99,40 +95,14 @@ fun SessionsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    if (uiState.pinRequired) {
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelPinDialog() },
-            title = { Text("پایان سشن Strict", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text("این سشن Strict است. برای پایان آن PIN را وارد کن.")
-                    Spacer(Modifier.height(SaddSpacing.Medium))
-                    SaddTextField(
-                        value = pinText,
-                        onValueChange = { pinText = it },
-                        label = "PIN",
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                        visualTransformation = PasswordVisualTransformation(),
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.endSessionWithPin(pinText)
-                        pinText = ""
-                    },
-                ) { Text("تایید و پایان") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.cancelPinDialog()
-                        pinText = ""
-                    },
-                ) { Text("لغو") }
-            },
+    if (uiState.strictUnlockVisible) {
+        StrictUnlockDialog(
+            method = uiState.strictUnlockMethod,
+            cooldownHours = uiState.strictCooldownHours,
+            cooldownRequest = uiState.strictCooldownRequest,
+            onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
+            onUnlocked = { viewModel.confirmStrictUnlocked() },
+            onDismiss = { viewModel.cancelStrictUnlock() },
         )
     }
 

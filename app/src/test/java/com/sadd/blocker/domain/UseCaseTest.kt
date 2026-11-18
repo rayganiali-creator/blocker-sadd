@@ -8,8 +8,6 @@ import com.sadd.blocker.data.FakeWebsiteRepository
 import com.sadd.blocker.domain.model.BlockedWebsite
 import com.sadd.blocker.domain.model.KeywordRule
 import com.sadd.blocker.domain.model.Schedule
-import com.sadd.blocker.domain.repository.PinCheckResult
-import com.sadd.blocker.domain.repository.PinGate
 import com.sadd.blocker.domain.usecase.AddKeywordResult
 import com.sadd.blocker.domain.usecase.AddKeywordRuleUseCase
 import com.sadd.blocker.domain.usecase.AddWebsiteResult
@@ -98,46 +96,35 @@ class UseCaseTest {
         val now = 1_700_000_000_000L
         val end = EndSessionUseCase(repo)
         val extend = ExtendSessionUseCase(repo)
-        assertTrue(end.execute("user", null, now) is EndSessionResult.NoActive)
+        assertTrue(end.execute("user", now) is EndSessionResult.NoActive)
         assertNull(extend.execute(now))
         StartSessionUseCase(repo).execute(3_600_000L, false, now)
         val newEnd = extend.execute(now)
         assertEquals(now + 3_600_000L + 15L * 60L * 1000L, newEnd)
-        assertTrue(end.execute("user", null, now) is EndSessionResult.Ended)
+        assertTrue(end.execute("user", now) is EndSessionResult.Ended)
         assertNull(repo.getActive(now))
     }
 
     @Test
-    fun strictSessionEndRequiresPinInUseCase() = runBlocking {
-        // H-1: پایان سشن Strict فقط با PIN درست — در UseCase، نه ViewModel.
+    fun strictSessionEndsThroughUseCaseWithoutPin() = runBlocking {
+        // PIN دیگر پایان سشن Strict را در UseCase گیت نمی‌کند — گیت
+        // بازگشایی Strict (تایپ متن / انتظار) در UI است؛ UseCase مسیر
+        // واحد پایان (H-1) برای همه سشن‌هاست.
         val repo = FakeSessionRepository()
-        val gate = object : PinGate {
-            override suspend fun isPinSet(): Boolean = true
-            override suspend fun verify(pin: String): PinCheckResult {
-                return if (pin == "1234") PinCheckResult.Ok else PinCheckResult.Wrong(4)
-            }
-        }
         val now = 1_700_000_000_000L
         StartSessionUseCase(repo).execute(3_600_000L, true, now)
-        val end = EndSessionUseCase(repo, gate)
-        assertTrue(end.execute("user", null, now) is EndSessionResult.PinRequired)
-        assertTrue(end.execute("user", "0000", now) is EndSessionResult.WrongPin)
-        assertTrue(repo.getActive(now) != null)
-        assertTrue(end.execute("user", "1234", now) is EndSessionResult.Ended)
+        val end = EndSessionUseCase(repo)
+        assertTrue(end.execute("user", now) is EndSessionResult.Ended)
         assertNull(repo.getActive(now))
     }
 
     @Test
     fun nonStrictSessionEndsWithoutPin() = runBlocking {
         val repo = FakeSessionRepository()
-        val gate = object : PinGate {
-            override suspend fun isPinSet(): Boolean = true
-            override suspend fun verify(pin: String): PinCheckResult = PinCheckResult.Wrong(4)
-        }
         val now = 1_700_000_000_000L
         StartSessionUseCase(repo).execute(3_600_000L, false, now)
-        val end = EndSessionUseCase(repo, gate)
-        assertTrue(end.execute("user", null, now) is EndSessionResult.Ended)
+        val end = EndSessionUseCase(repo)
+        assertTrue(end.execute("user", now) is EndSessionResult.Ended)
     }
 
     @Test

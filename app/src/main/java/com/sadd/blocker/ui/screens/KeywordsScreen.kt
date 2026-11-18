@@ -52,6 +52,18 @@ fun KeywordsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    if (uiState.strictUnlockVisible) {
+        StrictUnlockDialog(
+            method = uiState.strictUnlockMethod,
+            cooldownHours = uiState.strictCooldownHours,
+            cooldownRequest = uiState.strictCooldownRequest,
+            onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
+            onUnlocked = { viewModel.confirmStrictUnlocked() },
+            onDismiss = { viewModel.cancelStrictUnlock() },
+        )
+    }
+
     var keywordText by rememberSaveable { mutableStateOf("") }
     var categoryText by rememberSaveable { mutableStateOf("عمومی") }
     var searchText by rememberSaveable { mutableStateOf("") }

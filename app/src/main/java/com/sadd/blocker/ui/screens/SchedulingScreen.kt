@@ -62,6 +62,18 @@ fun SchedulingScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    if (uiState.strictUnlockVisible) {
+        StrictUnlockDialog(
+            method = uiState.strictUnlockMethod,
+            cooldownHours = uiState.strictCooldownHours,
+            cooldownRequest = uiState.strictCooldownRequest,
+            onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
+            onUnlocked = { viewModel.confirmStrictUnlocked() },
+            onDismiss = { viewModel.cancelStrictUnlock() },
+        )
+    }
+
     var selectedDays by rememberSaveable { mutableStateOf(listOf<String>()) }
     var startText by rememberSaveable { mutableStateOf("08:00") }
     var endText by rememberSaveable { mutableStateOf("22:00") }

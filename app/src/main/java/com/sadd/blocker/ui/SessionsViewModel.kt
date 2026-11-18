@@ -5,6 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.domain.StrictCooldownRequest
+import com.sadd.blocker.domain.StrictPendingKind
+import com.sadd.blocker.domain.StrictUnlock
+import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.BlockingSession
@@ -30,15 +34,22 @@ data class SessionsUiState(
     val remainingMs: Long = 0L,
     val totalMs: Long = 0L,
     val history: List<BlockingSession> = emptyList(),
-    val pinRequired: Boolean = false,
+    /** دیالوگ بازگشایی Strict برای پایان سشن Strict باز است. */
+    val strictUnlockVisible: Boolean = false,
+    /** روش بازگشایی Strict (تایپ متن / انتظار) برای دیالوگ. */
+    val strictUnlockMethod: StrictUnlockMethod = StrictUnlockMethod.PASSAGE,
+    /** مدت انتظار بازگشایی Strict (ساعت) برای دیالوگ. */
+    val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
+    /** درخواست انتظار ثبت‌شده برای پایان سشن، اگر هست. */
+    val strictCooldownRequest: StrictCooldownRequest? = null,
     val blockMode: BlockMode = BlockMode.NORMAL,
     val message: String? = null,
 )
 
 /**
  * ViewModel سشن‌ها — فاز ۲ + رفع H-1 و M-5.
- * پایان سشن Strict وقتی PIN تنظیم شده باشد، فقط با PIN درست انجام می‌شود؛
- * بررسی PIN در UseCase است (مسیر واحد پایان — داشبورد و اینجا یکی‌اند).
+ * پایان سشن Strict فقط با بازگشایی Strict (تایپ متن / انتظار) انجام می‌شود؛
+ * داشبورد و اینجا یک دیالوگ و یک مسیر را استفاده می‌کنند.
  * تیکر فقط وقتی صفحه دیده می‌شود می‌دود ([setTicking]).
  */
 @HiltViewModel
@@ -59,6 +70,21 @@ class SessionsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.blockMode.collect { mode ->
                 _uiState.update { it.copy(blockMode = mode) }
+            }
+        }
+        viewModelScope.launch {
+            settingsStore.strictUnlockMethod.collect { method ->
+                _uiState.update { it.copy(strictUnlockMethod = method) }
+            }
+        }
+        viewModelScope.launch {
+            settingsStore.strictCooldownHours.collect { hours ->
+                _uiState.update { it.copy(strictCooldownHours = hours) }
+            }
+        }
+        viewModelScope.launch {
+            settingsStore.strictCooldownRequest.collect { request ->
+                _uiState.update { it.copy(strictCooldownRequest = request) }
             }
         }
         setTicking(true)
@@ -118,64 +144,96 @@ class SessionsViewModel @Inject constructor(
         }
     }
 
-    /** درخواست پایان سشن. اگر Strict + PIN باشد، اول pinRequired می‌شود. */
+    /**
+     * درخواست پایان سشن.
+     * سشن غیر Strict مثل قبل مستقیم پایان می‌یابد. سشن Strict فقط با
+     * بازگشایی Strict (تایپ متن / انتظار) پایان می‌یابد؛ دیالوگ بازگشایی
+     * باز می‌شود و پایان واقعی در [confirmStrictUnlocked] انجام می‌شود.
+     * PIN دیگر پایان سشن Strict را گیت نمی‌کند (جایگزین آن بازگشایی Strict است).
+     */
     fun requestEndSession() {
         viewModelScope.launch {
-            when (val result = endSessionUseCase.execute("user")) {
-                is EndSessionResult.Ended -> {
-                    _uiState.update { it.copy(message = "سشن پایان یافت.") }
-                }
-                is EndSessionResult.PinRequired -> {
-                    _uiState.update { it.copy(pinRequired = true) }
-                }
-                is EndSessionResult.WrongPin -> {
-                    _uiState.update {
-                        it.copy(message = "PIN اشتباه است. ${result.attemptsLeft} تلاش باقی مانده است.")
+            val active = sessionRepository.getActive(System.currentTimeMillis())
+            if (active == null) {
+                refresh()
+                return@launch
+            }
+            if (!active.strict) {
+                when (val result = endSessionUseCase.execute("user")) {
+                    is EndSessionResult.Ended -> {
+                        _uiState.update { it.copy(message = "سشن پایان یافت.") }
                     }
+                    is EndSessionResult.NoActive -> Unit
+                    else -> Unit
                 }
-                is EndSessionResult.Locked -> {
-                    val seconds = ((result.lockedUntilMs - System.currentTimeMillis()) / 1000)
-                        .coerceAtLeast(1)
-                    _uiState.update {
-                        it.copy(message = "PIN موقتاً قفل است؛ $seconds ثانیه دیگر دوباره تلاش کن.")
-                    }
-                }
-                is EndSessionResult.NoActive -> Unit
+            } else {
+                _uiState.update { it.copy(strictUnlockVisible = true) }
             }
             refresh()
         }
     }
 
-    /** پایان سشن با PIN (فقط وقتی pinRequired است). */
-    fun endSessionWithPin(pin: String) {
+    /**
+     * پایان سشن Strict بعد از بازگشایی موفق در دیالوگ.
+     * در روش انتظار، درخواست باید برای پایان سشن ثبت شده و کامل گذشته باشد؛
+     * انتظارِ ثبت‌شده برای کار دیگری اینجا خرج نمی‌شود.
+     * پایان دوباره از مسیر واحد UseCase انجام می‌شود (H-1).
+     */
+    fun confirmStrictUnlocked() {
         viewModelScope.launch {
-            when (val result = endSessionUseCase.execute("user", pin)) {
+            val now = System.currentTimeMillis()
+            val state = _uiState.value
+            if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
+                val request = state.strictCooldownRequest
+                val kindMatches = request?.pendingKind == StrictPendingKind.END_SESSION
+                if (request == null || !StrictUnlock.isCooldownElapsed(request, now) || !kindMatches) {
+                    if (request != null && !kindMatches) {
+                        _uiState.update {
+                            it.copy(
+                                strictUnlockVisible = false,
+                                message = "این انتظار برای کار دیگری ثبت شده است؛ برای پایان سشن دوباره درخواست بده.",
+                            )
+                        }
+                    }
+                    return@launch
+                }
+            }
+            val active = sessionRepository.getActive(now)
+            if (active == null) {
+                _uiState.update {
+                    it.copy(strictUnlockVisible = false, message = "سشنی فعال نیست.")
+                }
+                refresh()
+                return@launch
+            }
+            when (endSessionUseCase.execute("user")) {
                 is EndSessionResult.Ended -> {
-                    _uiState.update { it.copy(pinRequired = false, message = "سشن پایان یافت.") }
-                }
-                is EndSessionResult.WrongPin -> {
-                    _uiState.update {
-                        it.copy(message = "PIN اشتباه است. ${result.attemptsLeft} تلاش باقی مانده است.")
+                    if (state.strictCooldownRequest?.pendingKind == StrictPendingKind.END_SESSION) {
+                        settingsStore.clearStrictCooldownRequest()
                     }
+                    _uiState.update { it.copy(strictUnlockVisible = false, message = "سشن پایان یافت.") }
                 }
-                is EndSessionResult.Locked -> {
-                    val seconds = ((result.lockedUntilMs - System.currentTimeMillis()) / 1000)
-                        .coerceAtLeast(1)
-                    _uiState.update {
-                        it.copy(
-                            pinRequired = false,
-                            message = "PIN موقتاً قفل است؛ $seconds ثانیه دیگر دوباره تلاش کن.",
-                        )
-                    }
+                is EndSessionResult.NoActive -> {
+                    _uiState.update { it.copy(strictUnlockVisible = false, message = "سشنی فعال نیست.") }
                 }
-                else -> Unit
             }
             refresh()
         }
     }
 
-    fun cancelPinDialog() {
-        _uiState.update { it.copy(pinRequired = false) }
+    /** ثبت درخواست انتظار برای پایان سشن Strict (از دیالوگ بازگشایی). */
+    fun recordStrictCooldownRequest() {
+        viewModelScope.launch {
+            settingsStore.recordStrictCooldownRequest(
+                kind = StrictPendingKind.END_SESSION,
+                value = "",
+                durationHours = _uiState.value.strictCooldownHours,
+            )
+        }
+    }
+
+    fun cancelStrictUnlock() {
+        _uiState.update { it.copy(strictUnlockVisible = false) }
     }
 
     fun dismissMessage() {
