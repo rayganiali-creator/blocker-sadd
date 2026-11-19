@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,6 +31,7 @@ import com.sadd.blocker.ui.RuleDelayOverride
 import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 import com.sadd.blocker.ui.screens.StrictUnlockDialog
 
 /**
@@ -140,7 +142,10 @@ private fun OverrideRow(override: RuleDelayOverride, onReset: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(onClick = onReset) {
+            TextButton(
+                onClick = onReset,
+                colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
+            ) {
                 Text("بازنشانی به سراسری")
             }
         }

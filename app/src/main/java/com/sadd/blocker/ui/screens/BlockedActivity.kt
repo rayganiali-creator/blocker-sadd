@@ -50,7 +50,6 @@ import com.sadd.blocker.ui.games.GameInfo
 import com.sadd.blocker.ui.games.GamesGrid
 import com.sadd.blocker.ui.theme.BlockerTheme
 import com.sadd.blocker.ui.theme.ChipMint
-import com.sadd.blocker.ui.theme.Mint
 import com.sadd.blocker.ui.theme.SaddBackdrop
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
@@ -247,7 +246,7 @@ private fun BlockedMainContent(
             "سد",
             style = MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.Bold,
-            color = Mint,
+            color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(Modifier.height(8.dp))
         Text(

@@ -64,6 +64,7 @@ import com.sadd.blocker.ui.theme.Mint
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
 /**
@@ -161,7 +162,7 @@ fun DashboardScreen(
                     if (uiState.sessionActive) "محافظت فعال است" else "سشنی فعال نیست",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = saddPrimaryTextColor(),
                 )
                 Text(
                     if (uiState.sessionActive) "زمان باقی‌مانده جلسه" else "بلاک فقط وسط سشن فعال کار می‌کند",

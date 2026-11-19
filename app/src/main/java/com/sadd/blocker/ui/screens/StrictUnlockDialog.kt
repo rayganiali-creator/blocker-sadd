@@ -44,7 +44,9 @@ import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddErrorTextColor
 import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 import kotlinx.coroutines.delay
 
@@ -159,9 +161,11 @@ fun StrictUnlockDialog(
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                                 unfocusedBorderColor = saddSpecularBorderColor(),
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 focusedContainerColor = saddGlassSurfaceColor(),
                                 unfocusedContainerColor = saddGlassSurfaceColor(),
-                                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                focusedLabelColor = saddPrimaryTextColor(),
                                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 cursorColor = MaterialTheme.colorScheme.primary,
                             ),
@@ -187,7 +191,7 @@ fun StrictUnlockDialog(
                             "متن تایپ‌شده با متن بالا مطابقت ندارد؛ " +
                                 "از جایی که اشتباه شده، دوباره بنویس.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
+                            color = saddErrorTextColor(),
                         )
                     }
                     Spacer(Modifier.height(SaddSpacing.Medium))

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -58,10 +59,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -79,6 +78,8 @@ import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddGlassDialogContainerColor
 import com.sadd.blocker.ui.theme.saddGlassSheenBrush
 import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddPrimaryButtonBrush
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 import com.sadd.blocker.ui.theme.saddSpecularBorderBrush
 import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
@@ -248,9 +249,8 @@ fun SaddButton(
     when (style) {
         SaddButtonStyle.PRIMARY -> {
             val primary = MaterialTheme.colorScheme.primary
-            val gradient = Brush.verticalGradient(
-                colors = listOf(lerp(primary, Color.White, 0.22f), primary),
-            )
+            // در تیره پرشده تیره‌تر می‌شود تا متن سفید خوانا بماند (قانون متن سفید سید).
+            val gradient = saddPrimaryButtonBrush()
             Box(
                 modifier = tallModifier
                     .scale(pressScale)
@@ -317,7 +317,7 @@ fun SaddButton(
                 )
                 Text(
                     text,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = saddPrimaryTextColor(),
                 )
             }
         }
@@ -327,6 +327,10 @@ fun SaddButton(
             enabled = enabled,
             shape = shape,
             interactionSource = interactionSource,
+            colors = ButtonDefaults.textButtonColors(
+                contentColor = saddPrimaryTextColor(),
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
         ) {
             Text(text)
         }
@@ -356,12 +360,20 @@ fun SaddTextField(
         leadingIcon = leadingIcon,
         shape = RoundedCornerShape(SaddRadius.TextField),
         colors = OutlinedTextFieldDefaults.colors(
+            // قانون متن سفید سید: متن و برچسب در تیره سفید؛ پیش‌فرض متریال
+            // برچسب فوکوس‌شده را primary (پاستلی) می‌کرد.
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            disabledTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = saddSpecularBorderColor(),
             focusedContainerColor = saddGlassSurfaceColor(),
             unfocusedContainerColor = saddGlassSurfaceColor(),
-            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            focusedLabelColor = saddPrimaryTextColor(),
             unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
             cursorColor = MaterialTheme.colorScheme.primary,
         ),
     )
@@ -386,10 +398,16 @@ fun SaddDialog(
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = { Text(text) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(confirmText) }
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
+            ) { Text(confirmText) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(cancelText) }
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
+            ) { Text(cancelText) }
         },
     )
 }
@@ -576,10 +594,16 @@ fun DelayPickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected) }) { Text("تایید") }
+            TextButton(
+                onClick = { onConfirm(selected) },
+                colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
+            ) { Text("تایید") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("لغو") }
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
+            ) { Text("لغو") }
         },
     )
 }
@@ -599,7 +623,13 @@ fun InfoRow(label: String, value: String) {
 /** رنگ‌های سوییچ Liquid Glass: روشن = primary توپر، خاموش = سطح شیشه‌ای با حاشیه درخشان. */
 @Composable
 fun saddSwitchColors() = SwitchDefaults.colors(
-    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+    // دکمه سوییچ روی مسیر primary پاستلی در تیره باید تیره بماند تا دیده
+    // شود (این آیکون است، نه متن؛ قانون متن سفید شاملش نمی‌شود).
+    checkedThumbColor = if (MaterialTheme.colorScheme.primary.luminance() > 0.5f) {
+        Navy
+    } else {
+        Color.White
+    },
     checkedTrackColor = MaterialTheme.colorScheme.primary,
     checkedBorderColor = MaterialTheme.colorScheme.primary,
     uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -726,10 +756,8 @@ private fun SegmentItem(
     val segmentShape = RoundedCornerShape(SaddRadius.Button)
     val interactionSource = remember { MutableInteractionSource() }
     val pressScale by rememberPressScale(interactionSource)
-    val primary = MaterialTheme.colorScheme.primary
-    val selectedBrush = Brush.verticalGradient(
-        colors = listOf(lerp(primary, Color.White, 0.20f), primary),
-    )
+    // در تیره پرشده تیره‌تر می‌شود تا متن سفید قطعه انتخاب‌شده خوانا بماند.
+    val selectedBrush = saddPrimaryButtonBrush()
     Box(
         modifier = modifier
             .scale(pressScale)

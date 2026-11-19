@@ -48,6 +48,7 @@ import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSelectedContainerColor
 import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
 /**
@@ -189,7 +190,7 @@ fun KeywordsScreen(
                                     colors = FilterChipDefaults.filterChipColors(
                                         containerColor = saddGlassSurfaceColor(),
                                         labelColor = MaterialTheme.colorScheme.onSurface,
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedContainerColor = saddSelectedContainerColor(),
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                     ),
                                     border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),

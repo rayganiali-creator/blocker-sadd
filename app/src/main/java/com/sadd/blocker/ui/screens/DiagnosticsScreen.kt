@@ -38,6 +38,8 @@ import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.ChipPink
 import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddErrorTextColor
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 
 /**
  * مجوزها و عیب‌یابی.
@@ -126,9 +128,9 @@ fun DiagnosticsScreen(
                             if (permission.granted) "فعال" else "غیرفعال",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (permission.granted) {
-                                MaterialTheme.colorScheme.primary
+                                saddPrimaryTextColor()
                             } else {
-                                MaterialTheme.colorScheme.error
+                                saddErrorTextColor()
                             },
                         )
                     }

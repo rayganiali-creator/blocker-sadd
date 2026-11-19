@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,7 +36,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +48,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.AppsViewModel
 import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.Navy
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /** کش حافظه‌ای آیکون اپ‌ها (حداکثر ۶۴ آیکون) — بدون بارگذاری دوباره از PackageManager. */
@@ -181,6 +185,16 @@ fun AppsScreen(
                         Checkbox(
                             checked = uiState.selected.contains(app.packageName),
                             onCheckedChange = { viewModel.toggleSelect(app.packageName) },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MaterialTheme.colorScheme.primary,
+                                // تیک روی مربع پاستلی در تیره باید تیره بماند تا دیده شود.
+                                checkmarkColor = if (MaterialTheme.colorScheme.primary.luminance() > 0.5f) {
+                                    Navy
+                                } else {
+                                    Color.White
+                                },
+                                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            ),
                         )
                         AppIcon(packageName = app.packageName, modifier = Modifier.size(40.dp))
                         Spacer(Modifier.width(SaddSpacing.Small))

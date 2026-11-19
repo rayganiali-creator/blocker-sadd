@@ -34,6 +34,7 @@ import com.sadd.blocker.ui.theme.Grape
 import com.sadd.blocker.ui.theme.Mint
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddAccentTextColor
 import com.sadd.blocker.ui.theme.Sky
 import com.sadd.blocker.ui.theme.Sunny
 import com.sadd.blocker.ui.theme.Teal
@@ -160,7 +161,7 @@ private fun GameCard(game: GameInfo, onClick: () -> Unit, modifier: Modifier = M
                 Text(
                     game.category,
                     style = MaterialTheme.typography.labelMedium,
-                    color = game.accent,
+                    color = saddAccentTextColor(game.accent),
                 )
                 Spacer(Modifier.height(SaddSpacing.XSmall))
                 Text(

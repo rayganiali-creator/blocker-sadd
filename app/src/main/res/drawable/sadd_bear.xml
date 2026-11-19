@@ -1,48 +1,57 @@
-<!-- خرس «سد» — لبخند، زرد/نارنجی/سفید (برند تاییدشده).
+<!-- خرس «سد» — طرح جدید تاییدشده (صورت بزرگ تخت، لپ‌های صورتی، پوزه سفید).
      هم foreground آیکون adaptive است، هم تصویر صفحه بلاک.
-     viewport ‏108×108؛ محتوای اصلی داخل ناحیه امن مرکزی است. -->
+     viewport ‏108×108؛ محتوای اصلی داخل ناحیه امن مرکزی (66×66) است. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- گوش‌ها: نارنجی + داخل سفید -->
+    <!-- گوش‌ها: طلایی + داخل سفید -->
     <path
-        android:fillColor="#F08A1D"
-        android:pathData="M32,34a12,12 0 1,1 0.1,0Z" />
+        android:fillColor="#FFB93E"
+        android:pathData="M30,32a13,13 0 1,1 0.1,0Z" />
     <path
-        android:fillColor="#F08A1D"
-        android:pathData="M76,34a12,12 0 1,1 0.1,0Z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M32,34a6.5,6.5 0 1,1 0.1,0Z" />
+        android:fillColor="#FFB93E"
+        android:pathData="M78,32a13,13 0 1,1 0.1,0Z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M76,34a6.5,6.5 0 1,1 0.1,0Z" />
-    <!-- صورت: زرد -->
-    <path
-        android:fillColor="#FFC53D"
-        android:pathData="M54,58a29,29 0 1,1 0.1,0Z" />
-    <!-- پوزه: سفید -->
+        android:pathData="M30,32a7,7 0 1,1 0.1,0Z" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,68m-13,0a13,9.5 0 1,1 26,0a13,9.5 0 1,1 -26,0" />
+        android:pathData="M78,32a7,7 0 1,1 0.1,0Z" />
+    <!-- صورت: طلایی، پهن و گرد -->
+    <path
+        android:fillColor="#FFB93E"
+        android:pathData="M54,57m-32,0a32,29 0 1,1 64,0a32,29 0 1,1 -64,0" />
+    <!-- لپ‌ها: صورتی نرم -->
+    <path
+        android:fillColor="#FF9E8A"
+        android:fillAlpha="0.75"
+        android:pathData="M33,63m-5.5,0a5.5,4.5 0 1,1 11,0a5.5,4.5 0 1,1 -11,0" />
+    <path
+        android:fillColor="#FF9E8A"
+        android:fillAlpha="0.75"
+        android:pathData="M75,63m-5.5,0a5.5,4.5 0 1,1 11,0a5.5,4.5 0 1,1 -11,0" />
+    <!-- پوزه: سفید، بزرگ -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,69m-15,0a15,11 0 1,1 30,0a15,11 0 1,1 -30,0" />
     <!-- چشم‌ها -->
     <path
-        android:fillColor="#0B1B33"
-        android:pathData="M43,54a3.2,3.2 0 1,1 0.1,0Z" />
+        android:fillColor="#232323"
+        android:pathData="M42,54a3.4,3.4 0 1,1 0.1,0Z" />
     <path
-        android:fillColor="#0B1B33"
-        android:pathData="M65,54a3.2,3.2 0 1,1 0.1,0Z" />
+        android:fillColor="#232323"
+        android:pathData="M66,54a3.4,3.4 0 1,1 0.1,0Z" />
     <!-- بینی -->
     <path
-        android:fillColor="#0B1B33"
-        android:pathData="M54,62.5m-4.5,0a4.5,3.5 0 1,1 9,0a4.5,3.5 0 1,1 -9,0" />
+        android:fillColor="#232323"
+        android:pathData="M54,64m-5.5,0a5.5,4 0 1,1 11,0a5.5,4 0 1,1 -11,0" />
     <!-- لبخند -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M46,70Q54,77 62,70"
-        android:strokeColor="#0B1B33"
+        android:pathData="M46,72Q54,79 62,72"
+        android:strokeColor="#232323"
         android:strokeWidth="3"
         android:strokeLineCap="round" />
 </vector>

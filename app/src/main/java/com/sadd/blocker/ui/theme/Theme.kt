@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
@@ -82,17 +83,20 @@ private val LightColors = lightColorScheme(
 
 private val DarkColors = darkColorScheme(
     primary = Mint,
-    onPrimary = NavyDeep,
+    // قانون سید (۲۰۲۶-۱۱-۱۹): در حالت تیره همه متن‌ها سفیدند — متن روی
+    // دکمه‌های پرشده هم سفید است و پرشده‌ها برای خوانایی تیره‌تر می‌شوند
+    // (saddPrimaryButtonBrush / saddSelectedContainerColor).
+    onPrimary = Color.White,
     primaryContainer = Color(0xFF0E3D34),
-    onPrimaryContainer = Mint,
+    onPrimaryContainer = Color.White,
     secondary = Sky,
-    onSecondary = NavyDeep,
+    onSecondary = Color.White,
     tertiary = Grape,
-    onTertiary = NavyDeep,
+    onTertiary = Color.White,
     error = Coral,
-    onError = NavyDeep,
+    onError = Color.White,
     errorContainer = Color(0xFF4A1E12),
-    onErrorContainer = Color(0xFFFFC9B8),
+    onErrorContainer = Color.White,
     background = NavyDeep,
     onBackground = Color.White,
     surface = Navy,
@@ -100,13 +104,20 @@ private val DarkColors = darkColorScheme(
     surfaceVariant = NavySurface,
     onSurfaceVariant = Color.White.copy(alpha = 0.75f),
     outline = Color(0xFF3A4A66),
+    // Snackbar در تیره: پس‌زمینه تیره + متن و اکشن سفید (پیش‌فرض متریال
+    // برعکس است و متن تیره روی روشن می‌داد).
+    inverseSurface = NavySurface,
+    inverseOnSurface = Color.White,
+    inversePrimary = Color.White,
 )
 
 /**
  * رنگ‌بندی‌ها — ۶ پالت، هر کدام روشن و تیره خودش را دارد.
  * قرارداد کنتراست: در روشن، primary تیره است (متن سفید روی آن خواناست و
- * خودش روی پس‌زمینه روشن خواناست)؛ در تیره، primary روشن است و onPrimary
- * تیره. رنگ خطا در همه پالت‌ها یکی است تا معنای خطا ثابت بماند.
+ * خودش روی پس‌زمینه روشن خواناست). در تیره همه متن‌ها سفیدند (خواسته سید
+ * ۲۰۲۶-۱۱-۱۹) و پرشده‌های پشت متن با saddPrimaryButtonBrush و
+ * saddSelectedContainerColor تیره‌تر می‌شوند تا سفید خوانا بماند.
+ * رنگ خطا در همه پالت‌ها یکی است تا معنای خطا ثابت بماند.
  */
 private fun paletteColors(
     dark: Boolean,
@@ -127,17 +138,25 @@ private fun paletteColors(
     outline: Color,
 ): ColorScheme {
     return if (dark) {
+        // قانون سید (۲۰۲۶-۱۱-۱۹): در تیره همه متن‌ها سفیدند؛ پارامترهای
+        // on* تیره عمداً نادیده گرفته می‌شوند تا هیچ متن رنگی/کم‌رنگی در
+        // هیچ پالتی نماند. پرشده‌های پشت متن (دکمه/چیپ انتخاب‌شده) با
+        // saddPrimaryButtonBrush و saddSelectedContainerColor تیره‌تر
+        // می‌شوند تا متن سفید روی آن‌ها خوانا بماند.
         darkColorScheme(
-            primary = primary, onPrimary = onPrimary,
-            primaryContainer = primaryContainer, onPrimaryContainer = onPrimaryContainer,
-            secondary = secondary, onSecondary = onSecondary,
-            tertiary = tertiary, onTertiary = onTertiary,
-            error = Coral, onError = NavyDeep,
-            errorContainer = Color(0xFF4A1E12), onErrorContainer = Color(0xFFFFC9B8),
+            primary = primary, onPrimary = Color.White,
+            primaryContainer = primaryContainer, onPrimaryContainer = Color.White,
+            secondary = secondary, onSecondary = Color.White,
+            tertiary = tertiary, onTertiary = Color.White,
+            error = Coral, onError = Color.White,
+            errorContainer = Color(0xFF4A1E12), onErrorContainer = Color.White,
             background = background, onBackground = onBackground,
             surface = surface, onSurface = onSurface,
             surfaceVariant = surfaceVariant, onSurfaceVariant = onSurfaceVariant,
             outline = outline,
+            inverseSurface = surfaceVariant,
+            inverseOnSurface = Color.White,
+            inversePrimary = Color.White,
         )
     } else {
         lightColorScheme(
@@ -423,6 +442,58 @@ object SaddGlass {
 @Composable
 fun saddIsDark(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
+/**
+ * قانون متن سفید سید (۲۰۲۶-۱۱-۱۹): در حالت تیره هر متنی سفید خالص است؛
+ * در روشن، متن تأکیدی همان primary پالت می‌ماند. همه جاهایی که قبلاً متن
+ * را primary می‌کردند از این توکن می‌گذرند.
+ */
+@Composable
+fun saddPrimaryTextColor(): Color =
+    if (saddIsDark()) Color.White else MaterialTheme.colorScheme.primary
+
+/** متن خطا: در تیره سفید (قانون متن سفید سید)، در روشن همان قرمز خطا. */
+@Composable
+fun saddErrorTextColor(): Color =
+    if (saddIsDark()) Color.White else MaterialTheme.colorScheme.error
+
+/** متن با رنگ تأکید دلخواه (مثل دسته بازی‌ها): در تیره سفید، در روشن خود تأکید. */
+@Composable
+fun saddAccentTextColor(accent: Color): Color =
+    if (saddIsDark()) Color.White else accent
+
+/**
+ * رنگ پرشده پشت متن سفید (چیپ انتخاب‌شده، دایره مرحله انجام‌شده):
+ * در تیره، primary پاستلی به سمت مشکی تیره می‌شود تا متن/آیکون سفید روی
+ * آن خوانا بماند؛ در روشن primary خودش تیره است و دست نمی‌خورد.
+ */
+@Composable
+fun saddSelectedContainerColor(): Color {
+    val primary = MaterialTheme.colorScheme.primary
+    return if (saddIsDark()) lerp(primary, Color.Black, 0.52f) else primary
+}
+
+/**
+ * قلم‌موی دکمه پرشده اصلی و قطعه انتخاب‌شده کنترل قطعه‌ای:
+ * در تیره گرادیان primary تیره‌شده به سمت مشکی (متن سفید خوانا می‌ماند)،
+ * در روشن همان گرادیان قبلی (روشن‌شده به سمت سفید تا primary).
+ */
+@Composable
+fun saddPrimaryButtonBrush(): Brush {
+    val primary = MaterialTheme.colorScheme.primary
+    return if (saddIsDark()) {
+        Brush.verticalGradient(
+            colors = listOf(
+                lerp(primary, Color.Black, 0.40f),
+                lerp(primary, Color.Black, 0.58f),
+            ),
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(lerp(primary, Color.White, 0.22f), primary),
+        )
+    }
+}
+
 /** رنگ حاشیه مویی: primary پالت با آلفای ۰٫۴۰ — در هر ۶ پالت، روشن و تیره (سازگاری با کال‌سایت‌های قدیمی). */
 @Composable
 fun saddHairlineColor(): Color =
@@ -550,9 +621,16 @@ fun BlockerTheme(
         AppTheme.DARK -> true
         AppTheme.SYSTEM -> isSystemInDarkTheme()
     }
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+    val scheme = colorSchemeFor(colorTheme, dark)
+    // قانون متن سفید سید: رنگ پیش‌فرض هر متنی که رنگ صریح ندارد onBackground
+    // است (در تیره سفید خالص، در روشن نزدیک‌مشکی) — هیچ متنی با رنگ پیش‌فرض
+    // کامپوز روی پس‌زمینه نمی‌نشیند.
+    CompositionLocalProvider(
+        LocalLayoutDirection provides LayoutDirection.Rtl,
+        LocalContentColor provides scheme.onBackground,
+    ) {
         MaterialTheme(
-            colorScheme = colorSchemeFor(colorTheme, dark),
+            colorScheme = scheme,
             typography = SaddTypography,
             shapes = SaddShapes,
             content = content,

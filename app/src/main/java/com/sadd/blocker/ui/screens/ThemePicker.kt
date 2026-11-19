@@ -33,6 +33,7 @@ import com.sadd.blocker.ui.ThemeViewModel
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.colorSchemeFor
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 import com.sadd.blocker.ui.theme.paletteLabelFa
 import com.sadd.blocker.ui.screens.StrictUnlockDialog
 
@@ -144,7 +145,7 @@ private fun PaletteCard(selected: Boolean, palette: ColorTheme, onClick: () -> U
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                 color = if (selected) {
-                    MaterialTheme.colorScheme.primary
+                    saddPrimaryTextColor()
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },

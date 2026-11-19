@@ -63,6 +63,7 @@ import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddErrorTextColor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -820,7 +821,7 @@ fun ModesScreen(
                         Text(
                             "محافظت از تنظیمات سیستم غیرفعال شد — برای فعال‌کردن دوباره، دکمه زیر را بزن.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
+                            color = saddErrorTextColor(),
                         )
                         Spacer(Modifier.height(SaddSpacing.Small))
                         SaddButton(
@@ -839,7 +840,7 @@ fun ModesScreen(
                             color = if (strictState.uninstallAdminActive) {
                                 MaterialTheme.colorScheme.onSurface
                             } else {
-                                MaterialTheme.colorScheme.error
+                                saddErrorTextColor()
                             },
                         )
                     }
@@ -864,7 +865,7 @@ fun ModesScreen(
                         Text(
                             "مدیر دستگاه هنوز فعال نشده؛ تا فعال نشود، حذف نصب مسدود نیست.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
+                            color = saddErrorTextColor(),
                         )
                         Spacer(Modifier.height(SaddSpacing.Medium))
                         // مسیر اصلی فعال‌سازی: همیشه و مستقیم صفحه فعال‌سازی
@@ -931,7 +932,7 @@ fun ModesScreen(
                         color = if (strictState.guardArmed && strictState.accessibilityEnabled) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         } else {
-                            MaterialTheme.colorScheme.error
+                            saddErrorTextColor()
                         },
                     )
                     Spacer(Modifier.height(SaddSpacing.Small))

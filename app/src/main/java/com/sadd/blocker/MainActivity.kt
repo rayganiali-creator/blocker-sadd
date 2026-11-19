@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
@@ -57,6 +58,7 @@ import com.sadd.blocker.ui.screens.BackupScreen
 import com.sadd.blocker.ui.screens.DashboardScreen
 import com.sadd.blocker.ui.screens.DelayScreen
 import com.sadd.blocker.ui.screens.DiagnosticsScreen
+import com.sadd.blocker.ui.screens.GamesScreen
 import com.sadd.blocker.ui.screens.KeywordsScreen
 import com.sadd.blocker.ui.screens.ModesScreen
 import com.sadd.blocker.ui.screens.OnboardingScreen
@@ -119,6 +121,9 @@ fun BlockerNav(onboardingDone: Boolean) {
         BottomDestination("websites", "وب", Icons.Filled.Language),
         BottomDestination("rules", "کلمات", Icons.Filled.TextFields),
         BottomDestination("sessions", "سشن‌ها", Icons.Filled.Timer),
+        // تب جدا برای بازی‌های کوچک (خواسته سید ۲۰۲۶-۱۱-۱۹) — علاوه بر
+        // ورود بازی‌ها از صفحه بلاک؛ همیشه در دسترس و مستقل از سشن/Strict.
+        BottomDestination("games", "بازی‌ها", Icons.Filled.SportsEsports),
     )
     // پس‌زمینه Liquid Glass زیر همه صفحه‌ها؛ Scaffold شفاف است تا گرادیان دیده شود.
     SaddBackdrop {
@@ -206,6 +211,9 @@ fun BlockerNav(onboardingDone: Boolean) {
             }
             composable("sessions") {
                 SessionsScreen(onNavigate = { navController.navigate(it) })
+            }
+            composable("games") {
+                GamesScreen()
             }
             composable("scheduling") {
                 SchedulingScreen(

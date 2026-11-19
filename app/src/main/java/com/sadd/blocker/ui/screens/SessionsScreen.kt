@@ -30,6 +30,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -63,7 +64,10 @@ import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddGlassDialogContainerColor
+import com.sadd.blocker.ui.theme.saddErrorTextColor
 import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
+import com.sadd.blocker.ui.theme.saddSelectedContainerColor
 import com.sadd.blocker.ui.theme.saddSpecularBorderBrush
 import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
@@ -187,7 +191,7 @@ fun SessionsScreen(
                                     colors = FilterChipDefaults.filterChipColors(
                                         containerColor = saddGlassSurfaceColor(),
                                         labelColor = MaterialTheme.colorScheme.onSurface,
-                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedContainerColor = saddSelectedContainerColor(),
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                     ),
                                     border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
@@ -238,7 +242,7 @@ fun SessionsScreen(
                             Text(
                                 customError!!,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
+                                color = saddErrorTextColor(),
                             )
                         }
                         Spacer(Modifier.height(SaddSpacing.Small))
@@ -297,7 +301,7 @@ fun SessionsScreen(
                                 "محافظت از حذف نصب روشن است اما مدیر دستگاه فعال نیست؛ " +
                                     "تا فعال نشود، حذف نصب «سد» مسدود نیست.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.error,
+                                color = saddErrorTextColor(),
                             )
                             Spacer(Modifier.height(SaddSpacing.Small))
                             SaddButton(
@@ -413,7 +417,10 @@ private fun StartModeDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("لغو") }
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
+            ) { Text("لغو") }
         },
     )
 }
@@ -458,7 +465,7 @@ private fun StartModeOption(
                     Text(
                         "پیش‌فرض",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = saddPrimaryTextColor(),
                     )
                 }
             }

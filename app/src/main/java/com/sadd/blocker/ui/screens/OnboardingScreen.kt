@@ -52,6 +52,8 @@ import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
+import com.sadd.blocker.ui.theme.saddSelectedContainerColor
 import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 import kotlinx.coroutines.launch
 
@@ -146,7 +148,7 @@ fun OnboardingScreen(
                 if (uiState.allGranted) "همه مراحل انجام شد" else "مرحله ${uiState.currentStepIndex + 1} از ${steps.size}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+                color = saddPrimaryTextColor(),
             )
             Spacer(Modifier.height(SaddSpacing.Small))
             LinearProgressIndicator(
@@ -184,7 +186,7 @@ fun OnboardingScreen(
                                 Text(
                                     "انجام شد",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = saddPrimaryTextColor(),
                                 )
                             }
                         }
@@ -417,7 +419,7 @@ private fun AccessibilityPhaseBlock(
                 modifier = Modifier.size(32.dp)
                     .background(
                         if (done) {
-                            MaterialTheme.colorScheme.primary
+                            saddSelectedContainerColor()
                         } else {
                             saddGlassSurfaceColor()
                         },
@@ -426,7 +428,7 @@ private fun AccessibilityPhaseBlock(
                     .border(
                         1.dp,
                         if (done) {
-                            MaterialTheme.colorScheme.primary
+                            saddSelectedContainerColor()
                         } else {
                             saddSpecularBorderColor()
                         },
@@ -447,7 +449,7 @@ private fun AccessibilityPhaseBlock(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (isCurrent) {
-                            MaterialTheme.colorScheme.primary
+                            saddPrimaryTextColor()
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
@@ -465,7 +467,7 @@ private fun AccessibilityPhaseBlock(
                 Text(
                     "تأیید شما",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = saddPrimaryTextColor(),
                 )
             }
         }
