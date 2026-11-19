@@ -56,10 +56,11 @@ import kotlinx.coroutines.delay
 
 /**
  * بازی «ترکاندن»: شبکه ۶×۸ حباب براق داخل پنل شیشه‌ای. با کشیدن انگشت
- * روی حباب‌ها (یا ضربه) می‌ترکند — هر ترکیدن صدای ترکیدن و لرزش ملایم
- * دارد و حباب با فنر کوچک و کمرنگ می‌شود؛ حدود ۲ ثانیه بعد دوباره ساخته
- * می‌شود تا هیچ‌وقت تمام نشود.
- * وضعیت و شمارنده در [PopEngine] خالص است؛ فهرست آینه‌ای Compose فقط رندر را تازه می‌کند.
+ * روی حباب‌ها (یا ضربه) می‌ترکند — هر ترکیدن صدای ترکیدن پلاستیک
+ * حباب‌دار و لرزش ملایم دارد و حباب با فنر کوچک و کمرنگ می‌شود. وقتی
+ * همه حباب‌های شبکه ترکیدند، دور بعدی با طرح و رنگ متفاوت شروع می‌شود
+ * تا بازی هیچ‌وقت تمام نشود.
+ * وضعیت، شمارنده و دور در [PopEngine] خالص است؛ فهرست آینه‌ای Compose فقط رندر را تازه می‌کند.
  */
 @Composable
 fun PopGame(accent: Color) {
@@ -70,21 +71,24 @@ fun PopGame(accent: Color) {
             repeat(engine.size) { add(false) }
         }
     }
-    val poppedAt = remember { LongArray(engine.size) }
     var gridSize by remember { mutableStateOf(IntSize.Zero) }
     val haptics = LocalHapticFeedback.current
+    // آینه شماره دور برای Compose؛ تم رنگی حباب‌ها از همین دور خوانده می‌شود.
+    var round by remember { mutableStateOf(engine.round) }
+    var nextRoundPending by remember { mutableStateOf(false) }
 
-    // بازسازی حباب‌ها حدود ۲ ثانیه بعد از ترکیدن.
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(200)
-            val now = System.currentTimeMillis()
-            for (i in 0 until engine.size) {
-                if (engine.isPopped(i) && now - poppedAt[i] >= 2000L) {
-                    engine.regenerate(i)
+    // وقتی همه حباب‌ها ترکیدند، کمی صبر می‌کنیم تا ترکیدن آخری دیده شود،
+    // بعد دور بعدی با تم رنگی تازه شروع می‌شود.
+    LaunchedEffect(nextRoundPending) {
+        if (nextRoundPending) {
+            delay(700)
+            if (engine.startNextRound()) {
+                for (i in poppedStates.indices) {
                     poppedStates[i] = false
                 }
+                round = engine.round
             }
+            nextRoundPending = false
         }
     }
 
@@ -103,9 +107,11 @@ fun PopGame(accent: Color) {
         val index = row * engine.cols + col
         if (engine.pop(index)) {
             poppedStates[index] = true
-            poppedAt[index] = System.currentTimeMillis()
             GameSounds.pop()
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            if (engine.isRoundComplete()) {
+                nextRoundPending = true
+            }
         }
     }
 
@@ -115,7 +121,7 @@ fun PopGame(accent: Color) {
             .verticalScroll(rememberScrollState()),
     ) {
         Text(
-            "ترکیده: ${engine.poppedCount}",
+            "ترکیده: ${engine.poppedCount} • دور $round",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -158,7 +164,7 @@ fun PopGame(accent: Color) {
                             val index = row * engine.cols + col
                             Bubble(
                                 popped = poppedStates[index],
-                                color = accent,
+                                theme = bubbleThemes[(round - 1) % bubbleThemes.size],
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -169,8 +175,31 @@ fun PopGame(accent: Color) {
     }
 }
 
+/** تم رنگی یک دور حباب‌ها: رنگ پایه بدنه، حاشیه و برق بالای حباب. */
+private data class BubbleTheme(
+    val base: Color,
+    val border: Color,
+    val highlight: Color,
+)
+
+/** شش تم دورهای «ترکاندن»؛ هر دور بعدی یکی از این‌ها با طرح و رنگ متفاوت می‌آید. */
+private val bubbleThemes = listOf(
+    // کلاسیک شفاف
+    BubbleTheme(Color(0xFFE8F4FF), Color.White.copy(alpha = 0.70f), Color.White),
+    // صورتی پاستیلی
+    BubbleTheme(Color(0xFFFF9EC7), Color(0xFFFFD6E7), Color.White),
+    // آبی اقیانوسی
+    BubbleTheme(Color(0xFF5AA9FF), Color(0xFFCFE8FF), Color.White),
+    // طلایی
+    BubbleTheme(Color(0xFFFFC53D), Color(0xFFFFE9B0), Color.White),
+    // نعنایی
+    BubbleTheme(Color(0xFF5EEAD4), Color(0xFFC8F5E9), Color.White),
+    // بنفش
+    BubbleTheme(Color(0xFFB79CFF), Color(0xFFE4D8FF), Color.White),
+)
+
 @Composable
-private fun Bubble(popped: Boolean, color: Color, modifier: Modifier) {
+private fun Bubble(popped: Boolean, theme: BubbleTheme, modifier: Modifier) {
     // فنر کم‌میرا: حباب موقع ترکیدن با جهش کوچک و برگشت فنری جمع می‌شود.
     val scale by animateFloatAsState(
         targetValue = if (popped) 0.2f else 1f,
@@ -189,7 +218,7 @@ private fun Bubble(popped: Boolean, color: Color, modifier: Modifier) {
             .scale(scale)
             .alpha(alpha),
     ) {
-        // بدنه براق حباب: گرادیان شعاعی از روشن به رنگ و لبه تیره‌تر.
+        // بدنه براق حباب: گرادیان شعاعی از روشن به رنگ تم و لبه تیره‌تر.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -197,13 +226,13 @@ private fun Bubble(popped: Boolean, color: Color, modifier: Modifier) {
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            lerp(color, Color.White, 0.55f),
-                            color,
-                            lerp(color, Color.Black, 0.25f),
+                            lerp(theme.base, Color.White, 0.55f),
+                            theme.base,
+                            lerp(theme.base, Color.Black, 0.25f),
                         ),
                     ),
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape),
+                .border(1.dp, theme.border, CircleShape),
         )
         // برق کوچک بالای حباب.
         Box(
@@ -211,7 +240,7 @@ private fun Bubble(popped: Boolean, color: Color, modifier: Modifier) {
                 .align(Alignment.TopStart)
                 .offset(x = 7.dp, y = 6.dp)
                 .size(9.dp)
-                .background(Color.White.copy(alpha = 0.75f), CircleShape),
+                .background(theme.highlight.copy(alpha = 0.75f), CircleShape),
         )
     }
 }

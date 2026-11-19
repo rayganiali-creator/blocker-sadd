@@ -6,6 +6,7 @@ import android.media.AudioTrack
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
+import kotlin.random.Random
 
 /**
  * صداهای کوتاه بازی‌ها، ساخته‌شده در لحظه با AudioTrack — بدون هیچ فایل
@@ -18,9 +19,13 @@ object GameSounds {
     private const val SAMPLE_RATE = 44100
     private const val AMPLITUDE = 0.22
 
-    /** ترکیدن حباب: موج سینوسی با افت سریع فرکانس (۹۰۰→۳۰۰ هرتز) و پوش کاهشی. */
+    /**
+     * ترکیدن حباب پلاستیکی (bubble wrap): کلیک تیز نویزی + افت سریع فرکانس
+     * سینوس (۹۰۰→۲۰۰ هرتز) با پوش کاهشی تند؛ هر بار یکی از چند گونه با
+     * زیروبمی کمی متفاوت پخش می‌شود تا کشیدن انگشت روی حباب‌ها طبیعی صدا بدهد.
+     */
     fun pop() {
-        play(popBuffer)
+        play(popBuffers[Random.nextInt(popBuffers.size)])
     }
 
     /** ضربه/حرکت نرم: سینوس کوتاه ۶۰۰ هرتز. */
@@ -43,7 +48,9 @@ object GameSounds {
         play(toneBuffer(freqHz))
     }
 
-    private val popBuffer: ShortArray by lazy { synthPop() }
+    private val popBuffers: List<ShortArray> by lazy {
+        listOf(0.85, 0.95, 1.0, 1.1, 1.2).map { synthPlasticPop(it) }
+    }
     private val blipBuffer: ShortArray by lazy { synthTone(600f, 60) }
     private val thudBuffer: ShortArray by lazy { synthTone(120f, 130) }
     private val chimeBuffer: ShortArray by lazy { synthChime() }
@@ -60,17 +67,30 @@ object GameSounds {
         return buffer
     }
 
-    private fun synthPop(): ShortArray {
-        val durationMs = 90
+    /**
+     * صدای ترکیدن پلاستیک حباب‌دار: در ~۵ میلی‌ثانیه اول یک کلیک نویزی تیز
+     * (صدای پاره‌شدن پلاستیک) و زیر آن سینوسی با افت سریع فرکانس از
+     * ۹۰۰×[pitchFactor] تا ۲۰۰×[pitchFactor] هرتز و پوش کاهشی تند؛
+     * مجموع حدود ۸۰ میلی‌ثانیه است، مثل ترکیدن واقعی حباب بسته‌بندی.
+     */
+    private fun synthPlasticPop(pitchFactor: Double): ShortArray {
+        val durationMs = 80
         val count = SAMPLE_RATE * durationMs / 1000
         val samples = ShortArray(count)
+        val noise = Random(1234)
         var phase = 0.0
         for (i in 0 until count) {
             val t = i.toDouble() / count
-            val freq = 900.0 - 600.0 * t
+            val freq = (900.0 - 700.0 * t) * pitchFactor
             phase += 2.0 * PI * freq / SAMPLE_RATE
-            val envelope = exp(-4.0 * t)
-            samples[i] = (sin(phase) * envelope * AMPLITUDE * Short.MAX_VALUE).toInt().toShort()
+            val body = sin(phase) * exp(-5.5 * t)
+            val click = if (i < 220) {
+                (noise.nextDouble() * 2.0 - 1.0) * exp(-i / 55.0)
+            } else {
+                0.0
+            }
+            val value = (body * 0.8 + click * 0.6).coerceIn(-1.0, 1.0)
+            samples[i] = (value * AMPLITUDE * Short.MAX_VALUE).toInt().toShort()
         }
         return samples
     }

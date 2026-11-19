@@ -1,6 +1,5 @@
 package com.sadd.blocker.ui.theme
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -15,9 +14,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -30,18 +26,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.os.Build
 import com.sadd.blocker.R
 import com.sadd.blocker.data.datastore.AppTheme
 import com.sadd.blocker.data.datastore.ColorTheme
 
 // سد — سیستم دیزاین Liquid Glass (سبک ۲۰۲۵ اپل، انتخاب سید ۲۰۲۶-۱۱-۱۹):
-// پس‌زمینه گرادیانی با لکه‌های رنگی نرم، کارت‌های شیشه‌ای مات با حاشیه
-// درخشان (specular) که لبه بالایی روشن‌تر است، دکمه‌های قرصی شیشه‌ای با
-// برجستگی نور بالا و فشرده‌شدن فنری، چیپ‌های آیکون رنگی توپر با برق شیشه،
-// ناوبری پایین قرصی شناور با انتخاب زرد.
+// پس‌زمینه ساده تک‌رنگ با گرادیان عمودی ملایم (انتخاب سید ۲۰۲۶-۱۱-۱۹:
+// بدون لکه رنگی، تا متن سفید همیشه خوانا بماند)، کارت‌های شیشه‌ای مات با
+// حاشیه درخشان (specular) که لبه بالایی روشن‌تر است، دکمه‌های قرصی
+// شیشه‌ای با برجستگی نور بالا و فشرده‌شدن فنری، چیپ‌های آیکون رنگی توپر
+// با برق شیشه، ناوبری پایین قرصی شناور با انتخاب زرد.
 // نکته صادقانه: بلور واقعی پس‌زمینه (backdrop blur) بدون وابستگی تازه ممکن
-// نیست؛ مات‌بودن با سطح نیمه‌شفاف روی پس‌زمینه گرادیانی شبیه‌سازی می‌شود.
+// نیست؛ مات‌بودن با سطح نیمه‌شفاف روی پس‌زمینه ساده شبیه‌سازی می‌شود.
 // پس‌زمینه روشن off-white می‌ماند تا متن خوانا بماند؛ بدون مشکی خالص.
 val Mint = Color(0xFF7CFFD9)
 val Teal = Color(0xFF0E9F8A)
@@ -98,11 +94,11 @@ private val DarkColors = darkColorScheme(
     errorContainer = Color(0xFF4A1E12),
     onErrorContainer = Color(0xFFFFC9B8),
     background = NavyDeep,
-    onBackground = Color(0xFFF7F8FA),
+    onBackground = Color.White,
     surface = Navy,
-    onSurface = Color(0xFFF7F8FA),
+    onSurface = Color.White,
     surfaceVariant = NavySurface,
-    onSurfaceVariant = Color(0xFFB9C6DA),
+    onSurfaceVariant = Color.White.copy(alpha = 0.75f),
     outline = Color(0xFF3A4A66),
 )
 
@@ -167,9 +163,9 @@ private fun sunsetColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF7A2E12), onPrimaryContainer = Color(0xFFFFDCC8),
             secondary = Color(0xFFF5B544), onSecondary = Color(0xFF2A1C00),
             tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
-            background = Color(0xFF120A06), onBackground = Color(0xFFFFF1E6),
-            surface = Color(0xFF1C120B), onSurface = Color(0xFFFFF1E6),
-            surfaceVariant = Color(0xFF2E1F14), onSurfaceVariant = Color(0xFFE3BFA4),
+            background = Color(0xFF120A06), onBackground = Color.White,
+            surface = Color(0xFF1C120B), onSurface = Color.White,
+            surfaceVariant = Color(0xFF2E1F14), onSurfaceVariant = Color.White.copy(alpha = 0.75f),
             outline = Color(0xFF6B4A38),
         )
     } else {
@@ -195,9 +191,9 @@ private fun forestColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF14532D), onPrimaryContainer = Color(0xFFC9EED6),
             secondary = Color(0xFFA8D98A), onSecondary = Color(0xFF16290A),
             tertiary = Color(0xFF7FD8E0), onTertiary = Color(0xFF00363C),
-            background = Color(0xFF050F08), onBackground = Color(0xFFEAF6EC),
-            surface = Color(0xFF0A1A10), onSurface = Color(0xFFEAF6EC),
-            surfaceVariant = Color(0xFF142B1D), onSurfaceVariant = Color(0xFFB3CDB8),
+            background = Color(0xFF050F08), onBackground = Color.White,
+            surface = Color(0xFF0A1A10), onSurface = Color.White,
+            surfaceVariant = Color(0xFF142B1D), onSurfaceVariant = Color.White.copy(alpha = 0.75f),
             outline = Color(0xFF4A6B52),
         )
     } else {
@@ -223,9 +219,9 @@ private fun oceanColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF0F3D5C), onPrimaryContainer = Color(0xFFCFE8FF),
             secondary = Color(0xFF7FD8E0), onSecondary = Color(0xFF00363C),
             tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
-            background = Color(0xFF040E18), onBackground = Color(0xFFEAF3FA),
-            surface = Color(0xFF081A2C), onSurface = Color(0xFFEAF3FA),
-            surfaceVariant = Color(0xFF112A42), onSurfaceVariant = Color(0xFFB1C7D8),
+            background = Color(0xFF040E18), onBackground = Color.White,
+            surface = Color(0xFF081A2C), onSurface = Color.White,
+            surfaceVariant = Color(0xFF112A42), onSurfaceVariant = Color.White.copy(alpha = 0.75f),
             outline = Color(0xFF45617A),
         )
     } else {
@@ -251,9 +247,9 @@ private fun grapeColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF4A2A86), onPrimaryContainer = Color(0xFFE4D8FF),
             secondary = Color(0xFFF0A0D0), onSecondary = Color(0xFF3D0A2E),
             tertiary = Color(0xFF7FD8E0), onTertiary = Color(0xFF00363C),
-            background = Color(0xFF0B0618), onBackground = Color(0xFFF2ECFD),
-            surface = Color(0xFF150C28), onSurface = Color(0xFFF2ECFD),
-            surfaceVariant = Color(0xFF221838), onSurfaceVariant = Color(0xFFC3B6DE),
+            background = Color(0xFF0B0618), onBackground = Color.White,
+            surface = Color(0xFF150C28), onSurface = Color.White,
+            surfaceVariant = Color(0xFF221838), onSurfaceVariant = Color.White.copy(alpha = 0.75f),
             outline = Color(0xFF5E4E80),
         )
     } else {
@@ -279,9 +275,9 @@ private fun roseColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF7A2450), onPrimaryContainer = Color(0xFFFFD6E7),
             secondary = Color(0xFFFBBF24), onSecondary = Color(0xFF2A1C00),
             tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
-            background = Color(0xFF160812), onBackground = Color(0xFFFBEFF4),
-            surface = Color(0xFF220E1A), onSurface = Color(0xFFFBEFF4),
-            surfaceVariant = Color(0xFF331A27), onSurfaceVariant = Color(0xFFD6A9BE),
+            background = Color(0xFF160812), onBackground = Color.White,
+            surface = Color(0xFF220E1A), onSurface = Color.White,
+            surfaceVariant = Color(0xFF331A27), onSurfaceVariant = Color.White.copy(alpha = 0.75f),
             outline = Color(0xFF6E4456),
         )
     } else {
@@ -399,9 +395,9 @@ object SaddRadius {
 
 /**
  * توکن‌های شیشه‌ای Liquid Glass («سد»):
- * - سطح کارت: رنگ سطح پالت با آلفای ۰٫۵۲ — لکه‌های گرادیانی پس‌زمینه از
- *   پشت کارت دیده می‌شوند تا کارت واقعاً مات و شیشه‌ای خوانده شود؛ متن
- *   با آلفای ۱۰۰٪ می‌ماند تا خوانایی حفظ شود.
+ * - سطح کارت: رنگ سطح پالت با آلفای ۰٫۵۲ — پس‌زمینه ساده از پشت کارت
+ *   دیده می‌شود تا کارت واقعاً مات و شیشه‌ای خوانده شود؛ متن با آلفای
+ *   ۱۰۰٪ می‌ماند تا خوانایی حفظ شود.
  * - ظرف دیالوگ: surface با آلفای ۰٫۸۶ — کمی مات‌تر از کارت تا روی scrim
  *   دیالوگ هم خوانا بماند.
  * - حاشیه درخشان (specular): ۱dp با گرادیان عمودی — لبه بالا روشن‌تر
@@ -444,7 +440,7 @@ fun saddGlassDialogContainerColor(): Color =
 /**
  * رنگ سطح شیشه‌ای Liquid Glass برای کارت و پنل و فیلد:
  * در تیره، surfaceVariant کمی به سمت سفید روشن شده و نیمه‌شفاف است تا
- * لکه‌های گرادیانی پس‌زمینه از پشتش دیده شوند؛ در روشن، سفید نیمه‌شفاف.
+ * پس‌زمینه ساده از پشتش دیده شود؛ در روشن، سفید نیمه‌شفاف.
  */
 @Composable
 fun saddGlassSurfaceColor(): Color {
@@ -507,105 +503,23 @@ fun saddGlassSheenBrush(): Brush {
 }
 
 /**
- * پس‌زمینه Liquid Glass: پایه گرادیانی از رنگ پس‌زمینه پالت با سه لکه
- * رنگی بزرگ و نرم (primary بالا، tertiary پایین، secondary میان‌صفحه)
- * تا سطح‌های شیشه‌ای چیزی برای شکست نور داشته باشند — مثل موکاپ‌ها.
- * روی اندروید ۱۲ به بالا (API 31+) لکه‌ها دایره‌های توپرند که با
- * Modifier.blur واقعاً تار می‌شوند؛ پایین‌تر از آن با گرادیان شعاعی
- * همان نرمی شبیه‌سازی می‌شود.
- * محتوا روی همین پس‌زمینه می‌نشیند؛ صفحه بلاک هم همین را با پالت تیره می‌گیرد.
+ * پس‌زمینه ساده «سد» (انتخاب سید ۲۰۲۶-۱۱-۱۹): گرادیان عمودی تک‌رنگ از
+ * رنگ پس‌زمینه پالت در بالا تا سایه کمی روشن‌ترِ همان خانواده رنگی در
+ * پایین (آمیخته با surfaceVariant همان پالت). بدون هیچ لکه رنگی، بدون
+ * بلور و بدون نقش — آرام و ساده تا متن سفید روی آن همیشه خوانا بماند.
+ * در هر ۶ پالت و هر دو حالت روشن/تیره همین منطق کار می‌کند؛ صفحه بلاک
+ * هم همین را با پالت تیره می‌گیرد.
  */
 @Composable
 fun SaddBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val dark = saddIsDark()
     val baseBrush = Brush.verticalGradient(
         colors = listOf(
             scheme.background,
-            lerp(scheme.background, scheme.primary, if (dark) 0.14f else 0.08f),
-            scheme.background,
+            lerp(scheme.background, scheme.surfaceVariant, 0.65f),
         ),
     )
-    val primaryAlpha = if (dark) 0.55f else 0.32f
-    val tertiaryAlpha = if (dark) 0.50f else 0.28f
-    val secondaryAlpha = if (dark) 0.34f else 0.20f
-    val useRealBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     Box(modifier = modifier.fillMaxSize().background(baseBrush)) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(
-                    if (useRealBlur) {
-                        Modifier.blur(70.dp, BlurredEdgeTreatment.Unbounded)
-                    } else {
-                        Modifier
-                    },
-                ),
-        ) {
-            val w = size.width
-            val h = size.height
-            if (useRealBlur) {
-                // دایره‌های توپر؛ بلور لایه آن‌ها را به لکه‌های نرم تبدیل می‌کند.
-                drawCircle(
-                    color = scheme.primary.copy(alpha = primaryAlpha),
-                    radius = w * 0.58f,
-                    center = Offset(w * 0.02f, h * 0.04f),
-                )
-                drawCircle(
-                    color = scheme.tertiary.copy(alpha = tertiaryAlpha),
-                    radius = w * 0.54f,
-                    center = Offset(w * 0.98f, h * 0.96f),
-                )
-                drawCircle(
-                    color = scheme.secondary.copy(alpha = secondaryAlpha),
-                    radius = w * 0.42f,
-                    center = Offset(w * 0.90f, h * 0.40f),
-                )
-                drawCircle(
-                    color = scheme.primary.copy(alpha = secondaryAlpha * 0.7f),
-                    radius = w * 0.36f,
-                    center = Offset(w * 0.10f, h * 0.78f),
-                )
-            } else {
-                // جایگزین بدون بلور: گرادیان شعاعی با همان جای لکه‌ها.
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(scheme.primary.copy(alpha = primaryAlpha), Color.Transparent),
-                        center = Offset(w * 0.02f, h * 0.04f),
-                        radius = w * 0.85f,
-                    ),
-                    radius = w * 0.85f,
-                    center = Offset(w * 0.02f, h * 0.04f),
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(scheme.tertiary.copy(alpha = tertiaryAlpha), Color.Transparent),
-                        center = Offset(w * 0.98f, h * 0.96f),
-                        radius = w * 0.80f,
-                    ),
-                    radius = w * 0.80f,
-                    center = Offset(w * 0.98f, h * 0.96f),
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(scheme.secondary.copy(alpha = secondaryAlpha), Color.Transparent),
-                        center = Offset(w * 0.90f, h * 0.40f),
-                        radius = w * 0.62f,
-                    ),
-                    radius = w * 0.62f,
-                    center = Offset(w * 0.90f, h * 0.40f),
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(scheme.primary.copy(alpha = secondaryAlpha * 0.7f), Color.Transparent),
-                        center = Offset(w * 0.10f, h * 0.78f),
-                        radius = w * 0.55f,
-                    ),
-                    radius = w * 0.55f,
-                    center = Offset(w * 0.10f, h * 0.78f),
-                )
-            }
-        }
         content()
     }
 }
