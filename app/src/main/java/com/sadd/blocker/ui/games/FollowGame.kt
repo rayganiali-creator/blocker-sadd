@@ -49,7 +49,6 @@ import kotlin.math.sin
  */
 @Composable
 fun FollowGame(accent: Color) {
-    val engine = remember { FollowEngine() }
     var resetKey by remember { mutableStateOf(0) }
     var timeMs by remember { mutableFloatStateOf(0f) }
     var finger by remember { mutableStateOf<Offset?>(null) }
@@ -77,7 +76,7 @@ fun FollowGame(accent: Color) {
                 }
                 val t = (frameMs - startMs).toFloat()
                 timeMs = t
-                val (tx, ty) = engine.targetAt(t)
+                val (tx, ty) = FollowEngine.targetAt(t)
                 // هموارسازی نمایی: نقطه نرم و فنری دنبال هدف می‌رود.
                 smoothX += (tx - smoothX) * 0.16f
                 smoothY += (ty - smoothY) * 0.16f
@@ -138,7 +137,7 @@ fun FollowGame(accent: Color) {
             canvasSize = Offset(size.width, size.height)
             // مسیر راهنمای کم‌رنگ (لیساژو).
             val pathPoints = (0..120).map { i ->
-                val (nx, ny) = engine.targetAt(i * 120f)
+                val (nx, ny) = FollowEngine.targetAt(i * 120f)
                 Offset(nx * size.width, ny * size.height)
             }
             for (i in 1 until pathPoints.size) {

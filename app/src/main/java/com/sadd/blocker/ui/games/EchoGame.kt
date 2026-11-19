@@ -69,27 +69,37 @@ private fun cellToneHz(index: Int): Float {
  */
 @Composable
 fun EchoGame(accent: Color) {
-    val engine = remember { EchoEngine(cellCount = 9, seed = System.currentTimeMillis()) }
     var phase by remember { mutableStateOf(EchoPhase.SHOWING) }
     var litCell by remember { mutableStateOf(-1) }
     var roundKey by remember { mutableStateOf(0) }
     var statusText by remember { mutableStateOf("") }
     val haptics = LocalHapticFeedback.current
 
+    // وضعیت بازی در سمت UI: مرحله، امتیاز، توالی جاری و ورودی‌های کاربر.
+    // مرحله ۱ = توالی ۳ سلولی؛ هر موفقیت طول را ۱ زیاد می‌کند.
+    var level by remember { mutableStateOf(1) }
+    var score by remember { mutableStateOf(0) }
+    var sequence by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var inputs by remember { mutableStateOf<List<Int>>(emptyList()) }
+    val baseSeed = remember { System.currentTimeMillis() }
+
     // نمایش الگو: هر سلول ۶۰۰ میلی‌ثانیه روشن می‌شود، با ۲۵۰ میلی‌ثانیه مکث بین آن‌ها.
     LaunchedEffect(roundKey) {
+        val length = 3 + (level - 1)
+        val roundSeed = baseSeed + roundKey * 7919L + level * 104729L
+        sequence = EchoEngine.generateSequence(length, roundSeed)
+        inputs = emptyList()
         phase = EchoPhase.SHOWING
         statusText = "خوب نگاه کن…"
         litCell = -1
         delay(600)
-        for (cell in engine.sequence) {
+        for (cell in sequence) {
             litCell = cell
             GameSounds.tone(cellToneHz(cell))
             delay(600)
             litCell = -1
             delay(250)
         }
-        engine.beginInput()
         phase = EchoPhase.INPUT
         statusText = "حالا تو تکرار کن"
     }
@@ -103,6 +113,13 @@ fun EchoGame(accent: Color) {
             statusText,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(SaddSpacing.Small))
+        Text(
+            "مرحله $level — امتیاز $score",
+            style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -127,19 +144,22 @@ fun EchoGame(accent: Color) {
                                 onClick = {
                                     GameSounds.tone(cellToneHz(index))
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    when (engine.press(index)) {
-                                        EchoEngine.PressResult.CORRECT -> {
-                                            // درست است؛ منتظر ضربه بعدی می‌مانیم.
-                                        }
-                                        EchoEngine.PressResult.COMPLETE -> {
-                                            GameSounds.chime()
-                                            phase = EchoPhase.SUCCESS
-                                            statusText = "آفرین! الگو کامل شد"
-                                        }
-                                        EchoEngine.PressResult.WRONG -> {
+                                    val newInputs = inputs + index
+                                    inputs = newInputs
+                                    when {
+                                        !EchoEngine.isCorrectPrefix(sequence, newInputs) -> {
                                             GameSounds.tone(160f)
                                             phase = EchoPhase.WRONG
                                             statusText = "اشتباه شد؛ از اول ببین"
+                                        }
+                                        EchoEngine.isComplete(sequence, newInputs) -> {
+                                            GameSounds.chime()
+                                            score += 10 * sequence.size
+                                            phase = EchoPhase.SUCCESS
+                                            statusText = "آفرین! الگو کامل شد"
+                                        }
+                                        else -> {
+                                            // درست است؛ منتظر ضربه بعدی می‌مانیم.
                                         }
                                     }
                                 },
@@ -155,7 +175,7 @@ fun EchoGame(accent: Color) {
                 SaddButton(
                     text = "مرحله بعد",
                     onClick = {
-                        engine.nextRound()
+                        level += 1
                         roundKey += 1
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -165,7 +185,8 @@ fun EchoGame(accent: Color) {
                 SaddButton(
                     text = "دوباره ببین",
                     onClick = {
-                        engine.restart()
+                        level = 1
+                        score = 0
                         roundKey += 1
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -175,7 +196,8 @@ fun EchoGame(accent: Color) {
                 SaddButton(
                     text = "از اول",
                     onClick = {
-                        engine.restart()
+                        level = 1
+                        score = 0
                         roundKey += 1
                     },
                     modifier = Modifier.fillMaxWidth(),

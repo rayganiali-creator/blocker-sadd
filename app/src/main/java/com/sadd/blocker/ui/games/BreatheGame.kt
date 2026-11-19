@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.sadd.blocker.core.games.BreathPhase
 import com.sadd.blocker.core.games.BreatheEngine
 import com.sadd.blocker.ui.screens.SaddButton
 import com.sadd.blocker.ui.screens.SaddButtonStyle
@@ -45,10 +46,9 @@ import com.sadd.blocker.ui.theme.SaddSpacing
  */
 @Composable
 fun BreatheGame(accent: Color) {
-    val engine = remember { BreatheEngine() }
     var resetKey by remember { mutableStateOf(0) }
     var elapsedMs by remember { mutableFloatStateOf(0f) }
-    var lastPhase by remember { mutableStateOf<BreatheEngine.Phase?>(null) }
+    var lastPhase by remember { mutableStateOf<BreathPhase?>(null) }
 
     LaunchedEffect(resetKey) {
         var startMs = -1L
@@ -59,11 +59,11 @@ fun BreatheGame(accent: Color) {
                     startMs = frameMs
                 }
                 elapsedMs = (frameMs - startMs).toFloat()
-                val phase = engine.phaseAt(elapsedMs)
+                val phase = BreatheEngine.breathPhaseAt(elapsedMs.toLong()).phase
                 if (phase != lastPhase) {
                     // لحن بسیار ملایم آغاز هر فاز: دم بالاتر، بازدم پایین‌تر.
                     if (lastPhase != null) {
-                        GameSounds.tone(if (phase == BreatheEngine.Phase.INHALE) 392f else 294f)
+                        GameSounds.tone(if (phase == BreathPhase.INHALE) 392f else 294f)
                     }
                     lastPhase = phase
                 }
@@ -71,13 +71,14 @@ fun BreatheGame(accent: Color) {
         }
     }
 
-    val phase = engine.phaseAt(elapsedMs)
-    val rawProgress = engine.progressAt(elapsedMs)
+    val breathState = BreatheEngine.breathPhaseAt(elapsedMs.toLong())
+    val phase = breathState.phase
+    val rawProgress = breathState.progress
     // ایزینگ هموار: حرکت در آغاز و پایان فاز آرام می‌شود تا نفس طبیعی حس شود.
     val eased = rawProgress * rawProgress * (3f - 2f * rawProgress)
     val scaleFraction = when (phase) {
-        BreatheEngine.Phase.INHALE -> eased
-        BreatheEngine.Phase.EXHALE -> 1f - eased
+        BreathPhase.INHALE -> eased
+        BreathPhase.EXHALE -> 1f - eased
     }
 
     Column(
@@ -87,8 +88,8 @@ fun BreatheGame(accent: Color) {
     ) {
         Text(
             when (phase) {
-                BreatheEngine.Phase.INHALE -> "دم…"
-                BreatheEngine.Phase.EXHALE -> "بازدم…"
+                BreathPhase.INHALE -> "دم…"
+                BreathPhase.EXHALE -> "بازدم…"
             },
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,

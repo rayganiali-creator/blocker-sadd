@@ -36,6 +36,8 @@ $KOTLINC \
   app/src/main/java/com/sadd/blocker/core/games/EchoEngine.kt \
   app/src/main/java/com/sadd/blocker/core/games/PopEngine.kt \
   app/src/main/java/com/sadd/blocker/core/games/BreatheEngine.kt \
+  app/src/main/java/com/sadd/blocker/core/games/FollowEngine.kt \
+  app/src/main/java/com/sadd/blocker/core/games/LetItPassEngine.kt \
   app/src/main/java/com/sadd/blocker/domain/TimeFormat.kt \
   app/src/main/java/com/sadd/blocker/domain/StrictUnlock.kt \
   app/src/main/java/com/sadd/blocker/domain/StrictPassages.kt \
@@ -65,6 +67,8 @@ $KOTLINC \
   app/src/test/java/com/sadd/blocker/core/games/EchoEngineTest.kt \
   app/src/test/java/com/sadd/blocker/core/games/PopEngineTest.kt \
   app/src/test/java/com/sadd/blocker/core/games/BreatheEngineTest.kt \
+  app/src/test/java/com/sadd/blocker/core/games/FollowEngineTest.kt \
+  app/src/test/java/com/sadd/blocker/core/games/LetItPassEngineTest.kt \
   app/src/test/java/com/sadd/blocker/domain/RuleValidationTest.kt \
   app/src/test/java/com/sadd/blocker/domain/StrictUnlockTest.kt \
   app/src/test/java/com/sadd/blocker/domain/OnboardingStepsTest.kt \
@@ -92,6 +96,8 @@ $JAVA -cp "$OUT/test-classes:$TB/junit.jar:$TB/hamcrest.jar:$COROUTINES_JAR:$TB/
   com.sadd.blocker.core.games.EchoEngineTest \
   com.sadd.blocker.core.games.PopEngineTest \
   com.sadd.blocker.core.games.BreatheEngineTest \
+  com.sadd.blocker.core.games.FollowEngineTest \
+  com.sadd.blocker.core.games.LetItPassEngineTest \
   com.sadd.blocker.domain.RuleValidationTest \
   com.sadd.blocker.domain.StrictUnlockTest \
   com.sadd.blocker.domain.OnboardingStepsTest \

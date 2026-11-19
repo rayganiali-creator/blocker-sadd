@@ -50,7 +50,6 @@ import kotlin.math.sin
  */
 @Composable
 fun LetItPassGame(accent: Color) {
-    val engine = remember { LetItPassEngine() }
     var releasedAtMs by remember { mutableStateOf<Long?>(null) }
     var nowMs by remember { mutableFloatStateOf(0f) }
 
@@ -70,7 +69,7 @@ fun LetItPassGame(accent: Color) {
     val progress = if (released == null) {
         0f
     } else {
-        engine.progressAt(nowMs - released.toFloat())
+        LetItPassEngine.progressAt(nowMs - released.toFloat())
     }
     // ایزینگ هموار برای رفتن برگ: آغاز آرام، پایان آرام‌تر.
     val eased = progress * progress * (3f - 2f * progress)
