@@ -137,4 +137,37 @@ class BlocksEngineTest {
         assertEquals(0, engine.cellAt(0, BlocksEngine.HEIGHT - 1))
         assertEquals(0, engine.currentY)
     }
+
+    @Test
+    fun lockIncrementsLockCountAndRecordsClearedRows() {
+        val engine = BlocksEngine(seed = 11L)
+        assertEquals(0, engine.lockCount)
+        assertTrue(engine.lastClearedRows.isEmpty())
+        // سطر کف را پر کن، جز دو ستون وسط (۴ و ۵) که جای قطعه O است.
+        for (x in 0 until BlocksEngine.WIDTH) {
+            if (x != 4 && x != 5) {
+                engine.setLockedCell(x, BlocksEngine.HEIGHT - 1, 1)
+            }
+        }
+        engine.setCurrentPiece(Tetromino.O, 4, BlocksEngine.HEIGHT - 3)
+        engine.hardDrop()
+        assertEquals(1, engine.lockCount)
+        assertEquals(listOf(BlocksEngine.HEIGHT - 1), engine.lastClearedRows)
+        // قفل‌شدن بعدی بدون پاک‌کردن خط، فهرست سطرها را خالی می‌کند.
+        engine.setCurrentPiece(Tetromino.O, 0, BlocksEngine.HEIGHT - 3)
+        engine.hardDrop()
+        assertEquals(2, engine.lockCount)
+        assertTrue(engine.lastClearedRows.isEmpty())
+    }
+
+    @Test
+    fun resetClearsLockInfo() {
+        val engine = BlocksEngine(seed = 12L)
+        engine.setCurrentPiece(Tetromino.O, 0, BlocksEngine.HEIGHT - 2)
+        engine.hardDrop()
+        assertEquals(1, engine.lockCount)
+        engine.reset(seed = 12L)
+        assertEquals(0, engine.lockCount)
+        assertTrue(engine.lastClearedRows.isEmpty())
+    }
 }

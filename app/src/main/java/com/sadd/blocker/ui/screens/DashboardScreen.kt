@@ -1,7 +1,9 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -57,7 +61,10 @@ import com.sadd.blocker.ui.theme.ChipPink
 import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.Mint
+import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
 /**
  * داشبورد — طبق موکاپ تاییدشده v2: سرتیتر با خرس «سد» و آیکون‌های
@@ -163,7 +170,15 @@ fun DashboardScreen(
                 )
                 if (uiState.sessionActive && uiState.strict) {
                     Spacer(Modifier.height(SaddSpacing.Small))
-                    AssistChip(onClick = {}, label = { Text("\u2066Strict\u2069 — سخت‌گیرانه") })
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("\u2066Strict\u2069 — سخت‌گیرانه") },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = saddGlassSurfaceColor(),
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
+                    )
                 }
                 Spacer(Modifier.height(SaddSpacing.Medium))
                 if (uiState.sessionActive) {
@@ -255,7 +270,7 @@ fun DashboardScreen(
         Spacer(Modifier.height(SaddSpacing.Large))
         SaddCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
-                // کارت مجوزها به سبک Detox: چیپ آیکون سپر + متن وضعیت.
+                // کارت مجوزها به سبک Liquid Glass: چیپ آیکون سپر + متن وضعیت.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SaddIconChip(icon = Icons.Filled.Shield, color = ChipMint)
                     Spacer(Modifier.size(SaddSpacing.Small))
@@ -316,7 +331,7 @@ fun DashboardScreen(
     }
 }
 
-/** کاشی دسترسی سریع به سبک Detox: چیپ آیکون رنگی + برچسب. */
+/** کاشی دسترسی سریع به سبک Liquid Glass: چیپ آیکون رنگی + برچسب. */
 @Composable
 private fun QuickTile(icon: ImageVector, color: Color, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     SaddCard(modifier = modifier, onClick = onClick) {
@@ -331,7 +346,7 @@ private fun QuickTile(icon: ImageVector, color: Color, label: String, onClick: (
     }
 }
 
-/** کارت آمار به سبک Detox: چیپ آیکون رنگی + عدد و برچسب. */
+/** کارت آمار به سبک Liquid Glass: چیپ آیکون رنگی + عدد و برچسب. */
 @Composable
 private fun StatCard(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
     SaddCard(modifier = modifier) {
@@ -349,7 +364,7 @@ private fun StatCard(label: String, value: String, icon: ImageVector, color: Col
     }
 }
 
-/** ردیف تاگل یک قانون فعال واقعی (کلمه / اپ / وب‌سایت) — کارت سوییچ Detox با چیپ آیکون رنگی. */
+/** ردیف تاگل یک قانون فعال واقعی (کلمه / اپ / وب‌سایت) — کارت سوییچ Liquid Glass با چیپ آیکون رنگی. */
 @Composable
 private fun ActiveRuleRow(rule: DashboardRule, onToggle: () -> Unit) {
     val icon = when (rule.kind) {
@@ -375,8 +390,15 @@ private fun ActiveRuleRow(rule: DashboardRule, onToggle: () -> Unit) {
 
 @Composable
 private fun SessionRing(progress: Float, remainingText: String, active: Boolean) {
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant
-    val arcColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    // حلقه گرادیانی Liquid Glass: از primary به tertiary و برگشت (مثل موکاپ).
+    val arcBrush = Brush.sweepGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.tertiary,
+            MaterialTheme.colorScheme.primary,
+        ),
+    )
     // درخشش مینت دور حلقه فقط وقتی سشن فعال است (موکاپ v2).
     val ringModifier = if (active) {
         Modifier.shadow(elevation = 24.dp, shape = CircleShape, ambientColor = Mint, spotColor = Mint)
@@ -387,6 +409,20 @@ private fun SessionRing(progress: Float, remainingText: String, active: Boolean)
         modifier = ringModifier.size(180.dp),
         contentAlignment = Alignment.Center,
     ) {
+        // هاله نورانی پشت حلقه: گرادیان شعاعی primary که به شفاف می‌رسد.
+        Box(
+            modifier = Modifier
+                .size(230.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = if (active) 0.30f else 0.12f),
+                            Color.Transparent,
+                        ),
+                    ),
+                    CircleShape,
+                ),
+        )
         // پس‌زمینه قفل: وکتور قفل بزرگ و کم‌رنگ پشت حلقه — در هر دو تم
         // خواناست و متن تایمر را نمی‌پوشاند؛ حلقه و پیشرفتش دست نخورده‌اند.
         Icon(
@@ -404,8 +440,25 @@ private fun SessionRing(progress: Float, remainingText: String, active: Boolean)
                 style = Stroke(width = 12.dp.toPx()),
             )
             if (active) {
+                // درخشش حلقه: دو کمان پهن و کم‌آلفا زیر کمان اصلی.
                 drawArc(
-                    color = arcColor,
+                    brush = arcBrush,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    style = Stroke(width = 30.dp.toPx()),
+                    alpha = 0.16f,
+                )
+                drawArc(
+                    brush = arcBrush,
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress,
+                    useCenter = false,
+                    style = Stroke(width = 20.dp.toPx()),
+                    alpha = 0.28f,
+                )
+                drawArc(
+                    brush = arcBrush,
                     startAngle = -90f,
                     sweepAngle = 360f * progress,
                     useCenter = false,

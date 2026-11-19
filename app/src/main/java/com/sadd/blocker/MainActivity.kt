@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,9 +29,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,12 +65,15 @@ import com.sadd.blocker.ui.screens.SchedulingScreen
 import com.sadd.blocker.ui.screens.SectionRulesScreen
 import com.sadd.blocker.ui.screens.SessionsScreen
 import com.sadd.blocker.ui.screens.WebsitesScreen
+import com.sadd.blocker.ui.screens.rememberPressScale
 import com.sadd.blocker.ui.theme.BlockerTheme
 import com.sadd.blocker.ui.theme.NavyDeep
+import com.sadd.blocker.ui.theme.SaddBackdrop
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.Sunny
-import com.sadd.blocker.ui.theme.saddHairlineColor
+import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSpecularBorderBrush
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -112,37 +120,42 @@ fun BlockerNav(onboardingDone: Boolean) {
         BottomDestination("rules", "کلمات", Icons.Filled.TextFields),
         BottomDestination("sessions", "سشن‌ها", Icons.Filled.Timer),
     )
-    Scaffold(
-        bottomBar = {
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentDestination = navBackStackEntry?.destination
-            // ویزارد راه‌اندازی تمام‌صفحه است؛ نوار پایین روی آن نشان داده نمی‌شود.
-            if (currentDestination?.route != "onboarding") {
-                // نوار پایین قرصی Detox: ظرف شناور گرد با حاشیه مویی؛
-                // آیتم انتخاب‌شده قرص زرد توپر (Sunny) با آیکون/متن تیره دارد.
-                val barShape = RoundedCornerShape(28.dp)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = SaddSpacing.Large, vertical = SaddSpacing.Medium)
-                        .clip(barShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .border(SaddGlass.BorderWidth, saddHairlineColor(), barShape)
-                        .padding(6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    for (destination in bottomDestinations) {
-                        val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
-                        val itemShape = RoundedCornerShape(28.dp)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(itemShape)
-                                .background(
-                                    if (selected) Sunny else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable {
+    // پس‌زمینه Liquid Glass زیر همه صفحه‌ها؛ Scaffold شفاف است تا گرادیان دیده شود.
+    SaddBackdrop {
+        Scaffold(
+            containerColor = Color.Transparent,
+            bottomBar = {
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentDestination = navBackStackEntry?.destination
+                // ویزارد راه‌اندازی تمام‌صفحه است؛ نوار پایین روی آن نشان داده نمی‌شود.
+                if (currentDestination?.route != "onboarding") {
+                    // نوار پایین قرصی Liquid Glass: ظرف شناور شیشه‌ای مات با
+                    // حاشیه درخشان؛ آیتم انتخاب‌شده قرص زرد توپر (Sunny) با
+                    // آیکون/متن تیره دارد و هنگام فشار نرم فشرده می‌شود.
+                    val barShape = RoundedCornerShape(28.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = SaddSpacing.Large, vertical = SaddSpacing.Medium)
+                            .shadow(
+                                elevation = 12.dp,
+                                shape = barShape,
+                                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                            )
+                            .clip(barShape)
+                            .background(saddGlassSurfaceColor())
+                            .border(SaddGlass.BorderWidth, saddSpecularBorderBrush(), barShape)
+                            .padding(6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        for (destination in bottomDestinations) {
+                            val selected = currentDestination?.hierarchy?.any { it.route == destination.route } == true
+                            NavItem(
+                                destination = destination,
+                                selected = selected,
+                                onClick = {
                                     navController.navigate(destination.route) {
                                         popUpTo(navController.graph.findStartDestination().id) {
                                             saveState = true
@@ -150,44 +163,19 @@ fun BlockerNav(onboardingDone: Boolean) {
                                         launchSingleTop = true
                                         restoreState = true
                                     }
-                                }
-                                .padding(vertical = SaddSpacing.Small, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = destination.icon,
-                                    contentDescription = null,
-                                    tint = if (selected) {
-                                        NavyDeep
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                    modifier = Modifier.size(24.dp),
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    destination.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (selected) {
-                                        NavyDeep
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
-                            }
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                     }
                 }
-            }
-        },
-    ) { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = if (onboardingDone) "dashboard" else "onboarding",
-            modifier = Modifier.padding(padding),
-        ) {
+            },
+        ) { padding ->
+            NavHost(
+                navController = navController,
+                startDestination = if (onboardingDone) "dashboard" else "onboarding",
+                modifier = Modifier.padding(padding),
+            ) {
             composable("dashboard") {
                 DashboardScreen(onNavigate = { navController.navigate(it) })
             }
@@ -261,6 +249,71 @@ fun BlockerNav(onboardingDone: Boolean) {
                     onBack = { navController.popBackStack() },
                 )
             }
+            }
+        }
+    }
+}
+
+/** یک آیتم نوار پایین: قرص زرد توپر برای انتخاب‌شده؛ هنگام فشار نرم فشرده می‌شود. */
+@Composable
+private fun NavItem(
+    destination: BottomDestination,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val itemShape = RoundedCornerShape(28.dp)
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressScale by rememberPressScale(interactionSource)
+    Box(
+        modifier = modifier
+            .scale(pressScale)
+            .then(
+                if (selected) {
+                    Modifier.shadow(
+                        elevation = 10.dp,
+                        shape = itemShape,
+                        ambientColor = Sunny.copy(alpha = 0.65f),
+                        spotColor = Sunny.copy(alpha = 0.65f),
+                    )
+                } else {
+                    Modifier
+                },
+            )
+            .clip(itemShape)
+            .background(
+                if (selected) Sunny else Color.Transparent
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+            .padding(vertical = SaddSpacing.Small, horizontal = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = destination.icon,
+                contentDescription = null,
+                tint = if (selected) {
+                    NavyDeep
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                destination.label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected) {
+                    NavyDeep
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
         }
     }
 }

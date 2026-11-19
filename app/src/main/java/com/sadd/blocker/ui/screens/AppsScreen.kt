@@ -153,7 +153,7 @@ fun AppsScreen(
             }
             if (uiState.loading) {
                 item {
-                    // کارت Detox برای حالت بارگذاری.
+                    // کارت Liquid Glass برای حالت بارگذاری.
                     SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
@@ -172,7 +172,7 @@ fun AppsScreen(
                 item { SectionTitle("اپ‌های نصب‌شده (${filteredInstalled.size})") }
             }
             items(filteredInstalled, key = { it.packageName }) { app ->
-                // هر اپ نصب‌شده یک کارت Detox با حاشیه مویی است.
+                // هر اپ نصب‌شده یک کارت Liquid Glass با حاشیه مویی است.
                 SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
@@ -216,6 +216,7 @@ fun AppsScreen(
                             Switch(
                                 checked = app.enabled,
                                 onCheckedChange = { viewModel.setEnabled(app.packageName, it) },
+                                colors = saddSwitchColors(),
                             )
                             IconButton(onClick = { pendingDelete = app.packageName }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف قانون")
@@ -242,7 +243,7 @@ private fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
     if (bitmap != null) {
         Image(bitmap = bitmap, contentDescription = null, modifier = modifier)
     } else {
-        // جایگزین آیکون اپ با رنگ مینت Detox وقتی آیکون واقعی خوانده نشود.
+        // جایگزین آیکون اپ با رنگ مینت Liquid Glass وقتی آیکون واقعی خوانده نشود.
         Icon(
             Icons.Filled.Apps,
             contentDescription = null,

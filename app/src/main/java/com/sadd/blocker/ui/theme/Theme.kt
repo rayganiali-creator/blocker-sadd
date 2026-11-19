@@ -1,6 +1,10 @@
 package com.sadd.blocker.ui.theme
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -10,7 +14,14 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -19,18 +30,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.os.Build
 import com.sadd.blocker.R
 import com.sadd.blocker.data.datastore.AppTheme
 import com.sadd.blocker.data.datastore.ColorTheme
 
-// سد — سیستم دیزاین Detox AI (اسکرین‌شات‌های مرجع ۲۰۲۶-۱۱-۱۹):
-// سرمه‌ای خیلی تیره + کارت‌های آبی‌خاکستری با حاشیه نازک تیل و درخشش نرم،
-// چیپ‌های آیکون رنگی، ناوبری پایین قرصی با انتخاب زرد.
+// سد — سیستم دیزاین Liquid Glass (سبک ۲۰۲۵ اپل، انتخاب سید ۲۰۲۶-۱۱-۱۹):
+// پس‌زمینه گرادیانی با لکه‌های رنگی نرم، کارت‌های شیشه‌ای مات با حاشیه
+// درخشان (specular) که لبه بالایی روشن‌تر است، دکمه‌های قرصی شیشه‌ای با
+// برجستگی نور بالا و فشرده‌شدن فنری، چیپ‌های آیکون رنگی توپر با برق شیشه،
+// ناوبری پایین قرصی شناور با انتخاب زرد.
+// نکته صادقانه: بلور واقعی پس‌زمینه (backdrop blur) بدون وابستگی تازه ممکن
+// نیست؛ مات‌بودن با سطح نیمه‌شفاف روی پس‌زمینه گرادیانی شبیه‌سازی می‌شود.
 // پس‌زمینه روشن off-white می‌ماند تا متن خوانا بماند؛ بدون مشکی خالص.
 val Mint = Color(0xFF7CFFD9)
 val Teal = Color(0xFF0E9F8A)
 val TealDark = Color(0xFF0B7A6B)
-// پس‌زمینه/سطح تیره Detox: سرمه‌ای عمیق‌تر از قبل.
+// پس‌زمینه/سطح تیره Liquid Glass: سرمه‌ای عمیق‌تر از قبل.
 val Navy = Color(0xFF0B1626)
 val NavyDeep = Color(0xFF050B18)
 val NavySurface = Color(0xFF12203A)
@@ -371,49 +387,228 @@ object SaddSpacing {
     val XLarge = 24.dp
 }
 
-/** شعاع Detox: کارت ۲۰dp، کارت hero ‏۲۴dp، دکمه قرصی ۲۸dp، چیپ ۱۲dp، دیالوگ ۲۸dp، فیلد متنی ۱۸dp. */
+/** شعاع Liquid Glass: کارت ۲۴dp، کارت hero ‏۲۸dp، دکمه قرصی ۲۸dp، چیپ ۱۲dp، دیالوگ ۲۸dp، فیلد متنی ۲۰dp. */
 object SaddRadius {
-    val Card = 20.dp
-    val Hero = 24.dp
+    val Card = 24.dp
+    val Hero = 28.dp
     val Button = 28.dp
     val Chip = 12.dp
     val Dialog = 28.dp
-    val TextField = 18.dp
+    val TextField = 20.dp
 }
 
 /**
- * توکن‌های شیشه‌ای Detox («سد» — کارت‌ها و دیالوگ‌های نرم‌تر):
- * - ظرف دیالوگ: surface با آلفای ۰٫۹۲ — پس‌زمینه کمی از پشت دیده می‌شود،
- *   ولی متن با آلفای ۱۰۰٪ خوانا می‌ماند (کنتراست روی surface تیره/روشن
- *   همه ۶ پالت حفظ می‌شود، چون فقط ۸٪ شفافیت اضافه می‌شود).
- * - حاشیه مویی (hairline): ۱dp از primary پالت با آلفای ۰٫۴۰ — مثل حاشیه
- *   تیل نازک اسکرین‌شات‌ها؛ هر ۶ پالت رنگ خودش را می‌گیرد و در روشن و
- *   تیره هر دو دیده می‌شود (primary روشن روی سرمه‌ای، primary تیره روی سفید).
- * - ButtonContainerAlpha فقط برای سازگاری API مانده؛ دکمه اصلی حالا
- *   primary توپر است (Detox) و این توکن دیگر در SaddButton استفاده نمی‌شود.
+ * توکن‌های شیشه‌ای Liquid Glass («سد»):
+ * - سطح کارت: رنگ سطح پالت با آلفای ۰٫۵۲ — لکه‌های گرادیانی پس‌زمینه از
+ *   پشت کارت دیده می‌شوند تا کارت واقعاً مات و شیشه‌ای خوانده شود؛ متن
+ *   با آلفای ۱۰۰٪ می‌ماند تا خوانایی حفظ شود.
+ * - ظرف دیالوگ: surface با آلفای ۰٫۸۶ — کمی مات‌تر از کارت تا روی scrim
+ *   دیالوگ هم خوانا بماند.
+ * - حاشیه درخشان (specular): ۱dp با گرادیان عمودی — لبه بالا روشن‌تر
+ *   (سفید کم‌آلفا) و پایین کم‌رنگ‌تر (primary پالت)؛ مثل لبه شیشه واقعی.
+ * - برق بالا (sheen): گرادیان سفید از بالا تا ۴۵٪ ارتفاع، روی کارت و
+ *   دکمه و چیپ کشیده می‌شود.
+ * - حاشیه مویی (hairline) و BorderAlpha برای سازگاری API مانده‌اند؛
+ *   کال‌سایت‌های قدیمی همان رنگ قبلی را می‌گیرند.
  * این‌ها فقط توکن‌اند؛ اعمال‌شان در کامپوننت‌های مشترک (Common.kt) است.
  */
 object SaddGlass {
-    val DialogContainerAlpha = 0.92f
+    val CardContainerAlpha = 0.52f
+    val DialogContainerAlpha = 0.86f
     val ButtonContainerAlpha = 0.85f
     val BorderAlpha = 0.12f
     val HairlineAlpha = 0.40f
+    val SpecularAlpha = 0.75f
+    val SheenAlpha = 0.28f
     val BorderWidth = 1.dp
 }
 
-/** رنگ حاشیه مویی Detox: primary پالت با آلفای ۰٫۴۰ — در هر ۶ پالت، روشن و تیره. */
+/** آیا پالت جاری تیره است؟ از روشنایی رنگ پس‌زمینه فهمیده می‌شود تا به حالت تم وابسته نباشد. */
+@Composable
+fun saddIsDark(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+/** رنگ حاشیه مویی: primary پالت با آلفای ۰٫۴۰ — در هر ۶ پالت، روشن و تیره (سازگاری با کال‌سایت‌های قدیمی). */
 @Composable
 fun saddHairlineColor(): Color =
     MaterialTheme.colorScheme.primary.copy(alpha = SaddGlass.HairlineAlpha)
 
-/** رنگ حاشیه شیشه‌ای — حالا همان حاشیه مویی Detox است (سازگاری با کال‌سایت‌های قدیمی). */
+/** رنگ حاشیه شیشه‌ای — همان حاشیه مویی است (سازگاری با کال‌سایت‌های قدیمی). */
 @Composable
 fun saddGlassBorderColor(): Color = saddHairlineColor()
 
-/** رنگ ظرف دیالوگ شیشه‌ای: surface با آلفای ۰٫۹۲. */
+/** رنگ ظرف دیالوگ شیشه‌ای: surface با آلفای ۰٫۸۶. */
 @Composable
 fun saddGlassDialogContainerColor(): Color =
     MaterialTheme.colorScheme.surface.copy(alpha = SaddGlass.DialogContainerAlpha)
+
+/**
+ * رنگ سطح شیشه‌ای Liquid Glass برای کارت و پنل و فیلد:
+ * در تیره، surfaceVariant کمی به سمت سفید روشن شده و نیمه‌شفاف است تا
+ * لکه‌های گرادیانی پس‌زمینه از پشتش دیده شوند؛ در روشن، سفید نیمه‌شفاف.
+ */
+@Composable
+fun saddGlassSurfaceColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    return if (saddIsDark()) {
+        lerp(scheme.surfaceVariant, Color.White, 0.14f)
+            .copy(alpha = SaddGlass.CardContainerAlpha)
+    } else {
+        Color.White.copy(alpha = 0.62f)
+    }
+}
+
+/** رنگ یکدست حاشیه درخشان (برای جاهایی که BorderStroke لازم است): سفید آمیخته با primary پالت. */
+@Composable
+fun saddSpecularBorderColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    return if (saddIsDark()) {
+        lerp(Color.White, scheme.primary, 0.20f).copy(alpha = 0.65f)
+    } else {
+        lerp(Color.White, scheme.primary, 0.15f).copy(alpha = 0.90f)
+    }
+}
+
+/**
+ * قلم‌موی حاشیه درخشان: گرادیان عمودی سه‌توقفه که لبه بالا را خیلی روشن،
+ * میان را ملایم و لبه پایین را کم‌رنگ می‌کند — مثل نور روی لبه شیشه.
+ */
+@Composable
+fun saddSpecularBorderBrush(): Brush {
+    val scheme = MaterialTheme.colorScheme
+    return if (saddIsDark()) {
+        Brush.verticalGradient(
+            colorStops = arrayOf(
+                0f to Color.White.copy(alpha = SaddGlass.SpecularAlpha),
+                0.35f to Color.White.copy(alpha = 0.18f),
+                1f to scheme.primary.copy(alpha = 0.20f),
+            ),
+        )
+    } else {
+        Brush.verticalGradient(
+            colorStops = arrayOf(
+                0f to Color.White.copy(alpha = 0.95f),
+                0.35f to Color.White.copy(alpha = 0.55f),
+                1f to scheme.primary.copy(alpha = 0.30f),
+            ),
+        )
+    }
+}
+
+/** برق بالای شیشه: گرادیان سفید از لبه بالا تا حدود نیمه ارتفاع که به شفاف می‌رسد. */
+@Composable
+fun saddGlassSheenBrush(): Brush {
+    val alpha = if (saddIsDark()) SaddGlass.SheenAlpha else 0.35f
+    return Brush.verticalGradient(
+        colorStops = arrayOf(
+            0f to Color.White.copy(alpha = alpha),
+            0.45f to Color.Transparent,
+        ),
+    )
+}
+
+/**
+ * پس‌زمینه Liquid Glass: پایه گرادیانی از رنگ پس‌زمینه پالت با سه لکه
+ * رنگی بزرگ و نرم (primary بالا، tertiary پایین، secondary میان‌صفحه)
+ * تا سطح‌های شیشه‌ای چیزی برای شکست نور داشته باشند — مثل موکاپ‌ها.
+ * روی اندروید ۱۲ به بالا (API 31+) لکه‌ها دایره‌های توپرند که با
+ * Modifier.blur واقعاً تار می‌شوند؛ پایین‌تر از آن با گرادیان شعاعی
+ * همان نرمی شبیه‌سازی می‌شود.
+ * محتوا روی همین پس‌زمینه می‌نشیند؛ صفحه بلاک هم همین را با پالت تیره می‌گیرد.
+ */
+@Composable
+fun SaddBackdrop(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val dark = saddIsDark()
+    val baseBrush = Brush.verticalGradient(
+        colors = listOf(
+            scheme.background,
+            lerp(scheme.background, scheme.primary, if (dark) 0.14f else 0.08f),
+            scheme.background,
+        ),
+    )
+    val primaryAlpha = if (dark) 0.55f else 0.32f
+    val tertiaryAlpha = if (dark) 0.50f else 0.28f
+    val secondaryAlpha = if (dark) 0.34f else 0.20f
+    val useRealBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    Box(modifier = modifier.fillMaxSize().background(baseBrush)) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (useRealBlur) {
+                        Modifier.blur(70.dp, BlurredEdgeTreatment.Unbounded)
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+            val w = size.width
+            val h = size.height
+            if (useRealBlur) {
+                // دایره‌های توپر؛ بلور لایه آن‌ها را به لکه‌های نرم تبدیل می‌کند.
+                drawCircle(
+                    color = scheme.primary.copy(alpha = primaryAlpha),
+                    radius = w * 0.58f,
+                    center = Offset(w * 0.02f, h * 0.04f),
+                )
+                drawCircle(
+                    color = scheme.tertiary.copy(alpha = tertiaryAlpha),
+                    radius = w * 0.54f,
+                    center = Offset(w * 0.98f, h * 0.96f),
+                )
+                drawCircle(
+                    color = scheme.secondary.copy(alpha = secondaryAlpha),
+                    radius = w * 0.42f,
+                    center = Offset(w * 0.90f, h * 0.40f),
+                )
+                drawCircle(
+                    color = scheme.primary.copy(alpha = secondaryAlpha * 0.7f),
+                    radius = w * 0.36f,
+                    center = Offset(w * 0.10f, h * 0.78f),
+                )
+            } else {
+                // جایگزین بدون بلور: گرادیان شعاعی با همان جای لکه‌ها.
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(scheme.primary.copy(alpha = primaryAlpha), Color.Transparent),
+                        center = Offset(w * 0.02f, h * 0.04f),
+                        radius = w * 0.85f,
+                    ),
+                    radius = w * 0.85f,
+                    center = Offset(w * 0.02f, h * 0.04f),
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(scheme.tertiary.copy(alpha = tertiaryAlpha), Color.Transparent),
+                        center = Offset(w * 0.98f, h * 0.96f),
+                        radius = w * 0.80f,
+                    ),
+                    radius = w * 0.80f,
+                    center = Offset(w * 0.98f, h * 0.96f),
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(scheme.secondary.copy(alpha = secondaryAlpha), Color.Transparent),
+                        center = Offset(w * 0.90f, h * 0.40f),
+                        radius = w * 0.62f,
+                    ),
+                    radius = w * 0.62f,
+                    center = Offset(w * 0.90f, h * 0.40f),
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(scheme.primary.copy(alpha = secondaryAlpha * 0.7f), Color.Transparent),
+                        center = Offset(w * 0.10f, h * 0.78f),
+                        radius = w * 0.55f,
+                    ),
+                    radius = w * 0.55f,
+                    center = Offset(w * 0.10f, h * 0.78f),
+                )
+            }
+        }
+        content()
+    }
+}
 
 private val SaddShapes = Shapes(
     extraSmall = RoundedCornerShape(SaddRadius.Chip),

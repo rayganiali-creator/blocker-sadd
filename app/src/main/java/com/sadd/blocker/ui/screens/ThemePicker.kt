@@ -20,6 +20,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -47,7 +50,7 @@ fun ThemePickerSection(
 ) {
     val themeState by themeViewModel.uiState.collectAsStateWithLifecycle()
     SectionTitle("تم")
-    // انتخاب روشن/تیره/سیستمی با کنترل قطعه‌ای Detox.
+    // انتخاب روشن/تیره/سیستمی با کنترل قطعه‌ای Liquid Glass.
     val themeOptions = listOf(
         AppTheme.LIGHT to "روشن",
         AppTheme.DARK to "تیره",
@@ -127,8 +130,12 @@ private fun PaletteCard(selected: Boolean, palette: ColorTheme, onClick: () -> U
                         .padding(end = 4.dp)
                         .size(18.dp)
                         .clip(CircleShape)
-                        .background(dot)
-                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f), CircleShape),
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(lerp(dot, Color.White, 0.35f), dot),
+                            ),
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
                 )
             }
             Spacer(Modifier.size(SaddSpacing.Small))

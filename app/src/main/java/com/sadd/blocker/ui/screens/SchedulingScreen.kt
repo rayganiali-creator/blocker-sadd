@@ -1,5 +1,6 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -41,8 +43,11 @@ import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.ui.SchedulingViewModel
 import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
 private val WEEK_DAYS = listOf(
     "SAT" to "شنبه",
@@ -113,7 +118,7 @@ fun SchedulingScreen(
         ) {
             item {
                 SaddTopBar("زمان‌بندی", "دوره‌های تکرارشونده بلاک؛ اجرای خودکار در فاز ۵ وصل می‌شود.", onBack = onBack)
-                // فرم افزودن به سبک Detox: داخل کارت با حاشیه مویی؛ چیپ‌های روز قرصی با انتخاب توپر.
+                // فرم افزودن به سبک Liquid Glass: داخل کارت با حاشیه مویی؛ چیپ‌های روز قرصی با انتخاب توپر.
                 SaddCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
                         Text("روزهای هفته:", style = MaterialTheme.typography.bodyMedium)
@@ -134,11 +139,12 @@ fun SchedulingScreen(
                                         modifier = Modifier.padding(end = 4.dp),
                                         shape = RoundedCornerShape(SaddRadius.Button),
                                         colors = FilterChipDefaults.filterChipColors(
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                            containerColor = saddGlassSurfaceColor(),
                                             labelColor = MaterialTheme.colorScheme.onSurface,
                                             selectedContainerColor = MaterialTheme.colorScheme.primary,
                                             selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                         ),
+                                        border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
                                     )
                                 }
                             }
@@ -195,7 +201,7 @@ fun SchedulingScreen(
                 SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // چیپ آیکون زمان‌بندی به سبک Detox: بنفش برای Strict، مینت برای معمولی.
+                            // چیپ آیکون زمان‌بندی به سبک Liquid Glass: بنفش برای Strict، مینت برای معمولی.
                             SaddIconChip(
                                 icon = Icons.Filled.Schedule,
                                 color = if (schedule.strict) ChipPurple else ChipMint,
@@ -213,11 +219,20 @@ fun SchedulingScreen(
                                 )
                             }
                             if (schedule.strict) {
-                                AssistChip(onClick = {}, label = { Text("Strict") })
+                                AssistChip(
+                                    onClick = {},
+                                    label = { Text("Strict") },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = saddGlassSurfaceColor(),
+                                        labelColor = MaterialTheme.colorScheme.onSurface,
+                                    ),
+                                    border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
+                                )
                             }
                             Switch(
                                 checked = schedule.enabled,
                                 onCheckedChange = { viewModel.setEnabled(schedule.id, it) },
+                                colors = saddSwitchColors(),
                             )
                             IconButton(onClick = { pendingDelete = schedule.id }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف زمان‌بندی")

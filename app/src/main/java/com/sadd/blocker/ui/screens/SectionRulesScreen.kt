@@ -183,7 +183,7 @@ fun SectionRulesScreen(
                 item { SectionTitle(appLabelFa(packageName, installedLabels)) }
                 val ordered = rules.sortedBy { rule -> presetOrder(rule.sectionKey) }
                 items(ordered, key = { it.packageName + "/" + it.sectionKey }) { rule ->
-                    // ردیف بخش به سبک Detox: چیپ آیکون رنگی + برچسب/توضیح + سوییچ.
+                    // ردیف بخش به سبک Liquid Glass: چیپ آیکون رنگی + برچسب/توضیح + سوییچ.
                     val (sectionIcon, sectionColor) = sectionVisual(rule.sectionKey)
                     SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Row(
@@ -209,6 +209,7 @@ fun SectionRulesScreen(
                                 onCheckedChange = {
                                     viewModel.setEnabled(rule.packageName, rule.sectionKey, it)
                                 },
+                                colors = saddSwitchColors(),
                             )
                             // فقط قانون دستی کاربر دکمه حذف دارد؛ پیش‌فرض‌ها نه.
                             if (isUserAddedRule(rule.sectionKey)) {
@@ -301,7 +302,7 @@ private fun AddSectionPanel(
                 )
             }
             Spacer(Modifier.height(SaddSpacing.Small))
-            // انتخاب نوع افزودن با کنترل قطعه‌ای Detox (قطعه انتخاب‌شده توپر).
+            // انتخاب نوع افزودن با کنترل قطعه‌ای Liquid Glass (قطعه انتخاب‌شده توپر).
             SaddSegmentedControl(
                 options = listOf("کل اپ", "بخش سفارشی"),
                 selectedIndex = if (addWholeApp) 0 else 1,

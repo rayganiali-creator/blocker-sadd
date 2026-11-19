@@ -1,5 +1,7 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
@@ -59,9 +62,10 @@ import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
-import com.sadd.blocker.ui.theme.saddGlassBorderColor
 import com.sadd.blocker.ui.theme.saddGlassDialogContainerColor
-import com.sadd.blocker.ui.theme.saddHairlineColor
+import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSpecularBorderBrush
+import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
 /** برچسب فارسی وضعیت سشن. */
 private fun sessionStatusLabel(status: String): String {
@@ -174,18 +178,19 @@ fun SessionsScreen(
                             verticalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
                         ) {
                             for (duration in SessionDurations.OPTIONS) {
-                                // چیپ مدت به سبک Detox: قرصی، انتخاب‌شده = primary توپر.
+                                // چیپ مدت به سبک Liquid Glass: قرصی شیشه‌ای، انتخاب‌شده = primary توپر.
                                 FilterChip(
                                     selected = selectedDuration == duration,
                                     onClick = { selectedDuration = duration },
                                     label = { Text(TimeFormat.durationLabel(duration)) },
                                     shape = RoundedCornerShape(SaddRadius.Button),
                                     colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        containerColor = saddGlassSurfaceColor(),
                                         labelColor = MaterialTheme.colorScheme.onSurface,
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                     ),
+                                    border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
                                 )
                             }
                         }
@@ -250,7 +255,7 @@ fun SessionsScreen(
             item {
                 SaddCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
-                        // سرتیتر کارت سشن فعال به سبک Detox: چیپ آیکون تایمر + عنوان.
+                        // سرتیتر کارت سشن فعال به سبک Liquid Glass: چیپ آیکون تایمر + عنوان.
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             SaddIconChip(icon = Icons.Filled.Timer, color = ChipMint)
                             Spacer(Modifier.width(SaddSpacing.Small))
@@ -276,7 +281,15 @@ fun SessionsScreen(
                         )
                         if (active.strict) {
                             Spacer(Modifier.height(SaddSpacing.Small))
-                            AssistChip(onClick = {}, label = { Text("\u2066Strict\u2069 — سخت‌گیرانه") })
+                            AssistChip(
+                                onClick = {},
+                                label = { Text("\u2066Strict\u2069 — سخت‌گیرانه") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = saddGlassSurfaceColor(),
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                                border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
+                            )
                         }
                         if (active.strict && uiState.uninstallProtectionOn && !uiState.uninstallAdminActive) {
                             Spacer(Modifier.height(SaddSpacing.Medium))
@@ -322,7 +335,7 @@ fun SessionsScreen(
         items(uiState.history, key = { it.id }) { session ->
             val reason = endedReasonLabel(session.endedReason)
             SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                // ردیف تاریخچه به سبک Detox: چیپ آیکون تایمر + بازه و وضعیت.
+                // ردیف تاریخچه به سبک Liquid Glass: چیپ آیکون تایمر + بازه و وضعیت.
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
                     verticalAlignment = Alignment.CenterVertically,
@@ -363,11 +376,11 @@ private fun StartModeDialog(
     onPick: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // شیشه‌ای مثل SaddDialog: سطح ۹۲٪ + حاشیه ۱dp، شعاع ۲۸dp.
+    // شیشه‌ای مثل SaddDialog: سطح نیمه‌شفاف + حاشیه درخشان، شعاع ۲۸dp.
     val dialogShape = RoundedCornerShape(SaddRadius.Dialog)
     AlertDialog(
         onDismissRequest = onDismiss,
-        modifier = Modifier.border(SaddGlass.BorderWidth, saddGlassBorderColor(), dialogShape),
+        modifier = Modifier.border(SaddGlass.BorderWidth, saddSpecularBorderBrush(), dialogShape),
         shape = dialogShape,
         containerColor = saddGlassDialogContainerColor(),
         title = { Text("سشن $durationLabel را با کدام حالت شروع کنم؟", fontWeight = FontWeight.Bold) },
@@ -405,7 +418,7 @@ private fun StartModeDialog(
     )
 }
 
-/** یک گزینه حالت در دیالوگ شروع سشن به سبک Detox: چیپ آیکون رنگی + عنوان و توضیح + برچسب پیش‌فرض؛ حاشیه پیش‌فرض primary توپر، بقیه حاشیه مویی. */
+/** یک گزینه حالت در دیالوگ شروع سشن به سبک Liquid Glass: چیپ آیکون رنگی + عنوان و توضیح + برچسب پیش‌فرض؛ سطح شیشه‌ای و حاشیه پیش‌فرض primary توپر، بقیه حاشیه درخشان. */
 @Composable
 private fun StartModeOption(
     title: String,
@@ -417,12 +430,13 @@ private fun StartModeOption(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth()
+            .background(saddGlassSurfaceColor(), RoundedCornerShape(SaddRadius.Card))
             .border(
                 1.dp,
                 if (isDefault) {
                     MaterialTheme.colorScheme.primary
                 } else {
-                    saddHairlineColor()
+                    saddSpecularBorderColor()
                 },
                 RoundedCornerShape(SaddRadius.Card),
             )

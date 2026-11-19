@@ -7,7 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,9 +51,11 @@ import com.sadd.blocker.ui.games.GamesGrid
 import com.sadd.blocker.ui.theme.BlockerTheme
 import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.Mint
+import com.sadd.blocker.ui.theme.SaddBackdrop
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
-import com.sadd.blocker.ui.theme.saddHairlineColor
+import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -204,14 +205,33 @@ fun BlockedContent(
     // صفحه برمی‌گردد و هرگز اکتیویتی را نمی‌بندد (بازگشت به اپ بلاک‌شده ممکن نیست).
     var selectedGame by remember { mutableStateOf<GameInfo?>(null) }
     val openGame = selectedGame
-    if (openGame != null) {
-        GameHost(game = openGame, onClose = { selectedGame = null })
-        return
+    // پس‌زمینه Liquid Glass تیره صفحه بلاک (همیشه تیره، با پالت انتخاب‌شده).
+    SaddBackdrop {
+        if (openGame != null) {
+            GameHost(game = openGame, onClose = { selectedGame = null })
+        } else {
+            BlockedMainContent(
+                reason = reason,
+                category = category,
+                delaySeconds = delaySeconds,
+                onBack = onBack,
+                onGameClick = { selectedGame = it },
+            )
+        }
     }
+}
+
+@Composable
+private fun BlockedMainContent(
+    reason: String,
+    category: String?,
+    delaySeconds: Int?,
+    onBack: () -> Unit,
+    onGameClick: (GameInfo) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.Top,
@@ -236,7 +256,7 @@ fun BlockedContent(
             color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(Modifier.height(12.dp))
-        // کارت Detox دلیل بلاک: دلیل، دسته و تاخیر داخل یک کارت hero.
+        // کارت Liquid Glass دلیل بلاک: دلیل، دسته و تاخیر داخل یک کارت hero.
         SaddCard(modifier = Modifier.fillMaxWidth(), hero = true) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
@@ -254,10 +274,10 @@ fun BlockedContent(
                         onClick = {},
                         label = { Text("دسته: $category") },
                         colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            containerColor = saddGlassSurfaceColor(),
                             labelColor = MaterialTheme.colorScheme.onSurface,
                         ),
-                        border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                        border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
                     )
                 }
                 if (delaySeconds != null) {
@@ -301,7 +321,7 @@ fun BlockedContent(
             )
         }
         Spacer(Modifier.height(SaddSpacing.Medium))
-        GamesGrid(onGameClick = { selectedGame = it })
+        GamesGrid(onGameClick = onGameClick)
         Spacer(Modifier.height(SaddSpacing.XLarge))
     }
 }

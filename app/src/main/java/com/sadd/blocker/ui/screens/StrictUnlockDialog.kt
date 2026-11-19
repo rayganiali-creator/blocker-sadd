@@ -1,6 +1,5 @@
 package com.sadd.blocker.ui.screens
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,11 +42,10 @@ import com.sadd.blocker.domain.StrictUnlock
 import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.ChipYellow
-import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
-import com.sadd.blocker.ui.theme.saddGlassBorderColor
-import com.sadd.blocker.ui.theme.saddHairlineColor
+import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 import kotlinx.coroutines.delay
 
 /**
@@ -93,13 +91,7 @@ fun StrictUnlockDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         SaddCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    SaddGlass.BorderWidth,
-                    saddGlassBorderColor(),
-                    RoundedCornerShape(SaddRadius.Hero),
-                ),
+            modifier = Modifier.fillMaxWidth(),
             hero = true,
         ) {
             Column(
@@ -109,7 +101,7 @@ fun StrictUnlockDialog(
                     .verticalScroll(rememberScrollState()),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // چیپ قفل Detox کنار عنوان دیالوگ (فقط ظاهری).
+                    // چیپ قفل Liquid Glass کنار عنوان دیالوگ (فقط ظاهری).
                     SaddIconChip(icon = Icons.Filled.Lock, color = ChipYellow)
                     Spacer(Modifier.width(SaddSpacing.Medium))
                     Text(
@@ -132,13 +124,7 @@ fun StrictUnlockDialog(
                     )
                     Spacer(Modifier.height(SaddSpacing.Medium))
                     SaddCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                SaddGlass.BorderWidth,
-                                saddGlassBorderColor(),
-                                RoundedCornerShape(SaddRadius.Card),
-                            ),
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                             Text(passage.text, style = MaterialTheme.typography.bodyMedium)
@@ -169,12 +155,12 @@ fun StrictUnlockDialog(
                             label = { Text("متن را اینجا تایپ کن") },
                             singleLine = false,
                             shape = RoundedCornerShape(SaddRadius.TextField),
-                            // رنگ‌های Detox فیلد تایپ (فقط ظاهری؛ منطق رد چسباندن بالا دست‌نخورده است).
+                            // رنگ‌های Liquid Glass فیلد تایپ (فقط ظاهری؛ منطق رد چسباندن بالا دست‌نخورده است).
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = saddHairlineColor(),
-                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedBorderColor = saddSpecularBorderColor(),
+                                focusedContainerColor = saddGlassSurfaceColor(),
+                                unfocusedContainerColor = saddGlassSurfaceColor(),
                                 focusedLabelColor = MaterialTheme.colorScheme.primary,
                                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 cursorColor = MaterialTheme.colorScheme.primary,
@@ -187,7 +173,7 @@ fun StrictUnlockDialog(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth().height(8.dp),
                         color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(

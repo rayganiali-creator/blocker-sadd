@@ -43,6 +43,14 @@ class BlocksEngine(seed: Long = 42L) {
     var gameOver: Boolean = false
         private set
 
+    /** شمارنده قفل‌شدن‌ها؛ UI با تغییرش فلش و صدای نشستن را پخش می‌کند. */
+    var lockCount: Int = 0
+        private set
+
+    /** سطرهایی که در آخرین قفل‌شدن پاک شدند (اندیس سطر روی صفحه)؛ خالی یعنی خطی پاک نشد. */
+    var lastClearedRows: List<Int> = emptyList()
+        private set
+
     var current: Tetromino = Tetromino.T
         private set
     var currentX: Int = 0
@@ -160,6 +168,8 @@ class BlocksEngine(seed: Long = 42L) {
         score = 0
         lines = 0
         gameOver = false
+        lockCount = 0
+        lastClearedRows = emptyList()
         spawn()
     }
 
@@ -197,6 +207,7 @@ class BlocksEngine(seed: Long = 42L) {
         for ((x, y) in currentCells()) {
             board[y][x] = value
         }
+        lockCount += 1
         val cleared = clearFullLines()
         if (cleared > 0) {
             lines += cleared
@@ -206,13 +217,16 @@ class BlocksEngine(seed: Long = 42L) {
     }
 
     // خط‌های کامل را حذف می‌کند و سطرهای بالا را پایین می‌کشد؛ تعداد خط برگردانده می‌شود.
+    // سطرهای پاک‌شده در lastClearedRows ثبت می‌شوند تا UI فلش پاک‌شدن را روی همان‌ها بکشد.
     private fun clearFullLines(): Int {
         var cleared = 0
+        val clearedRows = mutableListOf<Int>()
         var writeRow = HEIGHT - 1
         for (readRow in HEIGHT - 1 downTo 0) {
             val full = board[readRow].all { it != 0 }
             if (full) {
                 cleared += 1
+                clearedRows.add(readRow)
             } else {
                 if (writeRow != readRow) {
                     board[readRow].copyInto(board[writeRow])
@@ -224,6 +238,7 @@ class BlocksEngine(seed: Long = 42L) {
             board[writeRow].fill(0)
             writeRow -= 1
         }
+        lastClearedRows = clearedRows
         return cleared
     }
 

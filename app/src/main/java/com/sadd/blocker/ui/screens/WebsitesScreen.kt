@@ -116,7 +116,7 @@ fun WebsitesScreen(
                     "بلاک وب‌سایت‌ها",
                     "بلاک وب با \u2066Accessibility\u2069 از نوار آدرس مرورگر انجام می‌شود — کروم تأییدشده، بقیه بهترین تلاش‌اند؛ \u2066Incognito\u2069 هم بلاک می‌شود.",
                 )
-                // فرم افزودن دامنه داخل کارت Detox + کارت سوییچ زیردامنه.
+                // فرم افزودن دامنه داخل کارت Liquid Glass + کارت سوییچ زیردامنه.
                 SaddCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                         SaddTextField(
@@ -170,6 +170,7 @@ fun WebsitesScreen(
                             Switch(
                                 checked = site.enabled,
                                 onCheckedChange = { viewModel.setEnabled(site.id, it) },
+                                colors = saddSwitchColors(),
                             )
                             IconButton(onClick = { pendingDelete = site.id }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف قانون")
@@ -185,7 +186,7 @@ fun WebsitesScreen(
     }
 }
 
-/** رنگ چیپ قانون وب‌سایت (فقط نمایشی): چرخش چهار رنگ Detox بر اساس شناسه قانون. */
+/** رنگ چیپ قانون وب‌سایت (فقط نمایشی): چرخش چهار رنگ Liquid Glass بر اساس شناسه قانون. */
 private fun websiteChipColor(id: Long): Color {
     return when ((id % 4L).toInt()) {
         0 -> ChipMint

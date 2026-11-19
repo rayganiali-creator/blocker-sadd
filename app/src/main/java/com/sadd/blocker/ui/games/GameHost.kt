@@ -1,6 +1,5 @@
 package com.sadd.blocker.ui.games
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,16 +26,16 @@ import com.sadd.blocker.ui.theme.SaddSpacing
  * قاب تمام‌صفحه یک بازی داخل صفحه بلاک: ردیف بالا با عنوان بازی و دکمه
  * بستن، و زیر آن خود بازی. بستن فقط به محتوای صفحه بلاک برمی‌گردد —
  * هرگز اکتیویتی را نمی‌بندد و کاربر را به اپ بلاک‌شده برنمی‌گرداند.
+ * پس‌زمینه از SaddBackdrop صفحه بلاک می‌آید؛ قاب پس‌زمینه خودش را ندارد.
  */
 @Composable
 fun GameHost(game: GameInfo, onClose: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(SaddSpacing.Large),
     ) {
-        // سربرگ بازی داخل کارت Detox با چیپ رنگ تأکید بازی.
+        // سربرگ بازی داخل کارت شیشه‌ای با چیپ رنگ تأکید بازی.
         SaddCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),

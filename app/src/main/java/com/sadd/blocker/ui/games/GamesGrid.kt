@@ -2,12 +2,12 @@ package com.sadd.blocker.ui.games
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -19,22 +19,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sadd.blocker.ui.screens.SaddCard
+import com.sadd.blocker.ui.screens.saddGlassPanel
 import com.sadd.blocker.ui.theme.Coral
 import com.sadd.blocker.ui.theme.Grape
 import com.sadd.blocker.ui.theme.Mint
-import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.Sky
 import com.sadd.blocker.ui.theme.Sunny
 import com.sadd.blocker.ui.theme.Teal
-import com.sadd.blocker.ui.theme.saddHairlineColor
 import kotlin.math.sin
 
 /** شناسه شش بازی کوچک صفحه بلاک. */
@@ -129,15 +131,24 @@ private fun GameCard(game: GameInfo, onClick: () -> Unit, modifier: Modifier = M
     SaddCard(modifier = modifier, onClick = onClick) {
         Column {
             // سربرگ تصویری کارت: با Canvas کشیده می‌شود، هیچ فایل تصویری لازم نیست.
-            // پس‌زمینه تیره‌تر + حاشیه مویی Detox دور سربرگ.
+            // پنل شیشه‌ای با هاله رنگ تأکید بازی پشت نقاشی.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(90.dp)
                     .padding(SaddSpacing.Small)
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(SaddRadius.Chip))
-                    .border(SaddGlass.BorderWidth, saddHairlineColor(), RoundedCornerShape(SaddRadius.Chip)),
+                    .saddGlassPanel(RoundedCornerShape(SaddRadius.Chip)),
             ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(game.accent.copy(alpha = 0.22f), Color.Transparent),
+                            ),
+                            RoundedCornerShape(SaddRadius.Chip),
+                        ),
+                )
                 GameHeaderCanvas(game = game, modifier = Modifier.fillMaxWidth().height(90.dp))
             }
             Column(modifier = Modifier.padding(SaddSpacing.Medium)) {
@@ -162,7 +173,7 @@ private fun GameCard(game: GameInfo, onClick: () -> Unit, modifier: Modifier = M
     }
 }
 
-/** نقاشی سربرگ هر کارت با شکل‌های ساده Canvas (مربع، دایره، منحنی). */
+/** نقاشی سربرگ هر کارت با گرادیان و درخشش Canvas (مثل موکاپ‌ها: بلوک‌های نورانی، شبکه پژواک روشن، نقطه با دنباله، دایره‌های تنفس، برگ روی جویبار، حباب‌های براق). */
 @Composable
 private fun GameHeaderCanvas(game: GameInfo, modifier: Modifier = Modifier) {
     val dimColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
@@ -171,7 +182,7 @@ private fun GameHeaderCanvas(game: GameInfo, modifier: Modifier = Modifier) {
         val h = size.height
         when (game.id) {
             GameId.BLOCKS -> {
-                // چند مربع رنگی در چیدمان تترمینویی.
+                // مربع‌های رنگی نورانی در چیدمان تترمینویی: هاله کم‌رنگ + بدنه گرادیانی.
                 val cell = h * 0.22f
                 val corner = CornerRadius(cell * 0.18f, cell * 0.18f)
                 val colors = listOf(Sky, Sunny, Grape, Coral)
@@ -184,8 +195,23 @@ private fun GameHeaderCanvas(game: GameInfo, modifier: Modifier = Modifier) {
                     Offset(w * 0.55f, h * 0.35f + cell),
                 )
                 for ((index, spot) in spots.withIndex()) {
+                    val color = colors[index % colors.size]
                     drawRoundRect(
-                        color = colors[index % colors.size],
+                        color = color.copy(alpha = 0.25f),
+                        topLeft = Offset(spot.x - cell * 0.12f, spot.y - cell * 0.12f),
+                        size = Size(cell * 1.16f, cell * 1.16f),
+                        cornerRadius = corner,
+                    )
+                    drawRoundRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                lerp(color, Color.White, 0.35f),
+                                color,
+                                lerp(color, Color.Black, 0.20f),
+                            ),
+                            startY = spot.y,
+                            endY = spot.y + cell * 0.92f,
+                        ),
                         topLeft = spot,
                         size = Size(cell * 0.92f, cell * 0.92f),
                         cornerRadius = corner,
@@ -193,7 +219,7 @@ private fun GameHeaderCanvas(game: GameInfo, modifier: Modifier = Modifier) {
                 }
             }
             GameId.ECHO -> {
-                // شبکه ۳×۳ نقطه، یکی بنفش و روشن.
+                // شبکه ۳×۳ نقطه؛ سلول وسط بنفش نورانی با گرادیان شعاعی و هاله.
                 val radius = h * 0.09f
                 for (row in 0..2) {
                     for (col in 0..2) {
@@ -202,8 +228,24 @@ private fun GameHeaderCanvas(game: GameInfo, modifier: Modifier = Modifier) {
                             h * (0.28f + row * 0.22f),
                         )
                         if (row == 1 && col == 1) {
-                            drawCircle(color = Grape.copy(alpha = 0.30f), radius = radius * 1.9f, center = center)
-                            drawCircle(color = Grape, radius = radius * 1.25f, center = center)
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(Grape.copy(alpha = 0.45f), Color.Transparent),
+                                    center = center,
+                                    radius = radius * 2.6f,
+                                ),
+                                radius = radius * 2.6f,
+                                center = center,
+                            )
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(lerp(Grape, Color.White, 0.45f), Grape),
+                                    center = center,
+                                    radius = radius * 1.25f,
+                                ),
+                                radius = radius * 1.25f,
+                                center = center,
+                            )
                         } else {
                             drawCircle(color = dimColor, radius = radius, center = center)
                         }
@@ -211,7 +253,7 @@ private fun GameHeaderCanvas(game: GameInfo, modifier: Modifier = Modifier) {
                 }
             }
             GameId.FOLLOW -> {
-                // نقطه درخشان با ردّ کمرنگ پشت سرش.
+                // نقطه درخشان با دنباله محوشونده و هسته سفید.
                 val head = Offset(w * 0.68f, h * 0.42f)
                 for (step in 5 downTo 1) {
                     val t = step.toFloat()
@@ -221,29 +263,47 @@ private fun GameHeaderCanvas(game: GameInfo, modifier: Modifier = Modifier) {
                         center = Offset(head.x - t * w * 0.07f, head.y + t * h * 0.05f),
                     )
                 }
-                drawCircle(color = Sunny.copy(alpha = 0.25f), radius = h * 0.20f, center = head)
-                drawCircle(color = Sunny, radius = h * 0.10f, center = head)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color.White, Sunny, Sunny.copy(alpha = 0.30f), Color.Transparent),
+                        center = head,
+                        radius = h * 0.24f,
+                    ),
+                    radius = h * 0.24f,
+                    center = head,
+                )
+                drawCircle(color = Color.White, radius = h * 0.055f, center = head)
             }
             GameId.BREATHE -> {
-                // دایره‌های سبز هم‌پوشان.
+                // دایره‌های تنفس با گرادیان شعاعی و هاله نرم.
+                val center = Offset(w * 0.50f, h * 0.48f)
                 drawCircle(
-                    color = Teal.copy(alpha = 0.35f),
-                    radius = h * 0.30f,
-                    center = Offset(w * 0.42f, h * 0.52f),
+                    brush = Brush.radialGradient(
+                        colors = listOf(Teal.copy(alpha = 0.30f), Color.Transparent),
+                        center = center,
+                        radius = h * 0.48f,
+                    ),
+                    radius = h * 0.48f,
+                    center = center,
                 )
                 drawCircle(
-                    color = Mint.copy(alpha = 0.45f),
-                    radius = h * 0.24f,
-                    center = Offset(w * 0.58f, h * 0.44f),
+                    brush = Brush.radialGradient(
+                        colors = listOf(lerp(Mint, Color.White, 0.35f), Teal),
+                        center = center,
+                        radius = h * 0.26f,
+                    ),
+                    radius = h * 0.26f,
+                    center = center,
                 )
                 drawCircle(
-                    color = Teal,
-                    radius = h * 0.10f,
-                    center = Offset(w * 0.50f, h * 0.48f),
+                    color = Teal.copy(alpha = 0.40f),
+                    radius = h * 0.40f,
+                    center = center,
+                    style = Stroke(width = 2.dp.toPx()),
                 )
             }
             GameId.LET_IT_PASS -> {
-                // جویبار موج‌دار و یک برگ روی آن.
+                // جویبار موج‌دار گرادیانی و برگ نورانی روی آن.
                 val path = Path()
                 val points = 40
                 for (i in 0..points) {
@@ -255,28 +315,77 @@ private fun GameHeaderCanvas(game: GameInfo, modifier: Modifier = Modifier) {
                         path.lineTo(x, y)
                     }
                 }
-                drawPath(path = path, color = Sky, style = Stroke(width = 3.dp.toPx()))
+                drawPath(
+                    path = path,
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(Sky.copy(alpha = 0.25f), Sky, Sky.copy(alpha = 0.25f)),
+                    ),
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round),
+                )
                 val leafCenter = Offset(w * 0.62f, h * 0.42f)
-                drawCircle(color = Teal, radius = h * 0.13f, center = leafCenter)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Mint.copy(alpha = 0.35f), Color.Transparent),
+                        center = leafCenter,
+                        radius = h * 0.24f,
+                    ),
+                    radius = h * 0.24f,
+                    center = leafCenter,
+                )
+                val leafPath = Path().apply {
+                    moveTo(leafCenter.x - h * 0.16f, leafCenter.y)
+                    quadraticBezierTo(
+                        leafCenter.x, leafCenter.y - h * 0.14f,
+                        leafCenter.x + h * 0.16f, leafCenter.y,
+                    )
+                    quadraticBezierTo(
+                        leafCenter.x, leafCenter.y + h * 0.10f,
+                        leafCenter.x - h * 0.16f, leafCenter.y,
+                    )
+                    close()
+                }
+                drawPath(
+                    path = leafPath,
+                    brush = Brush.linearGradient(
+                        colors = listOf(lerp(Mint, Color.White, 0.30f), Mint),
+                        start = Offset(leafCenter.x - h * 0.16f, leafCenter.y - h * 0.14f),
+                        end = Offset(leafCenter.x + h * 0.16f, leafCenter.y + h * 0.10f),
+                    ),
+                )
                 drawLine(
-                    color = Teal,
-                    start = leafCenter,
-                    end = Offset(leafCenter.x + h * 0.16f, leafCenter.y - h * 0.10f),
-                    strokeWidth = 2.dp.toPx(),
+                    color = Color.White.copy(alpha = 0.55f),
+                    start = Offset(leafCenter.x - h * 0.13f, leafCenter.y),
+                    end = Offset(leafCenter.x + h * 0.13f, leafCenter.y),
+                    strokeWidth = 1.5.dp.toPx(),
+                    cap = StrokeCap.Round,
                 )
             }
             GameId.POP -> {
-                // شبکه‌ای از نقطه‌های حبابی.
+                // حباب‌های براق با گرادیان شعاعی و برق کوچک.
                 val radius = h * 0.085f
                 for (row in 0..2) {
                     for (col in 0..4) {
+                        val center = Offset(
+                            w * (0.18f + col * 0.16f),
+                            h * (0.28f + row * 0.22f),
+                        )
                         drawCircle(
-                            color = Coral.copy(alpha = 0.75f),
-                            radius = radius,
-                            center = Offset(
-                                w * (0.18f + col * 0.16f),
-                                h * (0.28f + row * 0.22f),
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    lerp(Coral, Color.White, 0.50f),
+                                    Coral,
+                                    lerp(Coral, Color.Black, 0.20f),
+                                ),
+                                center = center,
+                                radius = radius,
                             ),
+                            radius = radius,
+                            center = center,
+                        )
+                        drawCircle(
+                            color = Color.White.copy(alpha = 0.75f),
+                            radius = radius * 0.22f,
+                            center = Offset(center.x - radius * 0.35f, center.y - radius * 0.35f),
                         )
                     }
                 }

@@ -51,6 +51,8 @@ import com.sadd.blocker.ui.theme.ChipPink
 import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 import kotlinx.coroutines.launch
 
 /**
@@ -163,7 +165,7 @@ fun OnboardingScreen(
         val completedSteps = steps.filter { it.granted }
         if (completedSteps.isNotEmpty()) {
             item {
-                // مرحله‌های انجام‌شده داخل یک کارت Detox جمع می‌شوند (فقط ظاهری).
+                // مرحله‌های انجام‌شده داخل یک کارت Liquid Glass جمع می‌شوند (فقط ظاهری).
                 SaddCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                         completedSteps.forEach { step ->
@@ -417,7 +419,7 @@ private fun AccessibilityPhaseBlock(
                         if (done) {
                             MaterialTheme.colorScheme.primary
                         } else {
-                            MaterialTheme.colorScheme.surfaceVariant
+                            saddGlassSurfaceColor()
                         },
                         CircleShape,
                     )
@@ -426,7 +428,7 @@ private fun AccessibilityPhaseBlock(
                         if (done) {
                             MaterialTheme.colorScheme.primary
                         } else {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.40f)
+                            saddSpecularBorderColor()
                         },
                         CircleShape,
                     ),

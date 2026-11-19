@@ -47,7 +47,8 @@ import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
-import com.sadd.blocker.ui.theme.saddHairlineColor
+import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
 /**
  * مدیریت کلمات — طبق موکاپ قوانین: جستجو، فیلتر همه/فعال/غیرفعال،
@@ -146,7 +147,7 @@ fun KeywordsScreen(
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 )
                 Spacer(Modifier.height(SaddSpacing.Small))
-                // فیلتر وضعیت با کنترل قطعه‌ای Detox.
+                // فیلتر وضعیت با کنترل قطعه‌ای Liquid Glass.
                 val filterOptions = listOf("همه", "فعال", "غیرفعال")
                 SaddSegmentedControl(
                     options = filterOptions,
@@ -160,7 +161,7 @@ fun KeywordsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(SaddSpacing.Medium))
-                // فرم افزودن کلمه داخل کارت Detox.
+                // فرم افزودن کلمه داخل کارت Liquid Glass.
                 SaddCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                         SaddTextField(
@@ -186,12 +187,12 @@ fun KeywordsScreen(
                                     label = { Text(category) },
                                     modifier = Modifier.padding(end = 4.dp),
                                     colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        containerColor = saddGlassSurfaceColor(),
                                         labelColor = MaterialTheme.colorScheme.onSurface,
                                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
                                     ),
-                                    border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                                    border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
                                 )
                             }
                         }
@@ -238,6 +239,7 @@ fun KeywordsScreen(
                             Switch(
                                 checked = rule.enabled,
                                 onCheckedChange = { viewModel.setEnabled(rule.id, it) },
+                                colors = saddSwitchColors(),
                             )
                             IconButton(onClick = { pendingDelete = rule.id }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف قانون")
@@ -249,20 +251,20 @@ fun KeywordsScreen(
                                 onClick = {},
                                 label = { Text(rule.category) },
                                 colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    containerColor = saddGlassSurfaceColor(),
                                     labelColor = MaterialTheme.colorScheme.onSurface,
                                 ),
-                                border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                                border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
                             )
                             Spacer(Modifier.width(SaddSpacing.Small))
                             AssistChip(
                                 onClick = {},
                                 label = { Text("کلمه کامل") },
                                 colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    containerColor = saddGlassSurfaceColor(),
                                     labelColor = MaterialTheme.colorScheme.onSurface,
                                 ),
-                                border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                                border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
                             )
                             if (rule.isPhrase) {
                                 Spacer(Modifier.width(SaddSpacing.Small))
@@ -270,10 +272,10 @@ fun KeywordsScreen(
                                     onClick = {},
                                     label = { Text("عبارت") },
                                     colors = AssistChipDefaults.assistChipColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        containerColor = saddGlassSurfaceColor(),
                                         labelColor = MaterialTheme.colorScheme.onSurface,
                                     ),
-                                    border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                                    border = BorderStroke(SaddGlass.BorderWidth, saddSpecularBorderColor()),
                                 )
                             }
                             Spacer(Modifier.width(SaddSpacing.Small))
@@ -287,7 +289,7 @@ fun KeywordsScreen(
     }
 }
 
-/** رنگ چیپ قانون کلمه (فقط نمایشی): چرخش چهار رنگ Detox بر اساس شناسه قانون. */
+/** رنگ چیپ قانون کلمه (فقط نمایشی): چرخش چهار رنگ Liquid Glass بر اساس شناسه قانون. */
 private fun keywordChipColor(id: Long): Color {
     return when ((id % 4L).toInt()) {
         0 -> ChipMint
