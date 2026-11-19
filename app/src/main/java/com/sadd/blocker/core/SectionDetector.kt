@@ -4,15 +4,21 @@ package com.sadd.blocker.core
  * تشخیص «بخش» درون اپ‌ها — خالص Kotlin، بدون وابستگی اندروید.
  *
  * ورودی فقط داده‌های ساده است (عنوان پنجره، متن گره‌ها، توضیح محتوایی،
- * وجود فیلد متنی قابل‌ویرایش و hint آن)؛ سرویس Accessibility آن‌ها را از
+ * وجود فیلد متنی قابل‌ویرایش و hint آن، فوکوس/متن فیلد جستجو و
+ * متن/توضیح گره‌های انتخاب‌شده)؛ سرویس Accessibility آن‌ها را از
  * درخت Accessibility جمع می‌کند و اینجا تصمیم خالص گرفته می‌شود تا
  * قابل تست واحد JVM باشد.
  *
- * اصل محافظه‌کارانه: آیکون «جستجو» به‌تنهایی کافی نیست — صفحه اصلی
- * تلگرام/یوتیوب هم آیکون جستجو دارد. بخش «جستجو» فقط وقتی تشخیص داده
- * می‌شود که یک فیلد متنی قابل‌ویرایش با hint جستجو واقعاً روی صفحه باشد.
- * این یعنی باز کردن صفحه اصلی اپ هرگز بلاک نمی‌شود؛ فقط ورود به
- * جستجو/اکسپلور بلاک می‌شود.
+ * اصل محافظه‌کارانه: بخش فقط وقتی بلاک می‌شود که کاربر واقعاً وارد آن
+ * شده باشد، نه صرف اینکه عنصرش در درخت UI دیده شود. باز کردن تلگرام
+ * که نوار جستجو بالای صفحه است، «جستجو» نیست؛ جستجو فقط وقتی بلاک
+ * می‌شود که فیلد جستجو واقعاً فوکوس گرفته باشد یا کاربر چیزی در آن
+ * تایپ کرده باشد. برچسب تب پایین (مثلاً «Reels» که روی همه صفحه‌های
+ * اینستاگرام هست) هم به‌تنهایی کافی نیست؛ فید فقط وقتی بلاک می‌شود که
+ * تب/بخش واقعاً انتخاب شده باشد (گره selected/checked) یا عنوان/کلاس
+ * پنجره مارکر آن را داشته باشد. اگر اپ وضعیت انتخاب را در اختیار
+ * نگذارد، بخش فید fail-open می‌ماند (بلاک نمی‌شود) — محدودیت صادقانه،
+ * نه بیش‌بلاک.
  *
  * هیوریستیک هر پیش‌فرض (مستند، چون وابسته به UI نسخه فعلی اپ‌هاست و
  * ممکن است با آپدیت آن اپ‌ها عوض شود):
@@ -26,62 +32,78 @@ package com.sadd.blocker.core
  *   بعد از بلاک واقعی فقط ۱٫۵ ثانیه debounce است)؛ و راستی‌آزمایی دوباره در actOnSection پکیج پیش‌زمینه
  *   را چک می‌کند تا اگر کاربر خودش از اپ بیرون رفت، بلاک دیرکرده
  *   روی صفحه دیگری BACK نزند.
- * - telegram_search (org.telegram.messenger): فیلد قابل‌ویرایش هست و hint
- *   آن یا عنوان پنجره شامل «search» / «جستجو» است. در تلگرام، صفحه
- *   چت‌ها فقط آیکون جستجو دارد؛ با زدن آن، فیلدی با hint «Search» باز
- *   می‌شود. پس ترکیب «فیلد ویرایشی + hint جستجو» یعنی کاربر وارد
- *   جستجوی سراسری تلگرام شده است.
- * - instagram_search (com.instagram.android): مثل تلگرام — فیلد
- *   قابل‌ویرایش با hint «Search» / «جستجو». تب جستجوی اینستاگرام یک
- *   نوار جستجو با placeholder «Search» دارد.
- * - instagram_explore (com.instagram.android): فیلد قابل‌ویرایش نیست و
- *   عنوان/کلاس پنجره یا یکی از متن‌ها/توضیح‌ها شامل «explore» /
- *   «اکسپلور» است. تب اکسپلور یک گرید رسانه است بدون فیلد جستجو؛ تب آن
- *   content-description «Search and explore» دارد. نبودِ فیلد ویرایشی،
- *   اکسپلور را از صفحه جستجو جدا می‌کند. بهترین تلاش است: اگر
- *   اینستاگرام گرید دیگری را «Explore» بنامد، آن هم بلاک می‌شود.
- * - instagram_reels (com.instagram.android): یکی از عنوان/کلاس پنجره،
- *   متن‌ها یا توضیح‌های محتوایی شامل «reels» / «ریلز» است، و فیلد
- *   جستجو باز نیست (فیلد ویرایشی با hint جستجو یعنی صفحه جستجو است،
- *   نه ریلز؛ فیلد کامنت ریلز hint جستجو ندارد و بلاک را لغو نمی‌کند).
- *   بهترین تلاش است و دو ضعف شناخته‌شده دارد: برچسب تب «Reels» در
- *   ناوبری پایین روی همه صفحه‌های اینستاگرام هست، پس صفحه اصلی هم
- *   ممکن است بلاک شود؛ و اگر اینستاگرام پخش‌کننده ریلز را دیگر
- *   «Reels» ننامد، بلاک نمی‌شود. برای بلاک قطعی کل اینستاگرام،
- *   «خود اینستاگرام» گزینه مطمئن است.
- * - youtube_search (com.google.android.youtube): فیلد قابل‌ویرایش هست و
- *   hint آن یا عنوان پنجره شامل «search» / «جستجو» است (hint یوتیوب
- *   «Search YouTube» است). صفحه اصلی یوتیوب فقط آیکون جستجو دارد.
- * - youtube_shorts (com.google.android.youtube): مثل ریلز — یکی از
- *   عنوان/کلاس پنجره، متن‌ها یا توضیح‌های محتوایی شامل «shorts» /
- *   «شورتس» است و فیلد جستجو باز نیست. بهترین تلاش است: قفسه «Shorts»
- *   در صفحه اصلی و تب پایین «Shorts» هم همین برچسب را دارند، پس
- *   صفحه اصلی یوتیوب هم ممکن است بلاک شود؛ برای بلاک قطعی کل
- *   یوتیوب، «خود یوتیوب» گزینه مطمئن است.
- * - whatsapp_search (com.whatsapp): مثل تلگرام — فیلد قابل‌ویرایش
- *   با hint «Search» / «جستجو».
- * - whatsapp_status (com.whatsapp): یکی از منابع شامل «status» /
- *   «وضعیت» است و فیلد جستجو باز نیست. بهترین تلاش است و دو ضعف دارد:
- *   برچسب تب وضعیت در ناوبری پایین روی همه صفحه‌ها هست (پس صفحه
- *   اصلی هم ممکن است بلاک شود)؛ و واتساپ در نسخه‌های جدید تب را
- *   «Updates» نامیده است، پس اگر «Status» دیگر جایی نباشد بلاک
- *   نمی‌شود. برای بلاک قطعی کل واتساپ، «خود واتساپ» گزینه مطمئن است.
+ * - telegram_search (org.telegram.messenger): فیلد ویرایشی با hint
+ *   «search» / «جستجو» که واقعاً فوکوس دارد (کاربر رویش زده) یا متن
+ *   تایپ‌شده دارد. صرفِ دیده شدن فیلد جستجو در بالای صفحه (بدون فوکوس
+ *   و بدون متن) بلاک نمی‌شود — این همان باگی بود که سید گزارش کرد:
+ *   باز کردن تلگرام فقط چون نوار جستجو آنجاست بلاک می‌شد.
+ * - instagram_search (com.instagram.android): مثل تلگرام — فیلد جستجو
+ *   با hint «Search» / «جستجو» واقعاً فعال است (فوکوس یا متن
+ *   تایپ‌شده). تب جستجوی اینستاگرام یک نوار جستجو با placeholder
+ *   «Search» دارد.
+ * - instagram_explore (com.instagram.android): مارکر «explore» /
+ *   «اکسپلور» در عنوان/کلاس پنجره، یا در متن/توضیح گره‌ای که واقعاً
+ *   انتخاب شده (تب فعال اکسپلور)؛ و فیلد جستجو فعال نیست. برچسب تب
+ *   «Search and explore» که روی همه صفحه‌ها هست به‌تنهایی کافی نیست.
+ *   بهترین تلاش است و fail-open: اگر اینستاگرام وضعیت انتخاب تب را
+ *   در اختیار نگذارد، اکسپلور بلاک نمی‌شود.
+ * - instagram_reels (com.instagram.android): مارکر «reels» / «ریلز» در
+ *   عنوان/کلاس پنجره یا در گره انتخاب‌شده، و فیلد جستجو فعال نیست
+ *   (فیلد کامنت ریلز hint جستجو ندارد و بلاک را لغو نمی‌کند). برچسب
+ *   تب «Reels» در ناوبری پایین روی همه صفحه‌ها هست و به‌تنهایی بلاک
+ *   نمی‌کند — صفحه اصلی دیگر بیش‌بلاک نمی‌شود. بهترین تلاش است و
+ *   fail-open: اگر اینستاگرام تب فعال را selected گزارش نکند، ریلز
+ *   بلاک نمی‌شود؛ و اگر پخش‌کننده ریلز دیگر «Reels» نامیده نشود هم
+ *   بلاک نمی‌شود. برای بلاک قطعی کل اینستاگرام، «خود اینستاگرام»
+ *   گزینه مطمئن است.
+ * - youtube_search (com.google.android.youtube): مثل تلگرام — فیلد
+ *   جستجو واقعاً فعال است (hint «Search YouTube» و فوکوس یا متن
+ *   تایپ‌شده). صفحه اصلی یوتیوب فقط آیکون جستجو دارد.
+ * - youtube_shorts (com.google.android.youtube): مثل ریلز — مارکر
+ *   «shorts» / «شورتس» در عنوان/کلاس پنجره یا گره انتخاب‌شده، و فیلد
+ *   جستجو فعال نیست. قفسه «Shorts» در صفحه اصلی و تب پایین «Shorts»
+ *   به‌تنهایی بلاک نمی‌کنند؛ اگر یوتیوب تب فعال را selected گزارش
+ *   نکند، شورتس fail-open می‌ماند. برای بلاک قطعی کل یوتیوب،
+ *   «خود یوتیوب» گزینه مطمئن است.
+ * - whatsapp_search (com.whatsapp): مثل تلگرام — فیلد جستجو واقعاً
+ *   فعال است (فوکوس یا متن تایپ‌شده).
+ * - whatsapp_status (com.whatsapp): مارکر «status» / «وضعیت» در
+ *   عنوان/کلاس پنجره یا گره انتخاب‌شده، و فیلد جستجو فعال نیست.
+ *   برچسب تب وضعیت در ناوبری پایین به‌تنهایی بلاک نمی‌کند. بهترین
+ *   تلاش است و fail-open: واتساپ در نسخه‌های جدید تب را «Updates»
+ *   نامیده است، پس اگر «Status» دیگر جایی نباشد بلاک نمی‌شود؛ و اگر
+ *   وضعیت انتخاب تب گزارش نشود هم بلاک نمی‌شود. برای بلاک قطعی کل
+ *   واتساپ، «خود واتساپ» گزینه مطمئن است.
  * - tiktok_search / tiktok_foryou: هر دو پکیج تیک‌تاک
  *   (com.zhiliaoapp.musically و com.ss.android.ugc.trill)؛ جستجو
- *   مثل بقیه، و For You با مارکر «for you» / «برای شما» و بدون فیلد
- *   جستجوی باز. برچسب تب «For You» در ناوبری هم هست، پس صفحه اصلی
- *   هم ممکن است بلاک شود — بهترین تلاش است.
+ *   مثل بقیه (فیلد واقعاً فعال)، و For You با مارکر «for you» /
+ *   «برای شما» در عنوان/کلاس پنجره یا گره انتخاب‌شده و بدون فیلد
+ *   جستجوی فعال. برچسب تب «For You» در ناوبری به‌تنهایی بلاک
+ *   نمی‌کند — بهترین تلاش و fail-open است.
  * - x_search / x_home (com.twitter.android): جستجو مثل بقیه؛ تایم‌لاین
- *   خانه با مارکر «home» / «خانه» و بدون فیلد جستجوی باز. «Home»
- *   برچسب تب پایین است و روی همه صفحه‌ها دیده می‌شود، پس بیش‌بلاک
- *   محتمل است — بهترین تلاش است.
+ *   خانه با مارکر «home» / «خانه» در عنوان/کلاس پنجره یا گره
+ *   انتخاب‌شده و بدون فیلد جستجوی فعال. «Home» برچسب تب پایین است
+ *   و به‌تنهایی بلاک نمی‌کند — بهترین تلاش و fail-open است.
  * - facebook_search / facebook_reels (com.facebook.katana): جستجو
  *   مثل بقیه؛ ریلز و واچ با مارکر «reels» / «ریلز» / «watch» /
- *   «واچ» و بدون فیلد جستجوی باز — بهترین تلاش است، تب‌ها روی همه
- *   صفحه‌ها برچسب دارند.
+ *   «واچ» در عنوان/کلاس پنجره یا گره انتخاب‌شده و بدون فیلد جستجوی
+ *   فعال — بهترین تلاش و fail-open است، تب‌ها به‌تنهایی بلاک نمی‌کنند.
  * - snapchat_search / snapchat_spotlight (com.snapchat.android):
  *   جستجو مثل بقیه؛ اسپات‌لایت با مارکر «spotlight» /
- *   «اسپات‌لایت» و بدون فیلد جستجوی باز — بهترین تلاش است.
+ *   «اسپات‌لایت» در عنوان/کلاس پنجره یا گره انتخاب‌شده و بدون فیلد
+ *   جستجوی فعال — بهترین تلاش و fail-open است.
+ * - chrome_app (com.android.chrome): فقط تطابق پکیج؛ مثل بقیه
+ *   «کل اپ»ها، خودِ باز شدن کروم یعنی بخش روی صفحه است و بقیه
+ *   بخش‌های کروم را دربر می‌گیرد.
+ * - chrome_incognito (com.android.chrome): مارکر «incognito» /
+ *   «ناشناس» / «مرور خصوصی» در عنوان/کلاس پنجره، متن‌ها یا
+ *   توضیح‌های محتوایی — یعنی تب خصوصی کروم باز است. بهترین تلاش
+ *   است: کروم موظف نیست حالت خصوصی را از طریق Accessibility نشان
+ *   دهد، و اگر UI فارسی کروم عبارت دیگری برای آن به کار ببرد بلاک
+ *   نمی‌شود. آیتم «New Incognito tab» در منوی کروم هم همین مارکر
+ *   را دارد؛ باز کردن منو در حالت عادی ممکن است بلاک شود. بلاک
+ *   دامنه/کلمه در تب خصوصی به این قانون وابسته نیست — متن omnibox
+ *   در تب خصوصی هم از همان مسیر خوانده می‌شود.
  * - custom_app («خود اپ» برای هر اپ نصب‌شده): فقط تطابق پکیج؛
  *   مثل بقیه «کل اپ»ها، سیگنالی لازم نیست و بقیه بخش‌های همان اپ
  *   را دربر می‌گیرد.
@@ -93,11 +115,12 @@ package com.sadd.blocker.core
  *   هرگز بلاک نمی‌کند.
  *
  * مرورگرها: دامنه/کلمه در نوار آدرس کروم، فایرفاکس، سامسونگ اینترنت،
- * اج و Brave به یک شکل خوانده می‌شود ([isBrowserPackage])؛ حالت
- * Incognito نیازی به تشخیص جدا ندارد — متن omnibox در تب خصوصی هم
- * از همان مسیر خوانده می‌شود. اینکه مرورگر نوار آدرس را از طریق
- * Accessibility در اختیار بگذارد، تضمین‌شده نیست؛ کروم مسیر
- * تأییدشده است، بقیه بهترین تلاش‌اند.
+ * اج و Brave به یک شکل خوانده می‌شود ([isBrowserPackage])؛ بلاک
+ * دامنه/کلمه در تب خصوصی به تشخیص Incognito وابسته نیست — متن omnibox
+ * در تب خصوصی هم از همان مسیر خوانده می‌شود. قانون‌های بخش کروم
+ * (خود کروم، Incognito) جداگانه از مسیر بخش ارزیابی می‌شوند. اینکه
+ * مرورگر نوار آدرس را از طریق Accessibility در اختیار بگذارد،
+ * تضمین‌شده نیست؛ کروم مسیر تأییدشده است، بقیه بهترین تلاش‌اند.
  */
 object SectionDetector {
 
@@ -149,6 +172,9 @@ object SectionDetector {
     const val SECTION_SNAPCHAT_APP = "snapchat_app"
     const val SECTION_SNAPCHAT_SEARCH = "snapchat_search"
     const val SECTION_SNAPCHAT_SPOTLIGHT = "snapchat_spotlight"
+    const val SECTION_CHROME_APP = "chrome_app"
+    /** مرور خصوصی کروم — بهترین تلاش، وابسته به آنچه کروم نشان می‌دهد. */
+    const val SECTION_CHROME_INCOGNITO = "chrome_incognito"
     /** «خود اپ» برای هر اپ نصب‌شده که کاربر دستی اضافه می‌کند. */
     const val SECTION_CUSTOM_APP = "custom_app"
     /** پیشوند کلید بخش سفارشی کاربر: «custom:» + متن نشانه نرمال‌شده. */
@@ -164,6 +190,7 @@ object SectionDetector {
         SECTION_X_APP,
         SECTION_FACEBOOK_APP,
         SECTION_SNAPCHAT_APP,
+        SECTION_CHROME_APP,
         SECTION_CUSTOM_APP,
     )
 
@@ -207,9 +234,24 @@ object SectionDetector {
         SectionPreset(SNAPCHAT_PACKAGE, SECTION_SNAPCHAT_APP, "خود اسنپ‌چت", "اسنپ‌چت"),
         SectionPreset(SNAPCHAT_PACKAGE, SECTION_SNAPCHAT_SEARCH, "جستجوی اسنپ‌چت", "اسنپ‌چت"),
         SectionPreset(SNAPCHAT_PACKAGE, SECTION_SNAPCHAT_SPOTLIGHT, "اسپات‌لایت اسنپ‌چت", "اسنپ‌چت"),
+        SectionPreset(CHROME_PACKAGE, SECTION_CHROME_APP, "خود کروم", "کروم"),
+        SectionPreset(CHROME_PACKAGE, SECTION_CHROME_INCOGNITO, "مرور خصوصی (Incognito) کروم (بهترین تلاش)", "کروم"),
     )
 
-    /** سیگنال‌های خام جمع‌شده از درخت Accessibility یک پنجره. */
+    /**
+     * سیگنال‌های خام جمع‌شده از درخت Accessibility یک پنجره.
+     *
+     * شواهد فعال‌سازی (برای دقت بخش، نه صرفِ دیده شدن):
+     * - [searchFieldFocused] / [searchFieldHasText]: سرویس این دو پرچم
+     *   را فقط برای فیلد ویرایشی با hint جستجو پر می‌کند — فیلد فوکوس
+     *   دارد (isFocused یا isAccessibilityFocused) یا متن تایپ‌شده
+     *   (غیرخالی) دارد. فیلد جستجویِ صرفاً دیده‌شده (بالای صفحه اصلی
+     *   تلگرام، بدون فوکوس و بدون متن) هیچ‌کدام را true نمی‌کند.
+     * - [selectedTexts] / [selectedContentDescriptions]: متن/توضیح
+     *   گره‌هایی که واقعاً انتخاب/چک شده‌اند (isSelected یا isChecked)
+     *   — تب فعال. برچسب تبی که فقط در درخت هست ولی انتخاب نشده،
+     *   اینجا نمی‌آید.
+     */
     data class SectionSignals(
         val windowTitle: String? = null,
         val windowClassName: String? = null,
@@ -219,6 +261,14 @@ object SectionDetector {
         val editableHint: String? = null,
         /** متن فیلدهای قابل‌ویرایش (برای کروم: متن omnibox / جعبه جستجو). */
         val editableTexts: List<String> = emptyList(),
+        /** فیلد جستجو واقعاً فوکوس دارد (کاربر رویش زده است). */
+        val searchFieldFocused: Boolean = false,
+        /** فیلد جستجو متن تایپ‌شده (غیرخالی) دارد. */
+        val searchFieldHasText: Boolean = false,
+        /** متن گره‌های واقعاً انتخاب/چک‌شده (تب فعال). */
+        val selectedTexts: List<String> = emptyList(),
+        /** توضیح محتوایی گره‌های واقعاً انتخاب/چک‌شده (تب فعال). */
+        val selectedContentDescriptions: List<String> = emptyList(),
     )
 
     private val SEARCH_MARKERS = listOf("search", "جستجو")
@@ -230,6 +280,27 @@ object SectionDetector {
     private val HOME_MARKERS = listOf("home", "خانه")
     private val FACEBOOK_REELS_MARKERS = listOf("reels", "ریلز", "watch", "واچ")
     private val SPOTLIGHT_MARKERS = listOf("spotlight", "اسپات‌لایت")
+    /**
+     * مارکرهای حالت خصوصی کروم — کوتاه و مستند، چون وابسته به UI کروم است:
+     * «incognito» همان چیزی است که کروم انگلیسی در توضیح آیکون و صفحه
+     * تب خصوصی نشان می‌دهد؛ «مرور خصوصی» ترجمه فارسی همان در UI فارسی
+     * کروم است؛ «ناشناس» هم‌معنای فارسی دیگری است که ممکن است در
+     * نسخه‌هایی از کروم به کار رود. اگر کروم فارسی عبارت دیگری به کار
+     * ببرد، این قانون fail-open می‌ماند.
+     */
+    private val INCOGNITO_MARKERS = listOf("incognito", "ناشناس", "مرور خصوصی")
+
+    /** کلیدهای بخش «جستجو» — سرویس برای رویداد تایپ فقط این‌ها را چک می‌کند. */
+    private val SEARCH_SECTION_KEYS: Set<String> = setOf(
+        SECTION_TELEGRAM_SEARCH,
+        SECTION_INSTAGRAM_SEARCH,
+        SECTION_YOUTUBE_SEARCH,
+        SECTION_WHATSAPP_SEARCH,
+        SECTION_TIKTOK_SEARCH,
+        SECTION_X_SEARCH,
+        SECTION_FACEBOOK_SEARCH,
+        SECTION_SNAPCHAT_SEARCH,
+    )
 
     private fun normalized(value: String?): String {
         if (value == null) return ""
@@ -252,11 +323,24 @@ object SectionDetector {
         return false
     }
 
-    /** آیا فیلد جستجو باز است؟ فیلد ویرایشی با hint جستجو (یا عنوان جستجو). */
-    private fun hasSearchFieldOpen(signals: SectionSignals): Boolean {
-        if (!signals.hasEditableTextField) return false
-        return containsMarker(signals.editableHint, SEARCH_MARKERS) ||
-            containsMarker(signals.windowTitle, SEARCH_MARKERS)
+    /** آیا hint فیلد ویرایشی، hint جستجو است؟ (برای سرویس: پر کردن پرچم‌های فعال‌سازی.) */
+    fun isSearchHint(hint: String?): Boolean {
+        return containsMarker(hint, SEARCH_MARKERS)
+    }
+
+    /** آیا [sectionKey] یکی از بخش‌های «جستجو» است؟ */
+    fun isSearchSection(sectionKey: String): Boolean {
+        return SEARCH_SECTION_KEYS.contains(sectionKey)
+    }
+
+    /**
+     * آیا فیلد جستجو واقعاً فعال است؟ فوکوس دارد یا متن تایپ‌شده دارد.
+     * صرفِ دیده شدن فیلد در درخت (مثلاً نوار جستجوی بالای صفحه اصلی
+     * تلگرام، بدون فوکوس و بدون متن) فعال نیست — همان باگی که سید
+     * گزارش کرد.
+     */
+    private fun isSearchFieldActive(signals: SectionSignals): Boolean {
+        return signals.searchFieldFocused || signals.searchFieldHasText
     }
 
     /** آیا یکی از منابع (عنوان/کلاس پنجره، متن‌ها، توضیح‌ها) مارکر را دارد؟ */
@@ -301,19 +385,28 @@ object SectionDetector {
         return signal
     }
 
-    /** جستجو: فیلد ویرایشی با hint جستجو، در یکی از پکیج‌های مجاز. */
+    /**
+     * جستجو: فیلد جستجو واقعاً فعال است (فوکوس یا متن تایپ‌شده)، در یکی
+     * از پکیج‌های مجاز. عنوان «Search» به‌تنهایی یا فیلدِ صرفاً دیده‌شده
+     * کافی نیست.
+     */
     private fun isSearchShowing(
         packageName: String,
         signals: SectionSignals,
         vararg packages: String,
     ): Boolean {
         if (!packages.contains(packageName)) return false
-        if (!signals.hasEditableTextField) return false
-        return containsMarker(signals.editableHint, SEARCH_MARKERS) ||
-            containsMarker(signals.windowTitle, SEARCH_MARKERS)
+        return isSearchFieldActive(signals)
     }
 
-    /** بخش فیدی (وضعیت/فید/خانه/ریلز...): مارکر هست و فیلد جستجو باز نیست. */
+    /**
+     * بخش فیدی (اکسپلور/ریلز/شورتس/وضعیت/فید/خانه/اسپات‌لایت): مارکر در
+     * عنوان/کلاس پنجره، یا در متن/توضیح گره‌ای که واقعاً انتخاب شده
+     * (تب فعال) — و فیلد جستجو فعال نیست. برچسب تب که فقط در درخت هست
+     * (مثلاً «Reels» در ناوبری پایین روی همه صفحه‌ها) به‌تنهایی بلاک
+     * نمی‌کند؛ اگر اپ وضعیت انتخاب را گزارش نکند، بخش fail-open
+     * می‌ماند (بلاک نمی‌شود).
+     */
     private fun isFeedShowing(
         packageName: String,
         signals: SectionSignals,
@@ -321,8 +414,11 @@ object SectionDetector {
         vararg packages: String,
     ): Boolean {
         if (!packages.contains(packageName)) return false
-        if (hasSearchFieldOpen(signals)) return false
-        return anySourceContains(signals, markers)
+        if (isSearchFieldActive(signals)) return false
+        return containsMarker(signals.windowTitle, markers) ||
+            containsMarker(signals.windowClassName, markers) ||
+            anyContains(signals.selectedTexts, markers) ||
+            anyContains(signals.selectedContentDescriptions, markers)
     }
 
     /** آیا بخش [sectionKey] از اپ [packageName] الان روی صفحه است؟ */
@@ -338,51 +434,30 @@ object SectionDetector {
                 return true
             }
             SECTION_TELEGRAM_SEARCH -> {
-                if (packageName != TELEGRAM_PACKAGE) return false
-                if (!signals.hasEditableTextField) return false
-                return containsMarker(signals.editableHint, SEARCH_MARKERS) ||
-                    containsMarker(signals.windowTitle, SEARCH_MARKERS)
+                return isSearchShowing(packageName, signals, TELEGRAM_PACKAGE)
             }
             SECTION_INSTAGRAM_APP -> {
                 if (packageName != INSTAGRAM_PACKAGE) return false
                 return true
             }
             SECTION_INSTAGRAM_SEARCH -> {
-                if (packageName != INSTAGRAM_PACKAGE) return false
-                if (!signals.hasEditableTextField) return false
-                return containsMarker(signals.editableHint, SEARCH_MARKERS) ||
-                    containsMarker(signals.windowTitle, SEARCH_MARKERS)
+                return isSearchShowing(packageName, signals, INSTAGRAM_PACKAGE)
             }
             SECTION_INSTAGRAM_EXPLORE -> {
-                if (packageName != INSTAGRAM_PACKAGE) return false
-                // صفحه جستجو فیلد ویرایشی دارد؛ اکسپلور ندارد.
-                if (signals.hasEditableTextField) return false
-                return containsMarker(signals.windowTitle, EXPLORE_MARKERS) ||
-                    containsMarker(signals.windowClassName, EXPLORE_MARKERS) ||
-                    anyContains(signals.texts, EXPLORE_MARKERS) ||
-                    anyContains(signals.contentDescriptions, EXPLORE_MARKERS)
+                return isFeedShowing(packageName, signals, EXPLORE_MARKERS, INSTAGRAM_PACKAGE)
             }
             SECTION_INSTAGRAM_REELS -> {
-                if (packageName != INSTAGRAM_PACKAGE) return false
-                // فیلد جستجوی باز یعنی صفحه جستجو است، نه ریلز.
-                if (hasSearchFieldOpen(signals)) return false
-                return anySourceContains(signals, REELS_MARKERS)
+                return isFeedShowing(packageName, signals, REELS_MARKERS, INSTAGRAM_PACKAGE)
             }
             SECTION_YOUTUBE_APP -> {
                 if (packageName != YOUTUBE_PACKAGE) return false
                 return true
             }
             SECTION_YOUTUBE_SEARCH -> {
-                if (packageName != YOUTUBE_PACKAGE) return false
-                if (!signals.hasEditableTextField) return false
-                return containsMarker(signals.editableHint, SEARCH_MARKERS) ||
-                    containsMarker(signals.windowTitle, SEARCH_MARKERS)
+                return isSearchShowing(packageName, signals, YOUTUBE_PACKAGE)
             }
             SECTION_YOUTUBE_SHORTS -> {
-                if (packageName != YOUTUBE_PACKAGE) return false
-                // فیلد جستجوی باز یعنی صفحه جستجو است، نه شورتس.
-                if (hasSearchFieldOpen(signals)) return false
-                return anySourceContains(signals, SHORTS_MARKERS)
+                return isFeedShowing(packageName, signals, SHORTS_MARKERS, YOUTUBE_PACKAGE)
             }
             SECTION_WHATSAPP_APP -> {
                 if (packageName != WHATSAPP_PACKAGE) return false
@@ -433,6 +508,17 @@ object SectionDetector {
             }
             SECTION_SNAPCHAT_SPOTLIGHT -> {
                 return isFeedShowing(packageName, signals, SPOTLIGHT_MARKERS, SNAPCHAT_PACKAGE)
+            }
+            SECTION_CHROME_APP -> {
+                if (packageName != CHROME_PACKAGE) return false
+                // کل اپ: خودِ پیش‌زمینه بودن کروم کافی است؛ سیگنالی لازم نیست.
+                return true
+            }
+            SECTION_CHROME_INCOGNITO -> {
+                if (packageName != CHROME_PACKAGE) return false
+                // بهترین تلاش: مارکر حالت خصوصی در یکی از منابع؛ اگر کروم
+                // آن را از طریق Accessibility نشان ندهد، fail-open می‌ماند.
+                return anySourceContains(signals, INCOGNITO_MARKERS)
             }
             SECTION_CUSTOM_APP -> {
                 // «خود اپ» دستی: پکیج از سطر قانون می‌آید و سرویس پیش‌تر

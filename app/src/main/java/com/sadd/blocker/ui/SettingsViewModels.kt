@@ -24,6 +24,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -295,27 +296,27 @@ data class PinUiState(
 data class ThemeUiState(
     val theme: AppTheme = AppTheme.DARK,
     val colorTheme: ColorTheme = ColorTheme.SADD,
-    /** دیالوگ بازگشایی Strict برای تغییر تم/رنگ‌بندی باز است. */
+    /**
+     * دیالوگ بازگشایی Strict برای تغییر تم/رنگ‌بندی — نگه داشته شده چون
+     * ThemePicker آن را می‌خواند؛ تغییر تم/رنگ‌بندی وسط سشن Strict آزاد
+     * است (بلاک را ضعیف نمی‌کند) و این دیالوگ دیگر هرگز باز نمی‌شود.
+     */
     val strictUnlockVisible: Boolean = false,
-    /** روش بازگشایی Strict (تایپ متن / انتظار) برای دیالوگ. */
+    /** روش بازگشایی Strict (تایپ متن / انتظار) برای دیالوگ — مثل بالا، نگه داشته شده. */
     val strictUnlockMethod: StrictUnlockMethod = StrictUnlockMethod.PASSAGE,
-    /** مدت انتظار بازگشایی Strict (ساعت) برای دیالوگ. */
+    /** مدت انتظار بازگشایی Strict (ساعت) برای دیالوگ — مثل بالا، نگه داشته شده. */
     val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
-    /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ. */
+    /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ — مثل بالا، نگه داشته شده. */
     val strictCooldownRequest: StrictCooldownRequest? = null,
 )
 
 @HiltViewModel
 class ThemeViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
-    sessionRepository: SessionRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ThemeUiState())
     val uiState: StateFlow<ThemeUiState> = _uiState.asStateFlow()
-    private val strictGuard = StrictSessionGuard(sessionRepository)
-    /** تغییر تم/رنگ‌بندیِ در انتظار بازگشایی Strict (فقط در حافظه). */
-    private var pendingSettingChange: StrictSettingChange? = null
 
     init {
         viewModelScope.launch {
@@ -343,105 +344,59 @@ class ThemeViewModel @Inject constructor(
                 _uiState.update { it.copy(strictCooldownRequest = request) }
             }
         }
+        // پاک‌سازی یک‌باره درخواست انتظارِ قدیمیِ «تغییر تم/رنگ‌بندی»:
+        // این تغییر دیگر گیت ندارد، پس درخواستِ ثبت‌شده قبل از این تغییر
+        // در ModesScreen به‌صورت کارت شمارش معکوسِ گیرکرده می‌ماند؛
+        // درخواستِ SETTING_CHANGE با کلید blockMode دست نمی‌خورد (هنوز گیت دارد).
+        viewModelScope.launch {
+            val request = settingsStore.strictCooldownRequest.firstOrNull()
+            val key = request
+                ?.takeIf { it.pendingKind == StrictPendingKind.SETTING_CHANGE }
+                ?.pendingSettingChange?.key
+            if (key == StrictSettingChange.KEY_THEME ||
+                key == StrictSettingChange.KEY_COLOR_THEME
+            ) {
+                settingsStore.clearStrictCooldownRequest()
+            }
+        }
     }
 
     /**
-     * تغییر تم (روشن/تیره/سیستمی). وسط سشن Strict فقط بعد از بازگشایی
-     * Strict (تایپ متن / انتظار) انجام می‌شود.
+     * تغییر تم (روشن/تیره/سیستمی) — همیشه مستقیم اعمال می‌شود.
+     * تم صرفاً ظاهری است و بلاک را ضعیف نمی‌کند، پس وسط سشن Strict هم
+     * آزاد است و نیازی به بازگشایی Strict ندارد.
      */
     fun setTheme(theme: AppTheme) {
         viewModelScope.launch {
             if (theme == _uiState.value.theme) return@launch
-            if (!strictGuard.isStrictSessionActive()) {
-                settingsStore.setTheme(theme)
-                return@launch
-            }
-            requestSettingChange(StrictSettingChange.theme(theme.name))
+            settingsStore.setTheme(theme)
         }
     }
 
-    /** تغییر رنگ‌بندی (گیت مثل [setTheme]). */
+    /** تغییر رنگ‌بندی — آزاد مثل [setTheme] (صرفاً ظاهری است). */
     fun setColorTheme(colorTheme: ColorTheme) {
         viewModelScope.launch {
             if (colorTheme == _uiState.value.colorTheme) return@launch
-            if (!strictGuard.isStrictSessionActive()) {
-                settingsStore.setColorTheme(colorTheme)
-                return@launch
-            }
-            requestSettingChange(StrictSettingChange.colorTheme(colorTheme.name))
+            settingsStore.setColorTheme(colorTheme)
         }
     }
 
-    /** درخواست تغییر تم/رنگ‌بندی وسط سشن Strict: دیالوگ بازگشایی باز می‌شود. */
-    private fun requestSettingChange(change: StrictSettingChange) {
-        pendingSettingChange = change
-        _uiState.update { it.copy(strictUnlockVisible = true) }
-    }
-
-    /** اعمال تغییر تم/رنگ‌بندی بعد از بازگشایی موفق در دیالوگ Strict. */
+    /**
+     * نگه داشته شده فقط برای سیم‌کشی دیالوگ در ThemePicker (که مال این
+     * فایل نیست)؛ تغییر تم/رنگ‌بندی دیگر بازگشایی نمی‌خواهد و دیالوگ
+     * هرگز باز نمی‌شود، پس این فقط دیالوگ را می‌بندد.
+     */
     fun confirmStrictUnlocked() {
-        viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            val state = _uiState.value
-            val change = pendingSettingChange
-                ?: state.strictCooldownRequest?.takeIf { it.pendingKind == StrictPendingKind.SETTING_CHANGE }?.pendingSettingChange
-                ?: return@launch
-            if (change.key != StrictSettingChange.KEY_THEME &&
-                change.key != StrictSettingChange.KEY_COLOR_THEME
-            ) return@launch
-            if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
-                val request = state.strictCooldownRequest
-                if (request == null || !StrictUnlock.isCooldownElapsed(request, now) ||
-                    request.pendingSettingChange != change
-                ) {
-                    if (request != null && request.pendingSettingChange != change) {
-                        pendingSettingChange = null
-                        _uiState.update { it.copy(strictUnlockVisible = false) }
-                    }
-                    return@launch
-                }
-                settingsStore.clearStrictCooldownRequest()
-            }
-            pendingSettingChange = null
-            _uiState.update { it.copy(strictUnlockVisible = false) }
-            applySettingChange(change)
-        }
-    }
-
-    /** ثبت درخواست انتظار برای تغییر تم/رنگ‌بندی (از دیالوگ بازگشایی). */
-    fun recordStrictCooldownRequest() {
-        val pending = pendingSettingChange ?: return
-        val existing = _uiState.value.strictCooldownRequest
-        // درخواست تکراری همان تغییر: ساعت از اول شمرده نمی‌شود.
-        if (existing?.pendingKind == StrictPendingKind.SETTING_CHANGE &&
-            existing.pendingSettingChange == pending
-        ) return
-        viewModelScope.launch {
-            settingsStore.recordStrictCooldownRequest(
-                kind = StrictPendingKind.SETTING_CHANGE,
-                value = StrictSettingChange.encode(pending),
-                durationHours = _uiState.value.strictCooldownHours,
-            )
-        }
-    }
-
-    fun cancelStrictUnlock() {
-        pendingSettingChange = null
         _uiState.update { it.copy(strictUnlockVisible = false) }
     }
 
-    /** اعمال تغییر تم/رنگ‌بندیِ بازگشایی‌شده (فقط کلیدهای مال این ViewModel). */
-    private suspend fun applySettingChange(change: StrictSettingChange) {
-        when (change.key) {
-            StrictSettingChange.KEY_THEME -> {
-                runCatching { AppTheme.valueOf(change.value) }
-                    .onSuccess { settingsStore.setTheme(it) }
-            }
-            StrictSettingChange.KEY_COLOR_THEME -> {
-                runCatching { ColorTheme.valueOf(change.value) }
-                    .onSuccess { settingsStore.setColorTheme(it) }
-            }
-        }
+    /** نگه داشته شده برای سیم‌کشی دیالوگ در ThemePicker؛ دیگر چیزی ثبت نمی‌شود. */
+    fun recordStrictCooldownRequest() {
+        // تغییر تم/رنگ‌بندی آزاد است؛ درخواستی برای ثبت وجود ندارد.
+    }
+
+    fun cancelStrictUnlock() {
+        _uiState.update { it.copy(strictUnlockVisible = false) }
     }
 }
 

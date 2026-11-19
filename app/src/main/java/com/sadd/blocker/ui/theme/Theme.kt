@@ -362,15 +362,43 @@ object SaddSpacing {
     val XLarge = 24.dp
 }
 
-/** شعاع نرم و بالشتی: کارت ۲۴dp، کارت hero ‏۲۸dp، دکمه ۲۸dp، چیپ ۸dp، دیالوگ ۲۴dp، فیلد متنی ۲۰dp. */
+/** شعاع نرم و بالشتی: کارت ۲۴dp، کارت hero ‏۲۸dp، دکمه ۲۸dp، چیپ ۸dp، دیالوگ ۲۸dp، فیلد متنی ۲۰dp. */
 object SaddRadius {
     val Card = 24.dp
     val Hero = 28.dp
     val Button = 28.dp
     val Chip = 8.dp
-    val Dialog = 24.dp
+    val Dialog = 28.dp
     val TextField = 20.dp
 }
+
+/**
+ * توکن‌های شیشه‌ای («سد» — دکمه‌ها و دیالوگ‌های نرم‌تر):
+ * - ظرف دیالوگ: surface با آلفای ۰٫۹۲ — پس‌زمینه کمی از پشت دیده می‌شود،
+ *   ولی متن با آلفای ۱۰۰٪ خوانا می‌ماند (کنتراست روی surface تیره/روشن
+ *   همه ۶ پالت حفظ می‌شود، چون فقط ۸٪ شفافیت اضافه می‌شود).
+ * - دکمه اصلی: primary با آلفای ۰٫۸۵ — روی پس‌زمینه سرمه‌ای/روشن هنوز
+ *   onPrimary با کنتراست کامل خواناست.
+ * - حاشیه: ۱dp از onSurface با آلفای ۰٫۱۲ — در تم تیره روشن و در تم
+ *   روشن تیره دیده می‌شود، در هر ۶ پالت.
+ * این‌ها فقط توکن‌اند؛ اعمال‌شان در کامپوننت‌های مشترک (Common.kt) است.
+ */
+object SaddGlass {
+    val DialogContainerAlpha = 0.92f
+    val ButtonContainerAlpha = 0.85f
+    val BorderAlpha = 0.12f
+    val BorderWidth = 1.dp
+}
+
+/** رنگ حاشیه شیشه‌ای: onSurface با آلفای کم — در تیره روشن، در روشن تیره. */
+@Composable
+fun saddGlassBorderColor(): Color =
+    MaterialTheme.colorScheme.onSurface.copy(alpha = SaddGlass.BorderAlpha)
+
+/** رنگ ظرف دیالوگ شیشه‌ای: surface با آلفای ۰٫۹۲. */
+@Composable
+fun saddGlassDialogContainerColor(): Color =
+    MaterialTheme.colorScheme.surface.copy(alpha = SaddGlass.DialogContainerAlpha)
 
 private val SaddShapes = Shapes(
     extraSmall = RoundedCornerShape(SaddRadius.Chip),

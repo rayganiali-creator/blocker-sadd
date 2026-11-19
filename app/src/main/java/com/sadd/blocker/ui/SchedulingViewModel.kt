@@ -6,7 +6,6 @@ import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
-import com.sadd.blocker.domain.StrictScheduleAdd
 import com.sadd.blocker.domain.StrictUnlock
 import com.sadd.blocker.domain.StrictUnlockMethod
 import com.sadd.blocker.domain.TimeFormat
@@ -18,6 +17,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -53,8 +53,6 @@ class SchedulingViewModel @Inject constructor(
     private var lastRemoved: Schedule? = null
     /** تغییر قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
     private var pendingStrictRuleChange: StrictRuleChange? = null
-    /** افزودن زمان‌بندیِ در انتظار بازگشایی Strict (فقط در حافظه). */
-    private var pendingScheduleAdd: StrictScheduleAdd? = null
 
     init {
         viewModelScope.launch {
@@ -75,6 +73,16 @@ class SchedulingViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.strictCooldownRequest.collect { request ->
                 _uiState.update { it.copy(strictCooldownRequest = request) }
+            }
+        }
+        // پاک‌سازی یک‌باره درخواست انتظارِ قدیمیِ «افزودن زمان‌بندی»:
+        // افزودن زمان‌بندی دیگر گیت ندارد، پس درخواستِ ثبت‌شده قبل از
+        // این تغییر در ModesScreen به‌صورت کارت شمارش معکوسِ گیرکرده
+        // می‌ماند؛ درخواست RULE_CHANGE دست نمی‌خورد (هنوز گیت دارد).
+        viewModelScope.launch {
+            val request = settingsStore.strictCooldownRequest.firstOrNull()
+            if (request?.pendingKind == StrictPendingKind.SCHEDULE_ADD) {
+                settingsStore.clearStrictCooldownRequest()
             }
         }
     }
@@ -105,13 +113,12 @@ class SchedulingViewModel @Inject constructor(
                 _uiState.update { it.copy(message = "این زمان‌بندی قبلاً ثبت شده است.") }
                 return@launch
             }
-            // وسط سشن Strict، افزودن زمان‌بندی هم تغییر است و فقط بعد از
-            // بازگشایی Strict (تایپ متن / انتظار) انجام می‌شود.
-            if (strictGuard.isStrictSessionActive()) {
-                pendingScheduleAdd = StrictScheduleAdd(days, start, end, strict)
-                _uiState.update { it.copy(strictUnlockVisible = true) }
-                return@launch
-            }
+            // افزودن زمان‌بندی همیشه آزاد است، حتی وسط سشن Strict:
+            // زمان‌بندی‌ها فعلاً فقط ذخیره و نمایش داده می‌شوند (اجرای
+            // خودکار با WorkManager در فاز ۵ وصل می‌شود) و افزودنِ یکی
+            // نه سشن فعلی را کوتاه/تمام می‌کند و نه بلاک را ضعیف می‌کند؛
+            // در آینده هم زمان‌بندی فقط سشن شروع می‌کند، نه پایان می‌دهد.
+            // (غیرفعال/حذف زمان‌بندی فعال هنوز گیت Strict دارد — H-2.)
             repository.add(
                 Schedule(
                     daysOfWeek = days,
@@ -166,41 +173,14 @@ class SchedulingViewModel @Inject constructor(
     }
 
     /**
-     * اعمال تغییر قانون یا افزودن زمان‌بندی بعد از بازگشایی موفق در دیالوگ.
+     * اعمال تغییر قانون بعد از بازگشایی موفق در دیالوگ.
      * در روش انتظار، درخواست باید برای همین کار ثبت شده و کامل گذشته باشد.
+     * (افزودن زمان‌بندی دیگر از این مسیر نمی‌گذرد؛ آزاد است.)
      */
     fun confirmStrictUnlocked() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val state = _uiState.value
-            val add = pendingScheduleAdd
-                ?: state.strictCooldownRequest?.takeIf { it.pendingKind == StrictPendingKind.SCHEDULE_ADD }?.pendingScheduleAdd
-            if (add != null) {
-                if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
-                    val request = state.strictCooldownRequest
-                    if (request == null || !StrictUnlock.isCooldownElapsed(request, now) ||
-                        request.pendingScheduleAdd != add
-                    ) {
-                        if (request != null && request.pendingScheduleAdd != add) {
-                            pendingScheduleAdd = null
-                            _uiState.update {
-                                it.copy(
-                                    strictUnlockVisible = false,
-                                    message = "این انتظار برای کار دیگری ثبت شده است؛ برای این زمان‌بندی دوباره درخواست بده.",
-                                )
-                            }
-                        }
-                        return@launch
-                    }
-                }
-                pendingScheduleAdd = null
-                _uiState.update { it.copy(strictUnlockVisible = false) }
-                if (state.strictCooldownRequest?.pendingKind == StrictPendingKind.SCHEDULE_ADD) {
-                    settingsStore.clearStrictCooldownRequest()
-                }
-                applyScheduleAdd(add)
-                return@launch
-            }
             val change = pendingStrictRuleChange
                 ?: state.strictCooldownRequest?.takeIf { it.pendingKind == StrictPendingKind.RULE_CHANGE }?.pendingRuleChange
             if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
@@ -230,24 +210,8 @@ class SchedulingViewModel @Inject constructor(
         }
     }
 
-    /** ثبت درخواست انتظار برای تغییر قانون یا افزودن زمان‌بندی (از دیالوگ بازگشایی). */
+    /** ثبت درخواست انتظار برای تغییر قانون (از دیالوگ بازگشایی). */
     fun recordStrictCooldownRequest() {
-        val add = pendingScheduleAdd
-        if (add != null) {
-            val existing = _uiState.value.strictCooldownRequest
-            // درخواست تکراری همان افزودن: ساعت از اول شمرده نمی‌شود.
-            if (existing?.pendingKind == StrictPendingKind.SCHEDULE_ADD &&
-                existing.pendingScheduleAdd == add
-            ) return
-            viewModelScope.launch {
-                settingsStore.recordStrictCooldownRequest(
-                    kind = StrictPendingKind.SCHEDULE_ADD,
-                    value = StrictScheduleAdd.encode(add),
-                    durationHours = _uiState.value.strictCooldownHours,
-                )
-            }
-            return
-        }
         val pending = pendingStrictRuleChange ?: return
         val existing = _uiState.value.strictCooldownRequest
         // درخواست تکراری همان تغییر: ساعت از اول شمرده نمی‌شود.
@@ -265,29 +229,7 @@ class SchedulingViewModel @Inject constructor(
 
     fun cancelStrictUnlock() {
         pendingStrictRuleChange = null
-        pendingScheduleAdd = null
         _uiState.update { it.copy(strictUnlockVisible = false) }
-    }
-
-    /** افزودن زمان‌بندیِ بازگشایی‌شده. */
-    private suspend fun applyScheduleAdd(add: StrictScheduleAdd) {
-        repository.add(
-            Schedule(
-                daysOfWeek = add.daysOfWeek,
-                startMinute = add.startMinute,
-                endMinute = add.endMinute,
-                strict = add.strict,
-            ),
-        )
-        _uiState.update {
-            it.copy(
-                message = if (add.endMinute < add.startMinute) {
-                    "زمان‌بندی شبانه اضافه شد (تا روز بعد ادامه دارد)."
-                } else {
-                    "زمان‌بندی اضافه شد."
-                },
-            )
-        }
     }
 
     /** اعمال تغییر قانونِ بازگشایی‌شده (فقط scope همین صفحه). */

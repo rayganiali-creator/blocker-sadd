@@ -49,6 +49,8 @@ data class SectionRulesUiState(
  * «خود اپ» (قطعی، تطابق پکیج) یا یک بخش سفارشی با متن نشانه (بهترین تلاش).
  * مثل بقیه صفحه‌های قوانین، در سشن Strict فعال نمی‌توان قانون فعال را
  * غیرفعال کرد (H-2) و نمی‌توان قانون جدید اضافه کرد — مگر بعد از بازگشایی Strict.
+ * قانون‌های دستی کاربر («خود اپ» و بخش سفارشی) را می‌توان حذف کرد؛
+ * حذف قانون فعال در سشن Strict هم همان گیت بازگشایی را دارد.
  */
 @HiltViewModel
 class SectionRulesViewModel @Inject constructor(
@@ -61,6 +63,7 @@ class SectionRulesViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SectionRulesUiState())
     val uiState: StateFlow<SectionRulesUiState> = _uiState.asStateFlow()
     private val strictGuard = StrictSessionGuard(sessionRepository)
+    private var lastRemoved: SectionRule? = null
     /** تغییر قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
     private var pendingStrictRuleChange: StrictRuleChange? = null
     /** افزودن قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
@@ -209,6 +212,63 @@ class SectionRulesViewModel @Inject constructor(
         }
     }
 
+    /**
+     * حذف یک قانون بخش دستی («خود اپ» یا بخش سفارشی)؛ پیش‌فرض‌ها از
+     * UI صدا زده نمی‌شوند.
+     *
+     * رفتار بخش‌های باقی‌مانده بعد از حذف «خود اپ»: هیچ قانون یتیمی
+     * به‌جای کل اپ بلاک نمی‌کند — سرویس (BlockAccessibilityService)
+     * اول قانون «کل اپ» را چک می‌کند و اگر نباشد، هر قانون بخش را
+     * جداگانه روی نشانه خودش می‌سنجد؛ پس بخش‌های همان پکیج فقط روی
+     * نشانه خودشان کار می‌کنند، نه روی کل اپ.
+     */
+    fun removeSectionRule(packageName: String, sectionKey: String) {
+        viewModelScope.launch {
+            val current = _uiState.value.rules.firstOrNull {
+                it.packageName == packageName && it.sectionKey == sectionKey
+            }
+            // H-2: در سشن Strict نمی‌توان قانون فعال را حذف کرد —
+            // مگر بعد از بازگشایی Strict (تایپ متن / انتظار).
+            // دقیقاً همان الگوی AppsViewModel.remove.
+            if (current?.enabled == true && strictGuard.isStrictSessionActive()) {
+                requestStrictUnlock(
+                    StrictRuleChange.remove(
+                        StrictRuleChange.SCOPE_SECTION,
+                        "$packageName#$sectionKey",
+                    ),
+                )
+                return@launch
+            }
+            applyRemoveSectionRule(current, packageName, sectionKey)
+        }
+    }
+
+    /** حذف واقعی قانون بخش (مسیر آزاد و مسیر بعد از بازگشایی Strict). */
+    private suspend fun applyRemoveSectionRule(
+        rule: SectionRule?,
+        packageName: String,
+        sectionKey: String,
+    ) {
+        lastRemoved = rule
+        repository.remove(packageName, sectionKey)
+        // پیام باید به «حذف شد.» ختم شود تا اسنک‌بار دکمه «بازگردانی» نشان دهد.
+        _uiState.update { it.copy(message = "«${rule?.labelFa ?: sectionKey}» حذف شد.") }
+    }
+
+    /** بازگردانی آخرین بخش حذف‌شده (مثل undoRemove در AppsViewModel). */
+    fun undoRemove() {
+        viewModelScope.launch {
+            val removed = lastRemoved ?: return@launch
+            lastRemoved = null
+            repository.addRule(removed.packageName, removed.sectionKey, removed.labelFa)
+            // addRule همیشه با enabled=true درج می‌کند؛ وضعیت قبلی را برگردان.
+            if (!removed.enabled) {
+                repository.setEnabled(removed.packageName, removed.sectionKey, false)
+            }
+            _uiState.update { it.copy(message = "«${removed.labelFa}» برگردانده شد.") }
+        }
+    }
+
     /** درخواست بازگشایی Strict برای یک تغییر قانون (دیالوگ باز می‌شود). */
     private fun requestStrictUnlock(change: StrictRuleChange) {
         pendingStrictRuleChange = change
@@ -342,10 +402,19 @@ class SectionRulesViewModel @Inject constructor(
     /** اعمال تغییر قانونِ بازگشایی‌شده (فقط scope همین صفحه). */
     private suspend fun applyStrictRuleChange(change: StrictRuleChange) {
         if (change.scope != StrictRuleChange.SCOPE_SECTION) return
-        if (change.action != StrictRuleChange.ACTION_TOGGLE) return
         val parts = change.id.split("#")
         if (parts.size != 2) return
-        repository.setEnabled(parts[0], parts[1], change.value.toBooleanStrictOrNull() ?: return)
+        when (change.action) {
+            StrictRuleChange.ACTION_TOGGLE -> {
+                repository.setEnabled(parts[0], parts[1], change.value.toBooleanStrictOrNull() ?: return)
+            }
+            StrictRuleChange.ACTION_REMOVE -> {
+                val current = _uiState.value.rules.firstOrNull {
+                    it.packageName == parts[0] && it.sectionKey == parts[1]
+                }
+                applyRemoveSectionRule(current, parts[0], parts[1])
+            }
+        }
     }
 
     fun dismissMessage() {

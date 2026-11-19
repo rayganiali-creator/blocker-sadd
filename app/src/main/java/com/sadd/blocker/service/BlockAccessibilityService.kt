@@ -42,20 +42,26 @@ import javax.inject.Inject
  *    خوانده می‌شود؛ اگر کلمه‌ای whole-word مچ شود، بعد از تاخیر قانون،
  *    همان کلمه از فیلد حذف می‌شود (ACTION_SET_TEXT؛ اگر نشد backspace)
  *    و صفحه بلاک نشان داده می‌شود.
- * 2. بخش‌های اپ: روی تغییر پنجره، اگر بخش فعالِ قانون (کل تلگرام/
- *    اینستاگرام/یوتیوب/واتساپ/تیک‌تاک/ایکس/فیسبوک/اسنپ‌چت، جستجوی
- *    هر کدام، اکسپلور و ریلز اینستاگرام، شورتس یوتیوب، وضعیت واتساپ،
- *    For You تیک‌تاک، خانه ایکس، ریلز و واچ فیسبوک، اسپات‌لایت
- *    اسنپ‌چت، یا «خود اپ»/بخش سفارشی هر اپ نصب‌شده) روی صفحه باشد،
- *    بعد از تاخیر سراسری BACK زده می‌شود و صفحه بلاک می‌آید.
+ * 2. بخش‌های اپ: روی تغییر پنجره/محتوا/کلیک، اگر بخش فعالِ قانون روی
+ *    صفحه باشد، بعد از تاخیر سراسری BACK زده می‌شود و صفحه بلاک
+ *    می‌آید. بخش فقط وقتی «روی صفحه» است که کاربر واقعاً وارد آن شده
+ *    باشد، نه صرف اینکه عنصرش در درخت دیده شود: جستجو فقط با فیلد
+ *    جستجوی واقعاً فعال (فوکوس یا متن تایپ‌شده — تایپ در فیلد جستجو
+ *    هم از مسیر TYPE_VIEW_TEXT_CHANGED ارزیابی می‌شود) و فید فقط با
+ *    تب واقعاً انتخاب‌شده یا عنوان/کلاس پنجره. «کل اپ» (تلگرام/
+ *    اینستاگرام/یوتیوب/واتساپ/تیک‌تاک/ایکس/فیسبوک/اسنپ‌چت/کروم، یا
+ *    «خود اپ» هر اپ نصب‌شده) فقط تطابق پکیج می‌خواهد و بقیه بخش‌های
+ *    همان اپ را دربر می‌گیرد. مرورگرها هم قانون بخش دارند (خود کروم،
+ *    Incognito) و در evaluateWindow جدا از omnibox ارزیابی می‌شوند.
  *    «کل اپ» بقیه بخش‌های همان اپ را دربر می‌گیرد: اگر مچ شد،
  *    بخش‌های دیگر آن اپ همان دور رد می‌شوند تا دو BACK پشت سر هم
  *    زمان‌بندی نشود.
  * 3. مرورگر (کروم، فایرفاکس، سامسونگ اینترنت، اج، Brave): متن
  *    omnibox/جعبه جستجو خوانده می‌شود؛ دامنه بلاک‌شده یا کلمه
- *    ممنوعه → بعد از تاخیر BACK + صفحه بلاک. حالت Incognito نیازی
- *    به تشخیص جدا ندارد — متن نوار آدرس در تب خصوصی هم از همان
- *    مسیر خوانده می‌شود.
+ *    ممنوعه → بعد از تاخیر BACK + صفحه بلاک. بلاک دامنه/کلمه در تب
+ *    خصوصی به تشخیص Incognito وابسته نیست — متن نوار آدرس در تب
+ *    خصوصی هم از همان مسیر خوانده می‌شود؛ قانون بخش Incognito
+ *    کروم جداگانه از مسیر بخش ارزیابی می‌شود (بهترین تلاش).
  *
  * اصول سفت (از نسخه ۲٫۰٫۱۰):
  * - همه‌چیز داخل try/catch؛ خطا هرگز گوشی را قفل نمی‌کند (fail-open).
@@ -195,11 +201,29 @@ class BlockAccessibilityService : AccessibilityService() {
             if (type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
                 val text = readEventText(event)
                 if (text.isBlank()) return
+                // سیگنال بخشِ تایپ‌شده هم‌زمان با خواندن متن گرفته می‌شود:
+                // رویداد بعد از بازگشت از این callback بازیافت می‌شود، پس
+                // گره منبع را نمی‌توان به کوروتین سپرد.
+                val typedSectionSignals = readTextChangedSectionSignals(event)
                 scope.launch {
                     try {
                         evaluateText(foregroundPkg, text)
                     } catch (_: Exception) {
                         // fail-open
+                    }
+                }
+                // تایپ در فیلد جستجو، خودش شاهد فعال‌سازی بخش جستجو است:
+                // بدون این مسیر، تایپ کردن هرگز رویداد پنجره نمی‌سازد و
+                // بخش جستجو فقط با فوکوس (کلیک) دیده می‌شد. مرورگرها
+                // از این مسیر بیرون‌اند — تایپ در omnibox کروم از مسیر
+                // دامنه/کلمه می‌گذرد و «خود کروم» نباید با تایپ بلاک شود.
+                if (typedSectionSignals != null && !SectionDetector.isBrowserPackage(foregroundPkg)) {
+                    scope.launch {
+                        try {
+                            evaluateTypedSection(foregroundPkg, typedSectionSignals)
+                        } catch (_: Exception) {
+                            // fail-open
+                        }
                     }
                 }
             } else {
@@ -277,6 +301,57 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * سیگنال بخش از گره منبع رویداد تایپ: فقط وقتی گره، فیلد ویرایشی با
+     * hint جستجو و متن غیرخالی است، سیگنال برمی‌گردد؛ وگرنه null (تایپ
+     * در چت/کامنت/متن عادی، شاهد ورود به جستجو نیست). گره همین‌جا
+     * بازیافت می‌شود؛ رویداد بعد از callback بازیافت می‌شود و نمی‌توان
+     * آن را به کوروتین سپرد.
+     */
+    private fun readTextChangedSectionSignals(
+        event: AccessibilityEvent,
+    ): SectionDetector.SectionSignals? {
+        val source = try {
+            event.source
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        try {
+            if (!source.isEditable) return null
+            val hint = try {
+                source.hintText?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            if (!SectionDetector.isSearchHint(hint)) return null
+            val text = try {
+                source.text?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            if (text.isNullOrBlank()) return null
+            val focused = try {
+                source.isFocused || source.isAccessibilityFocused
+            } catch (_: Exception) {
+                false
+            }
+            return SectionDetector.SectionSignals(
+                hasEditableTextField = true,
+                editableHint = hint,
+                searchFieldFocused = focused,
+                searchFieldHasText = true,
+            )
+        } catch (_: Exception) {
+            return null
+        } finally {
+            try {
+                source.recycle()
+            } catch (_: Exception) {
+                // نادیده
+            }
+        }
+    }
+
     // ---------- عکس لحظه‌ای ----------
 
     private suspend fun loadSnapshot(forceRefresh: Boolean): Snapshot {
@@ -336,6 +411,34 @@ class BlockAccessibilityService : AccessibilityService() {
             delaySeconds = delaySeconds,
         ) {
             actOnKeyword(packageName, rule, delaySeconds, snapshot.strict)
+        }
+    }
+
+    /**
+     * بخش جستجو روی تایپ: کاربر دارد در فیلد جستجو تایپ می‌کند، پس بخش
+     * جستجو فعال است — حتی اگر هیچ رویداد پنجره‌ای نیامده باشد. فقط
+     * قانون‌های جستجوی همان پکیج چک می‌شوند («کل اپ» و فید و بخش
+     * سفارشی از این مسیر نمی‌گذرند). راستی‌آزمایی دوباره در actOnSection
+     * از درخت تازه می‌خواند: اگر فیلد تا موقع اجرا خالی شده باشد، بلاک
+     * لغو می‌شود.
+     */
+    private suspend fun evaluateTypedSection(
+        packageName: String,
+        signals: SectionDetector.SectionSignals,
+    ) {
+        val snapshot = loadSnapshot(forceRefresh = false)
+        if (!snapshot.sessionActive) return
+        for (rule in snapshot.sections) {
+            if (rule.packageName != packageName) continue
+            if (!SectionDetector.isSearchSection(rule.sectionKey)) continue
+            if (!SectionDetector.isSectionShowing(packageName, rule.sectionKey, signals)) continue
+            val delaySeconds = snapshot.globalDelaySeconds
+            scheduleBlock(
+                key = "section:$packageName:${rule.sectionKey}",
+                delaySeconds = delaySeconds,
+            ) {
+                actOnSection(packageName, rule, delaySeconds, snapshot.strict)
+            }
         }
     }
 
@@ -506,12 +609,29 @@ class BlockAccessibilityService : AccessibilityService() {
         val root = activeRootOrNull() ?: return
         val signals = collectSignals(root, windowClassName)
         if (SectionDetector.isBrowserPackage(packageName)) {
+            // پیش‌تر همه پکیج‌های مرورگر فقط به evaluateBrowserWindow
+            // می‌رفتند و قانون بخش (خود کروم، Incognito) هرگز ارزیابی
+            // نمی‌شد؛ حالا بخش‌های مرورگر هم چک می‌شوند و بعد omnibox
+            // (دامنه/کلمه) مثل قبل خوانده می‌شود.
+            evaluateSectionRules(packageName, signals, windowClassName, snapshot)
             evaluateBrowserWindow(packageName, signals, snapshot)
             return
         }
-        // «کل اپ» بقیه بخش‌های همان اپ را دربر می‌گیرد: اگر مچ شد، فقط
-        // همان یک بلاک زمان‌بندی می‌شود (یک BACK، نه چند BACK پشت سر هم).
-        // جدا از ترتیب لیست قوانین چک می‌شود تا وابسته به ORDER BY نباشد.
+        evaluateSectionRules(packageName, signals, windowClassName, snapshot)
+    }
+
+    /**
+     * قانون‌های بخش یک پکیج روی سیگنال‌های پنجره فعلی.
+     * «کل اپ» بقیه بخش‌های همان اپ را دربر می‌گیرد: اگر مچ شد، فقط
+     * همان یک بلاک زمان‌بندی می‌شود (یک BACK، نه چند BACK پشت سر هم).
+     * جدا از ترتیب لیست قوانین چک می‌شود تا وابسته به ORDER BY نباشد.
+     */
+    private suspend fun evaluateSectionRules(
+        packageName: String,
+        signals: SectionDetector.SectionSignals,
+        windowClassName: String?,
+        snapshot: Snapshot,
+    ) {
         val wholeAppRule = snapshot.sections.firstOrNull { rule ->
             rule.packageName == packageName &&
                 SectionDetector.isWholeAppSection(rule.sectionKey) &&
@@ -522,7 +642,7 @@ class BlockAccessibilityService : AccessibilityService() {
                 key = "section:$packageName:${wholeAppRule.sectionKey}",
                 delaySeconds = snapshot.globalDelaySeconds,
             ) {
-                actOnSection(packageName, wholeAppRule, snapshot.globalDelaySeconds, snapshot.strict)
+                actOnSection(packageName, wholeAppRule, snapshot.globalDelaySeconds, snapshot.strict, windowClassName)
             }
             return
         }
@@ -534,7 +654,7 @@ class BlockAccessibilityService : AccessibilityService() {
                 key = "section:$packageName:${rule.sectionKey}",
                 delaySeconds = delaySeconds,
             ) {
-                actOnSection(packageName, rule, delaySeconds, snapshot.strict)
+                actOnSection(packageName, rule, delaySeconds, snapshot.strict, windowClassName)
             }
         }
     }
@@ -635,6 +755,7 @@ class BlockAccessibilityService : AccessibilityService() {
         rule: SectionRule,
         delaySeconds: Int,
         strict: Boolean,
+        windowClassName: String? = null,
     ): Boolean {
         val root = activeRootOrNull() ?: return false
         try {
@@ -648,8 +769,11 @@ class BlockAccessibilityService : AccessibilityService() {
                 null
             }
             if (currentPkg != packageName) return false
-            // راستی‌آزمایی دوباره: بخش هنوز روی صفحه است؟
-            val signals = collectSignals(root, null)
+            // راستی‌آزمایی دوباره: بخش هنوز روی صفحه است؟ کلاس پنجره از
+            // لحظه زمان‌بندی نگه داشته می‌شود تا بخشی که فقط با کلاس
+            // پنجره مچ شده بود (مثلاً فید با کلاس اکتیویتی) در این چک
+            // با کلاس null رد نشود.
+            val signals = collectSignals(root, windowClassName)
             if (!SectionDetector.isSectionShowing(packageName, rule.sectionKey, signals)) return false
             performGlobalAction(GLOBAL_ACTION_BACK)
             logBlock(
@@ -738,7 +862,19 @@ class BlockAccessibilityService : AccessibilityService() {
         return null
     }
 
-    /** جمع‌آوری سیگنال‌های بخش از درخت پنجره (متن‌ها، توضیح‌ها، فیلد ویرایشی). */
+    /**
+     * جمع‌آوری سیگنال‌های بخش از درخت پنجره.
+     *
+     * علاوه بر متن‌ها/توضیح‌ها/فیلد ویرایشی، شواهد فعال‌سازی هم جمع
+     * می‌شود — بخش فقط با همین شواهد بلاک می‌شود، نه با صرفِ دیده شدن:
+     * - فیلد جستجو واقعاً فعال است؟ فیلد ویرایشی با hint جستجو که فوکوس
+     *   دارد (isFocused یا isAccessibilityFocused) یا متن تایپ‌شده
+     *   (غیرخالی) دارد. نوار جستجوی بالای صفحه اصلی (بدون فوکوس، خالی)
+     *   هیچ‌کدام را true نمی‌کند.
+     * - کدام گره‌ها واقعاً انتخاب/چک شده‌اند؟ متن/توضیح آن‌ها جدا نگه
+     *   داشته می‌شود تا برچسب تبِ صرفاً دیده‌شده (روی همه صفحه‌ها)
+     *   فید را بلاک نکند.
+     */
     private fun collectSignals(
         root: AccessibilityNodeInfo,
         windowClassName: String?,
@@ -746,8 +882,12 @@ class BlockAccessibilityService : AccessibilityService() {
         val texts = ArrayList<String>()
         val descriptions = ArrayList<String>()
         val editableTexts = ArrayList<String>()
+        val selectedTexts = ArrayList<String>()
+        val selectedDescriptions = ArrayList<String>()
         var hasEditable = false
         var hint: String? = null
+        var searchFieldFocused = false
+        var searchFieldHasText = false
         val stack = ArrayDeque<AccessibilityNodeInfo>()
         stack.add(root)
         var visited = 0
@@ -756,14 +896,37 @@ class BlockAccessibilityService : AccessibilityService() {
                 val node = stack.removeFirst()
                 visited++
                 try {
-                    node.text?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
-                    node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let {
-                        descriptions.add(it)
+                    val nodeText = node.text?.toString()?.takeIf { it.isNotBlank() }
+                    nodeText?.let { texts.add(it) }
+                    val nodeDesc = node.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+                    nodeDesc?.let { descriptions.add(it) }
+                    try {
+                        if (node.isSelected || node.isChecked) {
+                            nodeText?.let { selectedTexts.add(it) }
+                            nodeDesc?.let { selectedDescriptions.add(it) }
+                        }
+                    } catch (_: Exception) {
+                        // نادیده
                     }
                     if (node.isEditable) {
                         hasEditable = true
                         node.text?.toString()?.let { editableTexts.add(it) }
-                        if (hint == null) hint = node.hintText?.toString()
+                        val nodeHint = try {
+                            node.hintText?.toString()
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (hint == null) hint = nodeHint
+                        if (SectionDetector.isSearchHint(nodeHint)) {
+                            try {
+                                if (node.isFocused || node.isAccessibilityFocused) {
+                                    searchFieldFocused = true
+                                }
+                            } catch (_: Exception) {
+                                // نادیده
+                            }
+                            if (!node.text.isNullOrBlank()) searchFieldHasText = true
+                        }
                     }
                     for (i in 0 until node.childCount) {
                         try {
@@ -801,6 +964,10 @@ class BlockAccessibilityService : AccessibilityService() {
             hasEditableTextField = hasEditable,
             editableHint = hint,
             editableTexts = editableTexts,
+            searchFieldFocused = searchFieldFocused,
+            searchFieldHasText = searchFieldHasText,
+            selectedTexts = selectedTexts,
+            selectedContentDescriptions = selectedDescriptions,
         )
     }
 

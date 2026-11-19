@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -43,6 +47,8 @@ import com.sadd.blocker.ui.theme.SaddSpacing
  * تایم‌لاین خانه چون برچسب‌شان در ناوبری و صفحه اصلی هم هست، ممکن
  * است بیش‌ازحد یا کم‌بلاک کنند. هر اپ نصب‌شده دیگری را هم می‌توان
  * اضافه کرد: «خود اپ» (قطعی) یا بخش سفارشی با متن نشانه (بهترین تلاش).
+ * قانون‌های دستی کاربر («خود اپ» و بخش سفارشی) آیکون سطل زباله دارند و
+ * با تایید حذف می‌شوند؛ پیش‌فرض‌های ۲۷ بخش دکمه حذف ندارند.
  */
 @Composable
 fun SectionRulesScreen(
@@ -62,6 +68,8 @@ fun SectionRulesScreen(
     var addWholeApp by rememberSaveable { mutableStateOf(true) }
     var customName by rememberSaveable { mutableStateOf("") }
     var customSignal by rememberSaveable { mutableStateOf("") }
+    /** قانون در انتظار تایید حذف، به‌صورت "packageName#sectionKey". */
+    var pendingDelete by rememberSaveable { mutableStateOf<String?>(null) }
 
     if (uiState.strictUnlockVisible) {
         StrictUnlockDialog(
@@ -74,10 +82,31 @@ fun SectionRulesScreen(
         )
     }
 
+    if (pendingDelete != null) {
+        val parts = pendingDelete!!.split("#")
+        val target = if (parts.size == 2) {
+            uiState.rules.firstOrNull { it.packageName == parts[0] && it.sectionKey == parts[1] }
+        } else {
+            null
+        }
+        SaddDialog(
+            title = "حذف بخش",
+            text = "«${target?.labelFa ?: pendingDelete}» حذف شود؟",
+            confirmText = "حذف",
+            onConfirm = {
+                if (parts.size == 2) {
+                    viewModel.removeSectionRule(parts[0], parts[1])
+                }
+                pendingDelete = null
+            },
+            onDismiss = { pendingDelete = null },
+        )
+    }
+
     MessageSnackbarEffect(
         message = uiState.message,
         snackbarHostState = snackbarHostState,
-        onUndo = {},
+        onUndo = { viewModel.undoRemove() },
         onDismiss = { viewModel.dismissMessage() },
     )
 
@@ -144,15 +173,26 @@ fun SectionRulesScreen(
                 val ordered = rules.sortedBy { rule -> presetOrder(rule.sectionKey) }
                 items(ordered, key = { it.packageName + "/" + it.sectionKey }) { rule ->
                     SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        SaddSwitchRow(
-                            label = rule.labelFa,
-                            description = sectionDescription(rule.sectionKey),
-                            checked = rule.enabled,
-                            onCheckedChange = {
-                                viewModel.setEnabled(rule.packageName, rule.sectionKey, it)
-                            },
-                            modifier = Modifier.padding(SaddSpacing.Medium),
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SaddSwitchRow(
+                                label = rule.labelFa,
+                                description = sectionDescription(rule.sectionKey),
+                                checked = rule.enabled,
+                                onCheckedChange = {
+                                    viewModel.setEnabled(rule.packageName, rule.sectionKey, it)
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                            // فقط قانون دستی کاربر دکمه حذف دارد؛ پیش‌فرض‌ها نه.
+                            if (isUserAddedRule(rule.sectionKey)) {
+                                IconButton(onClick = { pendingDelete = "${rule.packageName}#${rule.sectionKey}" }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "حذف بخش")
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -295,9 +335,18 @@ private fun appLabelFa(packageName: String, installedLabels: Map<String, String>
     }
 }
 
+/**
+ * قانون دستی کاربر است یا پیش‌فرض؟ فقط دستی‌ها («خود اپ» با کلید
+ * custom_app و بخش سفارشی با کلید custom:…) دکمه حذف می‌گیرند؛
+ * ۲۷ پیش‌فرض داخلی کلید ثابت دارند و حذف نمی‌شوند.
+ */
+private fun isUserAddedRule(sectionKey: String): Boolean {
+    return sectionKey == SectionDetector.SECTION_CUSTOM_APP ||
+        SectionDetector.isCustomSectionKey(sectionKey)
+}
+
 /** ترتیب نمایش بخش‌ها = ترتیب SectionDetector.PRESETS (در هر اپ اول «خود اپ»). */
-private fun presetOrder(sectionKey: String): Int {
-    // «خود اپ» دستی همیشه اول گروه خودش است؛ بخش‌های سفارشی آخر می‌آیند.
+private fun presetOrder(sectionKey: String): Int {    // «خود اپ» دستی همیشه اول گروه خودش است؛ بخش‌های سفارشی آخر می‌آیند.
     if (sectionKey == SectionDetector.SECTION_CUSTOM_APP) return -1
     if (SectionDetector.isCustomSectionKey(sectionKey)) return Int.MAX_VALUE
     val index = SectionDetector.PRESETS.indexOfFirst { it.sectionKey == sectionKey }

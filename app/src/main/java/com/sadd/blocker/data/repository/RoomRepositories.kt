@@ -326,6 +326,10 @@ class RoomSectionRuleRepository @Inject constructor(
         ) != -1L
     }
 
+    override suspend fun remove(packageName: String, sectionKey: String) {
+        dao.delete(packageName, sectionKey)
+    }
+
     private fun SectionRuleEntity.toDomain(): SectionRule {
         return SectionRule(id, packageName, sectionKey, labelFa, enabled)
     }

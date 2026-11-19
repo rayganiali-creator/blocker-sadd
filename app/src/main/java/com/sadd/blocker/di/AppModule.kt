@@ -11,6 +11,7 @@ import com.sadd.blocker.data.db.MIGRATION_1_2
 import com.sadd.blocker.data.db.MIGRATION_2_3
 import com.sadd.blocker.data.db.MIGRATION_3_4
 import com.sadd.blocker.data.db.MIGRATION_4_5
+import com.sadd.blocker.data.db.MIGRATION_5_6
 import com.sadd.blocker.data.db.ScheduleDao
 import com.sadd.blocker.data.repository.RoomBlockedAppRepository
 import com.sadd.blocker.data.repository.RoomKeywordRepository
@@ -46,7 +47,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(context, AppDatabase::class.java, "blocker.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             // عمداً بدون fallbackToDestructiveMigration: قانون کاربر با آپدیت پاک نشود.
             .build()
     }

@@ -1,5 +1,7 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,8 +51,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sadd.blocker.domain.model.DelayOptions
+import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddGlassBorderColor
+import com.sadd.blocker.ui.theme.saddGlassDialogContainerColor
 
 /** نوع پیام: موفقیت / خطا / اطلاع. */
 enum class MessageType {
@@ -108,6 +113,7 @@ fun SectionTitle(text: String) {
 /**
  * کارت مشترک «سد»: نرم و بالشتی — شعاع ۲۴dp (کارت hero ‏۲۸dp)، سطح تونال
  * (surfaceVariant) با elevation ملایم ۲dp (hero ‏۴dp)؛ هرگز سایه سیاه تند ندارد.
+ * شیشه‌ای: حاشیه نازک ۱dp به رنگ onSurface با ۱۲٪ آلفا (توکن SaddGlass).
  */
 @Composable
 fun SaddCard(
@@ -119,12 +125,14 @@ fun SaddCard(
     val shape = RoundedCornerShape(if (hero) SaddRadius.Hero else SaddRadius.Card)
     val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     val elevation = CardDefaults.cardElevation(defaultElevation = if (hero) 4.dp else 2.dp)
+    val border = BorderStroke(SaddGlass.BorderWidth, saddGlassBorderColor())
     if (onClick != null) {
         Card(
             modifier = modifier,
             shape = shape,
             colors = colors,
             elevation = elevation,
+            border = border,
             onClick = onClick,
         ) {
             content()
@@ -135,6 +143,7 @@ fun SaddCard(
             shape = shape,
             colors = colors,
             elevation = elevation,
+            border = border,
         ) {
             content()
         }
@@ -145,7 +154,7 @@ enum class SaddButtonStyle {
     PRIMARY, SECONDARY, GHOST,
 }
 
-/** دکمه مشترک «سد»: اصلی / ثانویه (outlined) / شبح (text) — بالشتی، شعاع ۲۸dp و ارتفاع ۵۲dp. */
+/** دکمه مشترک «سد»: اصلی / ثانویه (outlined) / شبح (text) — بالشتی، شعاع ۲۸dp و ارتفاع ۵۲dp. شیشه‌ای: دکمه اصلی سطح primary با ۸۵٪ آلفا + حاشیه نازک ۱dp (توکن SaddGlass)؛ متن روی آن ۱۰۰٪ می‌ماند. */
 @Composable
 fun SaddButton(
     text: String,
@@ -164,9 +173,10 @@ fun SaddButton(
             enabled = enabled,
             shape = shape,
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = SaddGlass.ButtonContainerAlpha),
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
+            border = BorderStroke(SaddGlass.BorderWidth, saddGlassBorderColor()),
         ) {
             Text(text, fontWeight = FontWeight.SemiBold)
         }
@@ -214,7 +224,7 @@ fun SaddTextField(
     )
 }
 
-/** دیالوگ مشترک با دکمه‌های صریح تایید/لغو. */
+/** دیالوگ مشترک با دکمه‌های صریح تایید/لغو. شیشه‌ای: سطح surface با ۹۲٪ آلفا + حاشیه نازک ۱dp (توکن SaddGlass)، شعاع ۲۸dp. */
 @Composable
 fun SaddDialog(
     title: String,
@@ -224,9 +234,12 @@ fun SaddDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val shape = RoundedCornerShape(SaddRadius.Dialog)
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(SaddRadius.Dialog),
+        modifier = Modifier.border(SaddGlass.BorderWidth, saddGlassBorderColor(), shape),
+        shape = shape,
+        containerColor = saddGlassDialogContainerColor(),
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = { Text(text) },
         confirmButton = {
@@ -360,6 +373,7 @@ fun DelayChip(delaySeconds: Int?, onClick: () -> Unit) {
 /**
  * دیالوگ انتخاب تاخیر یک قانون (رفع M-19):
  * رادیو فقط انتخاب را عوض می‌کند؛ دکمه «تایید» اعمال می‌کند، «لغو» رد می‌کند.
+ * شیشه‌ای مثل SaddDialog: سطح ۹۲٪ + حاشیه ۱dp، شعاع ۲۸dp.
  */
 @Composable
 fun DelayPickerDialog(
@@ -369,9 +383,12 @@ fun DelayPickerDialog(
 ) {
     var selected by rememberSaveable { mutableStateOf(currentDelay) }
     val options: List<Int?> = listOf(null) + DelayOptions.VALUES
+    val shape = RoundedCornerShape(SaddRadius.Dialog)
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(SaddRadius.Dialog),
+        modifier = Modifier.border(SaddGlass.BorderWidth, saddGlassBorderColor(), shape),
+        shape = shape,
+        containerColor = saddGlassDialogContainerColor(),
         title = { Text("تاخیر این قانون", fontWeight = FontWeight.Bold) },
         text = {
             Column {

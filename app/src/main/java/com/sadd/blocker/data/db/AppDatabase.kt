@@ -6,7 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * دیتابیس Room — نسخه ۵.
+ * دیتابیس Room — نسخه ۶.
  * مهاجرت‌ها از نسخه ۲ به بعد اینجا ثبت می‌شوند (Migration)؛
  * fallbackToDestructiveMigration ممنوع است تا قانون کاربر با آپدیت پاک نشود.
  *
@@ -18,7 +18,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * (کل تلگرام/اینستاگرام/یوتیوب، ریلز اینستاگرام، شورتس یوتیوب).
  * نسخه ۵: بدون تغییر اسکیما — فقط ۱۸ پیش‌فرض جدید بخش seed می‌شوند
  * (واتساپ، تیک‌تاک با دو پکیج، ایکس، فیسبوک، اسنپ‌چت).
- * ثبت مهاجرت در AppModule لازم است: .addMigrations(..., MIGRATION_4_5).
+ * نسخه ۶: بدون تغییر اسکیما — فقط ۲ پیش‌فرض جدید بخش seed می‌شوند
+ * (خود کروم، مرور خصوصی Incognito کروم).
+ * ثبت مهاجرت در AppModule لازم است: .addMigrations(..., MIGRATION_5_6).
  */
 @Database(
     entities = [
@@ -30,7 +32,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SectionRuleEntity::class,
         BlockEventEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -164,6 +166,29 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
             Triple("com.snapchat.android", "snapchat_app", "خود اسنپ‌چت"),
             Triple("com.snapchat.android", "snapchat_search", "جستجوی اسنپ‌چت"),
             Triple("com.snapchat.android", "snapchat_spotlight", "اسپات‌لایت اسنپ‌چت"),
+        )
+        for ((pkg, key, label) in rows) {
+            db.execSQL(
+                "INSERT OR IGNORE INTO section_rules " +
+                    "(packageName, sectionKey, labelFa, enabled) VALUES " +
+                    "('$pkg', '$key', '$label', 1)",
+            )
+        }
+    }
+}
+
+/**
+ * مهاجرت ۵ به ۶: بدون تغییر اسکیما — فقط ۲ پیش‌فرض جدید بخش برای
+ * نصب‌های موجود seed می‌شوند (همان الگوی MIGRATION_4_5): خود کروم و
+ * مرور خصوصی (Incognito) کروم. نصب تازه از ensurePresets می‌گیرد
+ * (همان SectionDetector.PRESETS). برچسب Incognito همان labelFa
+ * پیش‌فرض است، شامل «(بهترین تلاش)».
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        val rows = listOf(
+            Triple("com.android.chrome", "chrome_app", "خود کروم"),
+            Triple("com.android.chrome", "chrome_incognito", "مرور خصوصی (Incognito) کروم (بهترین تلاش)"),
         )
         for ((pkg, key, label) in rows) {
             db.execSQL(

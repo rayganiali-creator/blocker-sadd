@@ -46,8 +46,11 @@ import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.SessionDurations
 import com.sadd.blocker.ui.SessionsViewModel
+import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddGlassBorderColor
+import com.sadd.blocker.ui.theme.saddGlassDialogContainerColor
 
 /** برچسب فارسی وضعیت سشن. */
 private fun sessionStatusLabel(status: String): String {
@@ -328,9 +331,13 @@ private fun StartModeDialog(
     onPick: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // شیشه‌ای مثل SaddDialog: سطح ۹۲٪ + حاشیه ۱dp، شعاع ۲۸dp.
+    val dialogShape = RoundedCornerShape(SaddRadius.Dialog)
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(SaddRadius.Dialog),
+        modifier = Modifier.border(SaddGlass.BorderWidth, saddGlassBorderColor(), dialogShape),
+        shape = dialogShape,
+        containerColor = saddGlassDialogContainerColor(),
         title = { Text("سشن $durationLabel را با کدام حالت شروع کنم؟", fontWeight = FontWeight.Bold) },
         text = {
             Column {

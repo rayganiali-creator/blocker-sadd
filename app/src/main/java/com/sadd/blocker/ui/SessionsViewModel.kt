@@ -25,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -71,8 +72,6 @@ class SessionsViewModel @Inject constructor(
     val uiState: StateFlow<SessionsUiState> = _uiState.asStateFlow()
     private var tickCount = 0
     private var tickerJob: Job? = null
-    /** تمدید سشن در انتظار بازگشایی Strict (فقط در حافظه). */
-    private var pendingExtend = false
 
     init {
         viewModelScope.launch {
@@ -101,6 +100,16 @@ class SessionsViewModel @Inject constructor(
             }
         }
         refreshAdminState()
+        // پاک‌سازی یک‌باره درخواست انتظارِ قدیمیِ «تمدید سشن»: تمدید
+        // (طولانی‌کردن سشن) دیگر گیت ندارد، پس درخواستِ ثبت‌شده قبل از
+        // این تغییر در ModesScreen به‌صورت کارت شمارش معکوسِ گیرکرده
+        // می‌ماند؛ درخواست END_SESSION دست نمی‌خورد (هنوز گیت دارد).
+        viewModelScope.launch {
+            val request = settingsStore.strictCooldownRequest.firstOrNull()
+            if (request?.pendingKind == StrictPendingKind.EXTEND_SESSION) {
+                settingsStore.clearStrictCooldownRequest()
+            }
+        }
         setTicking(true)
     }
 
@@ -159,9 +168,9 @@ class SessionsViewModel @Inject constructor(
 
     /**
      * درخواست تمدید ۱۵ دقیقه‌ای سشن.
-     * سشن غیر Strict مستقیم تمدید می‌شود. تمدید سشن Strict فقط با
-     * بازگشایی Strict (تایپ متن / انتظار) انجام می‌شود؛ دیالوگ بازگشایی
-     * باز می‌شود و تمدید واقعی در [confirmStrictUnlocked] انجام می‌شود.
+     * تمدید یعنی سشن طولانی‌تر می‌شود و بلاک را ضعیف نمی‌کند، پس در سشن
+     * Strict هم آزاد است و نیازی به بازگشایی Strict ندارد؛ مستقیم تمدید
+     * می‌شود. فقط پایانِ زودهنگام سشن (جهت مخالف) گیت Strict دارد.
      */
     fun requestExtendSession() {
         viewModelScope.launch {
@@ -171,12 +180,7 @@ class SessionsViewModel @Inject constructor(
                 refresh()
                 return@launch
             }
-            if (!active.strict) {
-                doExtendSession()
-                return@launch
-            }
-            pendingExtend = true
-            _uiState.update { it.copy(strictUnlockVisible = true) }
+            doExtendSession()
         }
     }
 
@@ -218,38 +222,16 @@ class SessionsViewModel @Inject constructor(
     }
 
     /**
-     * پایان سشن Strict یا تمدید آن بعد از بازگشایی موفق در دیالوگ.
-     * در روش انتظار، درخواست باید برای همان کار ثبت شده و کامل گذشته باشد؛
-     * انتظارِ ثبت‌شده برای کار دیگری اینجا خرج نمی‌شود.
+     * پایان سشن Strict بعد از بازگشایی موفق در دیالوگ.
+     * در روش انتظار، درخواست باید برای همین کار (END_SESSION) ثبت شده و
+     * کامل گذشته باشد؛ انتظارِ ثبت‌شده برای کار دیگری اینجا خرج نمی‌شود.
      * پایان دوباره از مسیر واحد UseCase انجام می‌شود (H-1).
+     * (تمدید سشن دیگر از این مسیر نمی‌گذرد؛ آزاد است و مستقیم انجام می‌شود.)
      */
     fun confirmStrictUnlocked() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val state = _uiState.value
-            if (pendingExtend) {
-                if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
-                    val request = state.strictCooldownRequest
-                    val kindMatches = request?.pendingKind == StrictPendingKind.EXTEND_SESSION
-                    if (request == null || !StrictUnlock.isCooldownElapsed(request, now) || !kindMatches) {
-                        if (request != null && !kindMatches) {
-                            pendingExtend = false
-                            _uiState.update {
-                                it.copy(
-                                    strictUnlockVisible = false,
-                                    message = "این انتظار برای کار دیگری ثبت شده است؛ برای تمدید سشن دوباره درخواست بده.",
-                                )
-                            }
-                        }
-                        return@launch
-                    }
-                    settingsStore.clearStrictCooldownRequest()
-                }
-                pendingExtend = false
-                _uiState.update { it.copy(strictUnlockVisible = false) }
-                doExtendSession()
-                return@launch
-            }
             if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
                 val request = state.strictCooldownRequest
                 val kindMatches = request?.pendingKind == StrictPendingKind.END_SESSION
@@ -288,17 +270,9 @@ class SessionsViewModel @Inject constructor(
         }
     }
 
-    /** ثبت درخواست انتظار برای پایان یا تمدید سشن Strict (از دیالوگ بازگشایی). */
+    /** ثبت درخواست انتظار برای پایان سشن Strict (از دیالوگ بازگشایی). */
     fun recordStrictCooldownRequest() {
         viewModelScope.launch {
-            if (pendingExtend) {
-                settingsStore.recordStrictCooldownRequest(
-                    kind = StrictPendingKind.EXTEND_SESSION,
-                    value = "",
-                    durationHours = _uiState.value.strictCooldownHours,
-                )
-                return@launch
-            }
             settingsStore.recordStrictCooldownRequest(
                 kind = StrictPendingKind.END_SESSION,
                 value = "",
@@ -308,7 +282,6 @@ class SessionsViewModel @Inject constructor(
     }
 
     fun cancelStrictUnlock() {
-        pendingExtend = false
         _uiState.update { it.copy(strictUnlockVisible = false) }
     }
 

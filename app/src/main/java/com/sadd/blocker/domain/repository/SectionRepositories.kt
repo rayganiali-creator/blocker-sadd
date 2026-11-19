@@ -24,6 +24,14 @@ interface SectionRuleRepository {
     suspend fun setEnabled(packageName: String, sectionKey: String, enabled: Boolean)
 
     /**
+     * یک قانون بخش را حذف می‌کند — فقط برای قانون‌های دستی کاربر
+     * («خود اپ» و بخش سفارشی) از UI صدا زده می‌شود؛ پیش‌فرض‌ها
+     * دکمه حذف ندارند. پیاده‌سازی Room روی
+     * SectionRuleDao.delete(packageName, sectionKey) می‌نشیند.
+     */
+    suspend fun remove(packageName: String, sectionKey: String)
+
+    /**
      * یک قانون بخش دستی اضافه می‌کند (کل اپ یک اپ نصب‌شده یا بخش
      * سفارشی با متن نشانه). اگر همان (packageName, sectionKey) از
      * قبل باشد، false برمی‌گرداند و چیزی اضافه نمی‌شود.

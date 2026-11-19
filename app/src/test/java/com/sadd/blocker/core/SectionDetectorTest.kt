@@ -7,9 +7,29 @@ import org.junit.Test
 
 class SectionDetectorTest {
 
-    private fun searchField(hint: String) = SectionSignals(
+    /**
+     * فیلد جستجوی فعال: کاربر رویش زده (فوکوس) یا در آن تایپ کرده است.
+     * فیلدِ صرفاً دیده‌شده (فوکوس false و بدون متن) با سیگنال جداگانه
+     * ساخته می‌شود — آن حالت هرگز جستجو نیست.
+     */
+    private fun searchField(hint: String, focused: Boolean = true) = SectionSignals(
         hasEditableTextField = true,
         editableHint = hint,
+        searchFieldFocused = focused,
+    )
+
+    private fun typedSearchField(hint: String) = SectionSignals(
+        hasEditableTextField = true,
+        editableHint = hint,
+        searchFieldHasText = true,
+    )
+
+    /** فیلد جستجویِ صرفاً دیده‌شده: هست، ولی نه فوکوس دارد نه متن. */
+    private fun untouchedSearchField(hint: String) = SectionSignals(
+        hasEditableTextField = true,
+        editableHint = hint,
+        searchFieldFocused = false,
+        searchFieldHasText = false,
     )
 
     @Test
@@ -94,8 +114,21 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun instagramExploreDetectedByContentDescription() {
+    fun instagramExploreDetectedBySelectedTabDescription() {
+        // تب اکسپلور واقعاً انتخاب شده است (گره selected).
         assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_EXPLORE,
+                SectionSignals(selectedContentDescriptions = listOf("Search and explore")),
+            ),
+        )
+    }
+
+    @Test
+    fun instagramExploreLabelPresentButNotSelectedIsNotExplore() {
+        // برچسب اکسپلور در درخت هست ولی تب انتخاب نشده — صفحه اصلی است، نه اکسپلور.
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
                 SectionDetector.SECTION_INSTAGRAM_EXPLORE,
@@ -195,8 +228,10 @@ class SectionDetectorTest {
         assertTrue(keys.contains(SectionDetector.SECTION_SNAPCHAT_APP))
         assertTrue(keys.contains(SectionDetector.SECTION_SNAPCHAT_SEARCH))
         assertTrue(keys.contains(SectionDetector.SECTION_SNAPCHAT_SPOTLIGHT))
-        // ۹ قدیمی + ۳ واتساپ + ۳ تیک‌تاک در هر دو پکیج + ۳ ایکس + ۳ فیسبوک + ۳ اسنپ‌چت.
-        assertTrue(SectionDetector.PRESETS.size == 27)
+        assertTrue(keys.contains(SectionDetector.SECTION_CHROME_APP))
+        assertTrue(keys.contains(SectionDetector.SECTION_CHROME_INCOGNITO))
+        // ۹ قدیمی + ۳ واتساپ + ۳ تیک‌تاک در هر دو پکیج + ۳ ایکس + ۳ فیسبوک + ۳ اسنپ‌چت + ۲ کروم.
+        assertTrue(SectionDetector.PRESETS.size == 29)
         // تیک‌تاک در هر دو پکیج پیش‌فرض دارد.
         assertTrue(
             SectionDetector.PRESETS.any {
@@ -279,23 +314,39 @@ class SectionDetectorTest {
     // ---------- ریلز اینستاگرام ----------
 
     @Test
-    fun instagramReelsDetectedByContentDescription() {
+    fun instagramReelsDetectedBySelectedTabDescription() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
                 SectionDetector.SECTION_INSTAGRAM_REELS,
-                SectionSignals(contentDescriptions = listOf("Reels")),
+                SectionSignals(selectedContentDescriptions = listOf("Reels")),
             ),
         )
     }
 
     @Test
-    fun instagramReelsDetectedByPersianText() {
+    fun instagramReelsDetectedBySelectedPersianText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
                 SectionDetector.SECTION_INSTAGRAM_REELS,
-                SectionSignals(texts = listOf("ریلز")),
+                SectionSignals(selectedTexts = listOf("ریلز")),
+            ),
+        )
+    }
+
+    @Test
+    fun instagramReelsLabelPresentButNotSelectedIsNotReels() {
+        // برچسب «Reels» در ناوبری پایین روی همه صفحه‌ها هست؛ بدون
+        // انتخاب‌شدن تب، صفحه اصلی بلاک نمی‌شود.
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_REELS,
+                SectionSignals(
+                    texts = listOf("Reels"),
+                    contentDescriptions = listOf("Reels"),
+                ),
             ),
         )
     }
@@ -313,7 +364,7 @@ class SectionDetectorTest {
 
     @Test
     fun instagramReelsNotDetectedWhenSearchFieldIsOpen() {
-        // فیلد جستجوی باز یعنی صفحه جستجو است، نه ریلز.
+        // فیلد جستجوی فعال یعنی صفحه جستجو است، نه ریلز — حتی اگر تب ریلز انتخاب شده باشد.
         assertFalse(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
@@ -321,7 +372,8 @@ class SectionDetectorTest {
                 SectionSignals(
                     hasEditableTextField = true,
                     editableHint = "Search",
-                    contentDescriptions = listOf("Reels"),
+                    searchFieldFocused = true,
+                    selectedContentDescriptions = listOf("Reels"),
                 ),
             ),
         )
@@ -375,19 +427,30 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun youtubeShortsDetectedByPersianText() {
+    fun youtubeShortsDetectedBySelectedPersianText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.google.android.youtube",
                 SectionDetector.SECTION_YOUTUBE_SHORTS,
-                SectionSignals(texts = listOf("شورتس")),
+                SectionSignals(selectedTexts = listOf("شورتس")),
+            ),
+        )
+    }
+
+    @Test
+    fun youtubeShortsLabelPresentButNotSelectedIsNotShorts() {
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.google.android.youtube",
+                SectionDetector.SECTION_YOUTUBE_SHORTS,
+                SectionSignals(texts = listOf("Shorts")),
             ),
         )
     }
 
     @Test
     fun youtubeShortsNotDetectedWhenSearchFieldIsOpen() {
-        // فیلد جستجوی باز یعنی صفحه جستجو است، نه شورتس.
+        // فیلد جستجوی فعال یعنی صفحه جستجو است، نه شورتس.
         assertFalse(
             SectionDetector.isSectionShowing(
                 "com.google.android.youtube",
@@ -395,7 +458,8 @@ class SectionDetectorTest {
                 SectionSignals(
                     hasEditableTextField = true,
                     editableHint = "Search YouTube",
-                    texts = listOf("Shorts"),
+                    searchFieldFocused = true,
+                    selectedTexts = listOf("Shorts"),
                 ),
             ),
         )
@@ -459,23 +523,34 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun whatsappStatusDetectedByText() {
+    fun whatsappStatusDetectedBySelectedText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.whatsapp",
                 SectionDetector.SECTION_WHATSAPP_STATUS,
-                SectionSignals(texts = listOf("Status")),
+                SectionSignals(selectedTexts = listOf("Status")),
             ),
         )
     }
 
     @Test
-    fun whatsappStatusDetectedByPersianText() {
+    fun whatsappStatusDetectedBySelectedPersianText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.whatsapp",
                 SectionDetector.SECTION_WHATSAPP_STATUS,
-                SectionSignals(texts = listOf("وضعیت")),
+                SectionSignals(selectedTexts = listOf("وضعیت")),
+            ),
+        )
+    }
+
+    @Test
+    fun whatsappStatusLabelPresentButNotSelectedIsNotStatus() {
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.whatsapp",
+                SectionDetector.SECTION_WHATSAPP_STATUS,
+                SectionSignals(texts = listOf("Status")),
             ),
         )
     }
@@ -489,7 +564,8 @@ class SectionDetectorTest {
                 SectionSignals(
                     hasEditableTextField = true,
                     editableHint = "Search",
-                    texts = listOf("Status"),
+                    searchFieldFocused = true,
+                    selectedTexts = listOf("Status"),
                 ),
             ),
         )
@@ -534,23 +610,23 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun tiktokForYouDetectedByText() {
+    fun tiktokForYouDetectedBySelectedText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.zhiliaoapp.musically",
                 SectionDetector.SECTION_TIKTOK_FORYOU,
-                SectionSignals(texts = listOf("For You")),
+                SectionSignals(selectedTexts = listOf("For You")),
             ),
         )
     }
 
     @Test
-    fun tiktokForYouDetectedByPersianTextInAltPackage() {
+    fun tiktokForYouDetectedBySelectedPersianTextInAltPackage() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.ss.android.ugc.trill",
                 SectionDetector.SECTION_TIKTOK_FORYOU,
-                SectionSignals(texts = listOf("برای شما")),
+                SectionSignals(selectedTexts = listOf("برای شما")),
             ),
         )
     }
@@ -564,7 +640,8 @@ class SectionDetectorTest {
                 SectionSignals(
                     hasEditableTextField = true,
                     editableHint = "Search",
-                    texts = listOf("For You"),
+                    searchFieldFocused = true,
+                    selectedTexts = listOf("For You"),
                 ),
             ),
         )
@@ -609,23 +686,23 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun xHomeDetectedByContentDescription() {
+    fun xHomeDetectedBySelectedContentDescription() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.twitter.android",
                 SectionDetector.SECTION_X_HOME,
-                SectionSignals(contentDescriptions = listOf("Home")),
+                SectionSignals(selectedContentDescriptions = listOf("Home")),
             ),
         )
     }
 
     @Test
-    fun xHomeDetectedByPersianText() {
+    fun xHomeDetectedBySelectedPersianText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.twitter.android",
                 SectionDetector.SECTION_X_HOME,
-                SectionSignals(texts = listOf("خانه")),
+                SectionSignals(selectedTexts = listOf("خانه")),
             ),
         )
     }
@@ -639,7 +716,8 @@ class SectionDetectorTest {
                 SectionSignals(
                     hasEditableTextField = true,
                     editableHint = "Search X",
-                    contentDescriptions = listOf("Home"),
+                    searchFieldFocused = true,
+                    selectedContentDescriptions = listOf("Home"),
                 ),
             ),
         )
@@ -670,23 +748,23 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun facebookReelsDetectedByText() {
+    fun facebookReelsDetectedBySelectedText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.facebook.katana",
                 SectionDetector.SECTION_FACEBOOK_REELS,
-                SectionSignals(texts = listOf("Reels")),
+                SectionSignals(selectedTexts = listOf("Reels")),
             ),
         )
     }
 
     @Test
-    fun facebookWatchDetectedByContentDescription() {
+    fun facebookWatchDetectedBySelectedContentDescription() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.facebook.katana",
                 SectionDetector.SECTION_FACEBOOK_REELS,
-                SectionSignals(contentDescriptions = listOf("Watch")),
+                SectionSignals(selectedContentDescriptions = listOf("Watch")),
             ),
         )
     }
@@ -700,7 +778,8 @@ class SectionDetectorTest {
                 SectionSignals(
                     hasEditableTextField = true,
                     editableHint = "Search Facebook",
-                    texts = listOf("Reels"),
+                    searchFieldFocused = true,
+                    selectedTexts = listOf("Reels"),
                 ),
             ),
         )
@@ -720,23 +799,23 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun snapchatSpotlightDetectedByText() {
+    fun snapchatSpotlightDetectedBySelectedText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.snapchat.android",
                 SectionDetector.SECTION_SNAPCHAT_SPOTLIGHT,
-                SectionSignals(texts = listOf("Spotlight")),
+                SectionSignals(selectedTexts = listOf("Spotlight")),
             ),
         )
     }
 
     @Test
-    fun snapchatSpotlightDetectedByPersianText() {
+    fun snapchatSpotlightDetectedBySelectedPersianText() {
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.snapchat.android",
                 SectionDetector.SECTION_SNAPCHAT_SPOTLIGHT,
-                SectionSignals(texts = listOf("اسپات‌لایت")),
+                SectionSignals(selectedTexts = listOf("اسپات‌لایت")),
             ),
         )
     }
@@ -750,7 +829,8 @@ class SectionDetectorTest {
                 SectionSignals(
                     hasEditableTextField = true,
                     editableHint = "Search",
-                    texts = listOf("Spotlight"),
+                    searchFieldFocused = true,
+                    selectedTexts = listOf("Spotlight"),
                 ),
             ),
         )
@@ -863,6 +943,243 @@ class SectionDetectorTest {
                 SectionSignals(),
             ),
         )
+    }
+
+    // ---------- دقت بخش: فقط ورود واقعی، نه صرفِ دیده شدن (گزارش سید) ----------
+
+    @Test
+    fun telegramSearchBarPresentButUntouchedDoesNotBlock() {
+        // گزارش سید: باز کردن تلگرام فقط چون نوار جستجو بالای صفحه است،
+        // هرگز نباید بلاک شود — فیلد هست ولی نه فوکوس دارد نه متن.
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "org.telegram.messenger",
+                SectionDetector.SECTION_TELEGRAM_SEARCH,
+                untouchedSearchField("Search"),
+            ),
+        )
+    }
+
+    @Test
+    fun telegramSearchBlocksWhenFieldFocused() {
+        // کاربر روی فیلد جستجو زده است (فوکوس) — ورود واقعی به جستجو.
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "org.telegram.messenger",
+                SectionDetector.SECTION_TELEGRAM_SEARCH,
+                searchField("Search", focused = true),
+            ),
+        )
+    }
+
+    @Test
+    fun telegramSearchBlocksWhenTextTypedIntoField() {
+        // کاربر در فیلد جستجو تایپ کرده است — حتی بدون فوکوس ثبت‌شده.
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "org.telegram.messenger",
+                SectionDetector.SECTION_TELEGRAM_SEARCH,
+                typedSearchField("Search"),
+            ),
+        )
+    }
+
+    @Test
+    fun telegramSearchUntouchedInPersianUiDoesNotBlock() {
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "org.telegram.messenger",
+                SectionDetector.SECTION_TELEGRAM_SEARCH,
+                untouchedSearchField("جستجو"),
+            ),
+        )
+    }
+
+    @Test
+    fun instagramSearchUntouchedFieldDoesNotBlock() {
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_SEARCH,
+                untouchedSearchField("Search"),
+            ),
+        )
+    }
+
+    @Test
+    fun youtubeSearchUntouchedFieldDoesNotBlock() {
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.google.android.youtube",
+                SectionDetector.SECTION_YOUTUBE_SEARCH,
+                untouchedSearchField("Search YouTube"),
+            ),
+        )
+    }
+
+    @Test
+    fun searchTitleAloneWithoutActiveFieldDoesNotBlock() {
+        // عنوان «Search» به‌تنهایی، بدون فیلد فعال، ورود به جستجو نیست.
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "org.telegram.messenger",
+                SectionDetector.SECTION_TELEGRAM_SEARCH,
+                SectionSignals(windowTitle = "Search"),
+            ),
+        )
+    }
+
+    @Test
+    fun isSearchHintOnlyForSearchHints() {
+        assertTrue(SectionDetector.isSearchHint("Search"))
+        assertTrue(SectionDetector.isSearchHint("جستجو"))
+        assertTrue(SectionDetector.isSearchHint("Search YouTube"))
+        assertFalse(SectionDetector.isSearchHint("Message"))
+        assertFalse(SectionDetector.isSearchHint(null))
+        assertFalse(SectionDetector.isSearchHint(""))
+    }
+
+    @Test
+    fun isSearchSectionOnlyForSearchKeys() {
+        assertTrue(SectionDetector.isSearchSection(SectionDetector.SECTION_TELEGRAM_SEARCH))
+        assertTrue(SectionDetector.isSearchSection(SectionDetector.SECTION_INSTAGRAM_SEARCH))
+        assertTrue(SectionDetector.isSearchSection(SectionDetector.SECTION_TIKTOK_SEARCH))
+        assertFalse(SectionDetector.isSearchSection(SectionDetector.SECTION_TELEGRAM_APP))
+        assertFalse(SectionDetector.isSearchSection(SectionDetector.SECTION_INSTAGRAM_REELS))
+        assertFalse(SectionDetector.isSearchSection(SectionDetector.SECTION_CHROME_INCOGNITO))
+        assertFalse(SectionDetector.isSearchSection("custom:for you"))
+        assertFalse(SectionDetector.isSearchSection("no_such_section"))
+    }
+
+    // ---------- کروم ----------
+
+    @Test
+    fun chromeWholeAppMatchesWithNoSignalsAtAll() {
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_APP,
+                SectionSignals(),
+            ),
+        )
+        assertTrue(SectionDetector.isWholeAppSection(SectionDetector.SECTION_CHROME_APP))
+        assertTrue(SectionDetector.hasPresets("com.android.chrome"))
+    }
+
+    @Test
+    fun chromeWholeAppNeverMatchesWrongPackage() {
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_CHROME_APP,
+                SectionSignals(),
+            ),
+        )
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "org.mozilla.firefox",
+                SectionDetector.SECTION_CHROME_APP,
+                SectionSignals(),
+            ),
+        )
+    }
+
+    @Test
+    fun chromePresetsAreWholeAppFirstThenIncognito() {
+        val chrome = SectionDetector.PRESETS.filter {
+            it.packageName == SectionDetector.CHROME_PACKAGE
+        }
+        assertTrue(chrome.size == 2)
+        assertTrue(chrome[0].sectionKey == SectionDetector.SECTION_CHROME_APP)
+        assertTrue(chrome[1].sectionKey == SectionDetector.SECTION_CHROME_INCOGNITO)
+        assertTrue(chrome[0].labelFa == "خود کروم")
+        assertTrue(chrome[1].labelFa.contains("بهترین تلاش"))
+    }
+
+    @Test
+    fun chromeIncognitoDetectedByText() {
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(texts = listOf("Incognito")),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoDetectedByContentDescription() {
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(contentDescriptions = listOf("Incognito")),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoDetectedByPersianMarkers() {
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(texts = listOf("مرور خصوصی")),
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(texts = listOf("ناشناس")),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoDetectedByWindowTitle() {
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(windowTitle = "Incognito"),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoNotDetectedInNormalWindow() {
+        // پنجره عادی کروم: نه مارکری، نه سیگنالی — بلاک نمی‌شود.
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(),
+            ),
+        )
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(texts = listOf("Google", "New tab")),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoNotDetectedInOtherBrowsers() {
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "org.mozilla.firefox",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(texts = listOf("Incognito")),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoIsNotWholeAppSection() {
+        assertFalse(SectionDetector.isWholeAppSection(SectionDetector.SECTION_CHROME_INCOGNITO))
     }
 
     // ---------- مرورگرها ----------
