@@ -29,7 +29,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -38,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -52,6 +52,10 @@ import com.sadd.blocker.R
 import com.sadd.blocker.ui.DashboardRule
 import com.sadd.blocker.ui.DashboardRuleKind
 import com.sadd.blocker.ui.DashboardViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPink
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.Mint
 import com.sadd.blocker.ui.theme.SaddSpacing
 
@@ -189,24 +193,28 @@ fun DashboardScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(SaddSpacing.Small)) {
             QuickTile(
                 icon = Icons.Filled.PlayArrow,
+                color = ChipMint,
                 label = "شروع جلسه",
                 onClick = { onNavigate("sessions") },
                 modifier = Modifier.weight(1f),
             )
             QuickTile(
                 icon = Icons.Filled.Language,
+                color = ChipPurple,
                 label = "وب‌سایت‌ها",
                 onClick = { onNavigate("websites") },
                 modifier = Modifier.weight(1f),
             )
             QuickTile(
                 icon = Icons.Filled.Apps,
+                color = ChipYellow,
                 label = "اپ‌ها",
                 onClick = { onNavigate("apps") },
                 modifier = Modifier.weight(1f),
             )
             QuickTile(
                 icon = Icons.Filled.TextFields,
+                color = ChipPink,
                 label = "کلمات",
                 onClick = { onNavigate("rules") },
                 modifier = Modifier.weight(1f),
@@ -222,12 +230,14 @@ fun DashboardScreen(
                 label = "قوانین فعال",
                 value = uiState.activeRulesCount.toString(),
                 icon = Icons.Filled.Shield,
+                color = ChipMint,
                 modifier = Modifier.weight(1f),
             )
             StatCard(
                 label = "بلاک امروز",
                 value = uiState.blocksTodayCount.toString(),
                 icon = Icons.Filled.Timer,
+                color = ChipPurple,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -245,20 +255,27 @@ fun DashboardScreen(
         Spacer(Modifier.height(SaddSpacing.Large))
         SaddCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
-                Text(
-                    if (uiState.missingPermissions > 0) {
-                        "${uiState.missingPermissions} مجوز نیازمند توجه است"
-                    } else {
-                        "همه مجوزها فعال‌اند"
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    "بدون مجوزها، بلاک کار نمی‌کند.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                // کارت مجوزها به سبک Detox: چیپ آیکون سپر + متن وضعیت.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SaddIconChip(icon = Icons.Filled.Shield, color = ChipMint)
+                    Spacer(Modifier.size(SaddSpacing.Small))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            if (uiState.missingPermissions > 0) {
+                                "${uiState.missingPermissions} مجوز نیازمند توجه است"
+                            } else {
+                                "همه مجوزها فعال‌اند"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "بدون مجوزها، بلاک کار نمی‌کند.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 Spacer(Modifier.height(SaddSpacing.Small))
                 SaddButton(
                     text = "مجوزها و عیب‌یابی",
@@ -299,28 +316,30 @@ fun DashboardScreen(
     }
 }
 
+/** کاشی دسترسی سریع به سبک Detox: چیپ آیکون رنگی + برچسب. */
 @Composable
-private fun QuickTile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun QuickTile(icon: ImageVector, color: Color, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     SaddCard(modifier = modifier, onClick = onClick) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = SaddSpacing.Medium),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            SaddIconChip(icon = icon, color = color)
             Spacer(Modifier.height(4.dp))
             Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
         }
     }
 }
 
+/** کارت آمار به سبک Detox: چیپ آیکون رنگی + عدد و برچسب. */
 @Composable
-private fun StatCard(label: String, value: String, icon: ImageVector, modifier: Modifier = Modifier) {
+private fun StatCard(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
     SaddCard(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            SaddIconChip(icon = icon, color = color)
             Spacer(Modifier.size(SaddSpacing.Small))
             Column(modifier = Modifier.weight(1f)) {
                 Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -330,7 +349,7 @@ private fun StatCard(label: String, value: String, icon: ImageVector, modifier: 
     }
 }
 
-/** ردیف تاگل یک قانون فعال واقعی (کلمه / اپ / وب‌سایت). */
+/** ردیف تاگل یک قانون فعال واقعی (کلمه / اپ / وب‌سایت) — کارت سوییچ Detox با چیپ آیکون رنگی. */
 @Composable
 private fun ActiveRuleRow(rule: DashboardRule, onToggle: () -> Unit) {
     val icon = when (rule.kind) {
@@ -338,24 +357,20 @@ private fun ActiveRuleRow(rule: DashboardRule, onToggle: () -> Unit) {
         DashboardRuleKind.APP -> Icons.Filled.Apps
         DashboardRuleKind.WEBSITE -> Icons.Filled.Language
     }
-    SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.size(SaddSpacing.Small))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(rule.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    rule.detail,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Switch(checked = rule.enabled, onCheckedChange = { onToggle() })
-        }
+    val iconColor = when (rule.kind) {
+        DashboardRuleKind.KEYWORD -> ChipPurple
+        DashboardRuleKind.APP -> ChipYellow
+        DashboardRuleKind.WEBSITE -> ChipMint
     }
+    SaddToggleCard(
+        label = rule.label,
+        description = rule.detail,
+        icon = icon,
+        iconColor = iconColor,
+        checked = rule.enabled,
+        onCheckedChange = { onToggle() },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+    )
 }
 
 @Composable

@@ -1,6 +1,5 @@
 package com.sadd.blocker.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,16 +7,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,11 +31,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.core.SectionDetector
 import com.sadd.blocker.ui.SectionRulesViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPink
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /**
@@ -172,19 +183,32 @@ fun SectionRulesScreen(
                 item { SectionTitle(appLabelFa(packageName, installedLabels)) }
                 val ordered = rules.sortedBy { rule -> presetOrder(rule.sectionKey) }
                 items(ordered, key = { it.packageName + "/" + it.sectionKey }) { rule ->
+                    // ردیف بخش به سبک Detox: چیپ آیکون رنگی + برچسب/توضیح + سوییچ.
+                    val (sectionIcon, sectionColor) = sectionVisual(rule.sectionKey)
                     SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            SaddSwitchRow(
-                                label = rule.labelFa,
-                                description = sectionDescription(rule.sectionKey),
+                            SaddIconChip(icon = sectionIcon, color = sectionColor)
+                            Spacer(Modifier.width(SaddSpacing.Medium))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    rule.labelFa,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text(
+                                    sectionDescription(rule.sectionKey),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
                                 checked = rule.enabled,
                                 onCheckedChange = {
                                     viewModel.setEnabled(rule.packageName, rule.sectionKey, it)
                                 },
-                                modifier = Modifier.weight(1f),
                             )
                             // فقط قانون دستی کاربر دکمه حذف دارد؛ پیش‌فرض‌ها نه.
                             if (isUserAddedRule(rule.sectionKey)) {
@@ -245,6 +269,7 @@ private fun AddSectionPanel(
                 onValueChange = onQueryChange,
                 label = "جستجوی اپ…",
                 modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             )
             Spacer(Modifier.height(SaddSpacing.Small))
             for (app in filtered) {
@@ -255,10 +280,15 @@ private fun AddSectionPanel(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
-                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(app.label, style = MaterialTheme.typography.bodyMedium)
+                        SaddIconChip(icon = Icons.Filled.Apps, color = ChipMint)
+                        Spacer(Modifier.width(SaddSpacing.Medium))
+                        Text(
+                            app.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
                         if (selected) Text("✓", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
@@ -271,23 +301,12 @@ private fun AddSectionPanel(
                 )
             }
             Spacer(Modifier.height(SaddSpacing.Small))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
-            ) {
-                SaddButton(
-                    text = "کل اپ",
-                    onClick = { onAddWholeAppChange(true) },
-                    style = if (addWholeApp) SaddButtonStyle.PRIMARY else SaddButtonStyle.SECONDARY,
-                    modifier = Modifier.weight(1f),
-                )
-                SaddButton(
-                    text = "بخش سفارشی",
-                    onClick = { onAddWholeAppChange(false) },
-                    style = if (!addWholeApp) SaddButtonStyle.PRIMARY else SaddButtonStyle.SECONDARY,
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            // انتخاب نوع افزودن با کنترل قطعه‌ای Detox (قطعه انتخاب‌شده توپر).
+            SaddSegmentedControl(
+                options = listOf("کل اپ", "بخش سفارشی"),
+                selectedIndex = if (addWholeApp) 0 else 1,
+                onSelect = { onAddWholeAppChange(it == 0) },
+            )
             if (!addWholeApp) {
                 Spacer(Modifier.height(SaddSpacing.Small))
                 SaddTextField(
@@ -351,6 +370,39 @@ private fun presetOrder(sectionKey: String): Int {    // «خود اپ» دست�
     if (SectionDetector.isCustomSectionKey(sectionKey)) return Int.MAX_VALUE
     val index = SectionDetector.PRESETS.indexOfFirst { it.sectionKey == sectionKey }
     return if (index >= 0) index else Int.MAX_VALUE
+}
+
+/**
+ * آیکون و رنگ چیپ هر بخش (فقط نمایشی): «خود اپ» مینت، جستجو بنفش،
+ * بقیه بخش‌ها زرد و بخش سفارشی صورتی — مثل چیپ‌های رنگی اسکرین‌شات‌ها.
+ */
+private fun sectionVisual(sectionKey: String): Pair<ImageVector, Color> {
+    if (SectionDetector.isCustomSectionKey(sectionKey)) {
+        return Icons.Filled.TextFields to ChipPink
+    }
+    return when (sectionKey) {
+        SectionDetector.SECTION_TELEGRAM_APP,
+        SectionDetector.SECTION_INSTAGRAM_APP,
+        SectionDetector.SECTION_YOUTUBE_APP,
+        SectionDetector.SECTION_WHATSAPP_APP,
+        SectionDetector.SECTION_TIKTOK_APP,
+        SectionDetector.SECTION_X_APP,
+        SectionDetector.SECTION_FACEBOOK_APP,
+        SectionDetector.SECTION_SNAPCHAT_APP,
+        SectionDetector.SECTION_CHROME_APP,
+        SectionDetector.SECTION_CUSTOM_APP,
+        -> Icons.Filled.Apps to ChipMint
+        SectionDetector.SECTION_TELEGRAM_SEARCH,
+        SectionDetector.SECTION_INSTAGRAM_SEARCH,
+        SectionDetector.SECTION_YOUTUBE_SEARCH,
+        SectionDetector.SECTION_WHATSAPP_SEARCH,
+        SectionDetector.SECTION_TIKTOK_SEARCH,
+        SectionDetector.SECTION_X_SEARCH,
+        SectionDetector.SECTION_FACEBOOK_SEARCH,
+        SectionDetector.SECTION_SNAPCHAT_SEARCH,
+        -> Icons.Filled.Search to ChipPurple
+        else -> Icons.Filled.TextFields to ChipYellow
+    }
 }
 
 private fun sectionDescription(sectionKey: String): String {

@@ -31,9 +31,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.WebsitesViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPink
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /**
@@ -111,27 +116,35 @@ fun WebsitesScreen(
                     "بلاک وب‌سایت‌ها",
                     "بلاک وب با \u2066Accessibility\u2069 از نوار آدرس مرورگر انجام می‌شود — کروم تأییدشده، بقیه بهترین تلاش‌اند؛ \u2066Incognito\u2069 هم بلاک می‌شود.",
                 )
-                SaddTextField(
-                    value = hostText,
-                    onValueChange = { hostText = it },
-                    label = "دامنه، مثل example.com",
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                // فرم افزودن دامنه داخل کارت Detox + کارت سوییچ زیردامنه.
+                SaddCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                        SaddTextField(
+                            value = hostText,
+                            onValueChange = { hostText = it },
+                            label = "دامنه، مثل example.com",
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Filled.Language, contentDescription = null) },
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddButton(
+                            text = "افزودن وب‌سایت",
+                            onClick = {
+                                viewModel.addWebsite(hostText, matchSubdomains)
+                                hostText = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
                 Spacer(Modifier.height(SaddSpacing.Small))
-                SaddSwitchRow(
+                SaddToggleCard(
                     label = "زیردامنه‌ها هم شامل شوند",
                     description = "مثل sub.example.com",
+                    icon = Icons.Filled.Language,
+                    iconColor = ChipMint,
                     checked = matchSubdomains,
                     onCheckedChange = { matchSubdomains = it },
-                )
-                Spacer(Modifier.height(SaddSpacing.Small))
-                SaddButton(
-                    text = "افزودن وب‌سایت",
-                    onClick = {
-                        viewModel.addWebsite(hostText, matchSubdomains)
-                        hostText = ""
-                    },
-                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (uiState.websites.isEmpty()) {
@@ -140,9 +153,12 @@ fun WebsitesScreen(
                 item { SectionTitle("وب‌سایت‌های بلاک‌شده (${uiState.websites.size})") }
             }
             items(uiState.websites, key = { it.id }) { site ->
+                // کارت قانون وب‌سایت: چیپ آیکون رنگی + سوییچ + چیپ تاخیر قرصی.
                 SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            SaddIconChip(icon = Icons.Filled.Language, color = websiteChipColor(site.id))
+                            Spacer(Modifier.width(SaddSpacing.Medium))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(site.host, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                                 Text(
@@ -159,11 +175,22 @@ fun WebsitesScreen(
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف قانون")
                             }
                         }
+                        Spacer(Modifier.height(SaddSpacing.Small))
                         DelayChip(delaySeconds = site.delaySeconds, onClick = { delayTarget = site.id })
                     }
                 }
             }
             item { Spacer(Modifier.height(SaddSpacing.Large)) }
         }
+    }
+}
+
+/** رنگ چیپ قانون وب‌سایت (فقط نمایشی): چرخش چهار رنگ Detox بر اساس شناسه قانون. */
+private fun websiteChipColor(id: Long): Color {
+    return when ((id % 4L).toInt()) {
+        0 -> ChipMint
+        1 -> ChipPurple
+        2 -> ChipYellow
+        else -> ChipPink
     }
 }

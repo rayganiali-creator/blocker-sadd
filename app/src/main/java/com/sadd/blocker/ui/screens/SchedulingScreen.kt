@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +39,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.ui.SchedulingViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 private val WEEK_DAYS = listOf(
@@ -108,57 +113,69 @@ fun SchedulingScreen(
         ) {
             item {
                 SaddTopBar("زمان‌بندی", "دوره‌های تکرارشونده بلاک؛ اجرای خودکار در فاز ۵ وصل می‌شود.", onBack = onBack)
-                Text("روزهای هفته:", style = MaterialTheme.typography.bodyMedium)
-                Spacer(Modifier.height(SaddSpacing.Small))
-                for (row in WEEK_DAYS.chunked(4)) {
-                    Row {
-                        for ((code, label) in row) {
-                            FilterChip(
-                                selected = selectedDays.contains(code),
-                                onClick = {
-                                    selectedDays = if (selectedDays.contains(code)) {
-                                        selectedDays - code
-                                    } else {
-                                        selectedDays + code
-                                    }
-                                },
-                                label = { Text(label) },
-                                modifier = Modifier.padding(end = 4.dp),
+                // فرم افزودن به سبک Detox: داخل کارت با حاشیه مویی؛ چیپ‌های روز قرصی با انتخاب توپر.
+                SaddCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
+                        Text("روزهای هفته:", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        for (row in WEEK_DAYS.chunked(4)) {
+                            Row {
+                                for ((code, label) in row) {
+                                    FilterChip(
+                                        selected = selectedDays.contains(code),
+                                        onClick = {
+                                            selectedDays = if (selectedDays.contains(code)) {
+                                                selectedDays - code
+                                            } else {
+                                                selectedDays + code
+                                            }
+                                        },
+                                        label = { Text(label) },
+                                        modifier = Modifier.padding(end = 4.dp),
+                                        shape = RoundedCornerShape(SaddRadius.Button),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                            labelColor = MaterialTheme.colorScheme.onSurface,
+                                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Row {
+                            SaddTextField(
+                                value = startText,
+                                onValueChange = { startText = it },
+                                label = "شروع (HH:MM)",
+                                modifier = Modifier.weight(1f),
+                            )
+                            Spacer(Modifier.width(SaddSpacing.Small))
+                            SaddTextField(
+                                value = endText,
+                                onValueChange = { endText = it },
+                                label = "پایان (HH:MM)",
+                                modifier = Modifier.weight(1f),
                             )
                         }
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddSwitchRow(
+                            label = "سخت‌گیرانه (\u2066Strict\u2069)",
+                            checked = strict,
+                            onCheckedChange = { strict = it },
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddButton(
+                            text = "افزودن زمان‌بندی",
+                            onClick = {
+                                viewModel.addSchedule(selectedDays.toSet(), startText, endText, strict)
+                                selectedDays = emptyList()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 }
-                Spacer(Modifier.height(SaddSpacing.Small))
-                Row {
-                    SaddTextField(
-                        value = startText,
-                        onValueChange = { startText = it },
-                        label = "شروع (HH:MM)",
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(SaddSpacing.Small))
-                    SaddTextField(
-                        value = endText,
-                        onValueChange = { endText = it },
-                        label = "پایان (HH:MM)",
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Spacer(Modifier.height(SaddSpacing.Small))
-                SaddSwitchRow(
-                    label = "سخت‌گیرانه (\u2066Strict\u2069)",
-                    checked = strict,
-                    onCheckedChange = { strict = it },
-                )
-                Spacer(Modifier.height(SaddSpacing.Small))
-                SaddButton(
-                    text = "افزودن زمان‌بندی",
-                    onClick = {
-                        viewModel.addSchedule(selectedDays.toSet(), startText, endText, strict)
-                        selectedDays = emptyList()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
             if (uiState.schedules.isEmpty()) {
                 item { EmptyState("هنوز زمان‌بندی‌ای اضافه نشده است.", icon = Icons.Filled.Schedule) }
@@ -178,6 +195,12 @@ fun SchedulingScreen(
                 SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            // چیپ آیکون زمان‌بندی به سبک Detox: بنفش برای Strict، مینت برای معمولی.
+                            SaddIconChip(
+                                icon = Icons.Filled.Schedule,
+                                color = if (schedule.strict) ChipPurple else ChipMint,
+                            )
+                            Spacer(Modifier.width(SaddSpacing.Small))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     dayLabels.ifEmpty { "بدون روز" },

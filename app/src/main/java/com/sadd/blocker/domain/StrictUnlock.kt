@@ -287,6 +287,34 @@ object StrictUnlock {
         return common.toFloat() / expected.length.toFloat()
     }
 
+    /**
+     * آیا ویرایش از [old] به [new] یک چسباندن (paste) است؟
+     * اگر در یک ویرایش بیش از یک نویسه درج شده باشد true برمی‌گردد:
+     * پیشوند و پسوند مشترک دو رشته پیدا می‌شود (پسوند نباید با پیشوند
+     * هم‌پوشانی داشته باشد) و تعداد نویسه‌های درج‌شده =
+     * طول new منهای پیشوند منهای پسوند. حذف (درج صفر) و درج تک‌نویسه
+     * چسباندن نیستند؛ جایگزینی انتخاب با چند نویسه چسباندن است.
+     * برای اینکه کاربر نتواند متن بازگشایی Strict را بچسباند و مجبور
+     * باشد آن را با دست تایپ کند.
+     */
+    fun isPasteInsert(old: String, new: String): Boolean {
+        var prefix = 0
+        val prefixLimit = minOf(old.length, new.length)
+        while (prefix < prefixLimit && old[prefix] == new[prefix]) {
+            prefix++
+        }
+        // پسوند مشترک نباید از پیشوند رد شود و روی آن بیفتد.
+        val suffixLimit = minOf(old.length - prefix, new.length - prefix)
+        var suffix = 0
+        while (suffix < suffixLimit &&
+            old[old.length - 1 - suffix] == new[new.length - 1 - suffix]
+        ) {
+            suffix++
+        }
+        val inserted = new.length - prefix - suffix
+        return inserted > 1
+    }
+
     /** میلی‌ثانیه باقی‌مانده تا پایان انتظار؛ ۰ یعنی انتظار تمام شده است. */
     fun cooldownRemainingMs(request: StrictCooldownRequest, nowMs: Long): Long {
         if (request.requestedAtMs <= 0L) return request.durationHours * HOUR_MS

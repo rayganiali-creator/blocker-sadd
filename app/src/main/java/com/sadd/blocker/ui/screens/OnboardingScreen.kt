@@ -12,10 +12,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +32,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +46,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.R
 import com.sadd.blocker.domain.OnboardingSteps
 import com.sadd.blocker.ui.OnboardingViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPink
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
 import kotlinx.coroutines.launch
 
@@ -151,43 +163,53 @@ fun OnboardingScreen(
         val completedSteps = steps.filter { it.granted }
         if (completedSteps.isNotEmpty()) {
             item {
-                Column {
-                    completedSteps.forEach { step ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            StepStatusIcon(granted = true, isCurrent = false)
-                            Spacer(Modifier.size(SaddSpacing.Small))
-                            Text(
-                                step.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(
-                                "انجام شد",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
+                // مرحله‌های انجام‌شده داخل یک کارت Detox جمع می‌شوند (فقط ظاهری).
+                SaddCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                        completedSteps.forEach { step ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                StepStatusIcon(granted = true, isCurrent = false)
+                                Spacer(Modifier.size(SaddSpacing.Small))
+                                Text(
+                                    step.title,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    "انجام شد",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     }
-                    Spacer(Modifier.height(SaddSpacing.Small))
                 }
+                Spacer(Modifier.height(SaddSpacing.Small))
             }
         }
 
         if (currentStep != null) {
             item {
-                SaddCard(modifier = Modifier.fillMaxWidth()) {
+                SaddCard(modifier = Modifier.fillMaxWidth(), hero = true) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
                     ) {
-                        Text(
-                            currentStep.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // چیپ آیکون مرحله فعلی (فقط ظاهری؛ جریان مرحله‌ها عوض نمی‌شود).
+                            val (stepIcon, stepColor) = stepVisual(currentStep.key)
+                            SaddIconChip(icon = stepIcon, color = stepColor)
+                            Spacer(Modifier.width(SaddSpacing.Medium))
+                            Text(
+                                currentStep.title,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                         Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
                             currentStep.description,
@@ -281,6 +303,18 @@ fun OnboardingScreen(
             )
             Spacer(Modifier.height(SaddSpacing.Large))
         }
+    }
+}
+
+/** آیکون و رنگ چیپ هر مرحله ویزارد (فقط نمایشی). */
+private fun stepVisual(key: String): Pair<ImageVector, Color> {
+    return when (key) {
+        OnboardingSteps.KEY_NOTIFICATION -> Icons.Filled.Notifications to ChipPurple
+        OnboardingSteps.KEY_ACCESSIBILITY -> Icons.Filled.Settings to ChipMint
+        OnboardingSteps.KEY_USAGE -> Icons.Filled.Info to ChipYellow
+        OnboardingSteps.KEY_BATTERY -> Icons.Filled.Timer to ChipPink
+        OnboardingSteps.KEY_ALARM -> Icons.Filled.Schedule to ChipMint
+        else -> Icons.Filled.Info to ChipYellow
     }
 }
 
@@ -384,6 +418,15 @@ private fun AccessibilityPhaseBlock(
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        CircleShape,
+                    )
+                    .border(
+                        1.dp,
+                        if (done) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.40f)
                         },
                         CircleShape,
                     ),

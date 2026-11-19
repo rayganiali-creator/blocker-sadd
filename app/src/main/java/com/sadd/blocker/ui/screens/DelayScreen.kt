@@ -12,8 +12,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,6 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.domain.model.DelayOptions
 import com.sadd.blocker.ui.DelayViewModel
 import com.sadd.blocker.ui.RuleDelayOverride
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.screens.StrictUnlockDialog
 
@@ -56,32 +58,33 @@ fun DelayScreen(
             "بعد از تشخیص، چند ثانیه فرصت فکر کردن داری.",
             onBack = onBack,
         )
-        Text(
-            "تاخیر سراسری",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.height(SaddSpacing.Small))
-        for (seconds in DelayOptions.VALUES) {
-            val label = if (seconds == 0) "بدون تاخیر" else "$seconds ثانیه"
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(
-                    selected = uiState.globalDelay == seconds,
-                    onClick = { viewModel.setGlobalDelay(seconds) },
-                )
-                Spacer(Modifier.width(SaddSpacing.Small))
-                Text(label, style = MaterialTheme.typography.bodyLarge)
-                if (seconds == DelayOptions.DEFAULT_SECONDS) {
-                    Spacer(Modifier.width(SaddSpacing.Small))
+        // تاخیر سراسری داخل کارت Detox با کنترل قطعه‌ای قرصی.
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SaddIconChip(icon = Icons.Filled.Timer, color = ChipMint)
+                    Spacer(Modifier.width(SaddSpacing.Medium))
                     Text(
-                        "(پیش‌فرض)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        "تاخیر سراسری",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
                     )
                 }
+                Spacer(Modifier.height(SaddSpacing.Medium))
+                val delayLabels = DelayOptions.VALUES.map { seconds ->
+                    if (seconds == 0) "بدون تاخیر" else "$seconds ثانیه"
+                }
+                SaddSegmentedControl(
+                    options = delayLabels,
+                    selectedIndex = DelayOptions.VALUES.indexOf(uiState.globalDelay).coerceAtLeast(0),
+                    onSelect = { viewModel.setGlobalDelay(DelayOptions.VALUES[it]) },
+                )
+                Spacer(Modifier.height(SaddSpacing.Small))
+                Text(
+                    "(پیش‌فرض)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         if (uiState.appOverrides.isNotEmpty()) {
@@ -127,9 +130,15 @@ private fun OverrideRow(override: RuleDelayOverride, onReset: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            SaddIconChip(icon = Icons.Filled.Schedule, color = ChipPurple)
+            Spacer(Modifier.width(SaddSpacing.Medium))
             Column(modifier = Modifier.weight(1f)) {
                 Text(override.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                Text("${override.seconds} ثانیه", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "${override.seconds} ثانیه",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             TextButton(onClick = onReset) {
                 Text("بازنشانی به سراسری")

@@ -1,5 +1,6 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +16,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,12 +35,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.KeywordsViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPink
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
+import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddHairlineColor
 
 /**
  * مدیریت کلمات — طبق موکاپ قوانین: جستجو، فیلتر همه/فعال/غیرفعال،
@@ -136,16 +146,13 @@ fun KeywordsScreen(
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 )
                 Spacer(Modifier.height(SaddSpacing.Small))
-                Row {
-                    for (option in listOf("همه", "فعال", "غیرفعال")) {
-                        FilterChip(
-                            selected = filter == option,
-                            onClick = { filter = option },
-                            label = { Text(option) },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
-                    }
-                }
+                // فیلتر وضعیت با کنترل قطعه‌ای Detox.
+                val filterOptions = listOf("همه", "فعال", "غیرفعال")
+                SaddSegmentedControl(
+                    options = filterOptions,
+                    selectedIndex = filterOptions.indexOf(filter).coerceAtLeast(0),
+                    onSelect = { filter = filterOptions[it] },
+                )
                 Spacer(Modifier.height(SaddSpacing.Small))
                 Text(
                     "${uiState.rules.size} قانون • $activeCount فعال",
@@ -153,39 +160,52 @@ fun KeywordsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(SaddSpacing.Medium))
-                SaddTextField(
-                    value = keywordText,
-                    onValueChange = { keywordText = it },
-                    label = "کلمه یا عبارت، مثل قمار",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(SaddSpacing.Small))
-                SaddTextField(
-                    value = categoryText,
-                    onValueChange = { categoryText = it },
-                    label = "دسته‌بندی",
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(SaddSpacing.Small))
-                Row {
-                    for (category in categories) {
-                        FilterChip(
-                            selected = categoryText == category,
-                            onClick = { categoryText = category },
-                            label = { Text(category) },
-                            modifier = Modifier.padding(end = 4.dp),
+                // فرم افزودن کلمه داخل کارت Detox.
+                SaddCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                        SaddTextField(
+                            value = keywordText,
+                            onValueChange = { keywordText = it },
+                            label = "کلمه یا عبارت، مثل قمار",
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Filled.TextFields, contentDescription = null) },
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddTextField(
+                            value = categoryText,
+                            onValueChange = { categoryText = it },
+                            label = "دسته‌بندی",
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Row {
+                            for (category in categories) {
+                                FilterChip(
+                                    selected = categoryText == category,
+                                    onClick = { categoryText = category },
+                                    label = { Text(category) },
+                                    modifier = Modifier.padding(end = 4.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        labelColor = MaterialTheme.colorScheme.onSurface,
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    ),
+                                    border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        SaddButton(
+                            text = "افزودن کلمه",
+                            onClick = {
+                                viewModel.addKeyword(keywordText, categoryText)
+                                keywordText = ""
+                            },
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
-                Spacer(Modifier.height(SaddSpacing.Small))
-                SaddButton(
-                    text = "افزودن کلمه",
-                    onClick = {
-                        viewModel.addKeyword(keywordText, categoryText)
-                        keywordText = ""
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
             if (uiState.rules.isEmpty()) {
                 item { EmptyState("هنوز کلمه‌ای اضافه نشده است.", icon = Icons.Filled.TextFields) }
@@ -195,11 +215,14 @@ fun KeywordsScreen(
                 item { SectionTitle("کلمات بلاک‌شده (${visibleRules.size})") }
             }
             items(visibleRules, key = { it.id }) { rule ->
+                // کارت قانون کلمه: چیپ آیکون رنگی + چیپ‌های قرصی دسته/نوع/تاخیر.
                 SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            SaddIconChip(icon = Icons.Filled.TextFields, color = keywordChipColor(rule.id))
+                            Spacer(Modifier.width(SaddSpacing.Medium))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     rule.rawText,
@@ -220,13 +243,38 @@ fun KeywordsScreen(
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف قانون")
                             }
                         }
+                        Spacer(Modifier.height(SaddSpacing.Small))
                         Row {
-                            AssistChip(onClick = {}, label = { Text(rule.category) })
+                            AssistChip(
+                                onClick = {},
+                                label = { Text(rule.category) },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                                border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                            )
                             Spacer(Modifier.width(SaddSpacing.Small))
-                            AssistChip(onClick = {}, label = { Text("کلمه کامل") })
+                            AssistChip(
+                                onClick = {},
+                                label = { Text("کلمه کامل") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
+                                ),
+                                border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                            )
                             if (rule.isPhrase) {
                                 Spacer(Modifier.width(SaddSpacing.Small))
-                                AssistChip(onClick = {}, label = { Text("عبارت") })
+                                AssistChip(
+                                    onClick = {},
+                                    label = { Text("عبارت") },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        labelColor = MaterialTheme.colorScheme.onSurface,
+                                    ),
+                                    border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                                )
                             }
                             Spacer(Modifier.width(SaddSpacing.Small))
                             DelayChip(delaySeconds = rule.delaySeconds, onClick = { delayTarget = rule.id })
@@ -236,5 +284,15 @@ fun KeywordsScreen(
             }
             item { Spacer(Modifier.height(SaddSpacing.Large)) }
         }
+    }
+}
+
+/** رنگ چیپ قانون کلمه (فقط نمایشی): چرخش چهار رنگ Detox بر اساس شناسه قانون. */
+private fun keywordChipColor(id: Long): Color {
+    return when ((id % 4L).toInt()) {
+        0 -> ChipMint
+        1 -> ChipPurple
+        2 -> ChipYellow
+        else -> ChipPink
     }
 }

@@ -44,6 +44,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.AppsViewModel
+import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /** کش حافظه‌ای آیکون اپ‌ها (حداکثر ۶۴ آیکون) — بدون بارگذاری دوباره از PackageManager. */
@@ -152,10 +153,16 @@ fun AppsScreen(
             }
             if (uiState.loading) {
                 item {
-                    Row(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
-                        CircularProgressIndicator()
-                        Spacer(Modifier.width(SaddSpacing.Medium))
-                        Text("در حال خواندن اپ‌های نصب‌شده…")
+                    // کارت Detox برای حالت بارگذاری.
+                    SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.width(SaddSpacing.Medium))
+                            Text("در حال خواندن اپ‌های نصب‌شده…")
+                        }
                     }
                 }
             } else if (filteredInstalled.isEmpty() && uiState.blocked.isEmpty()) {
@@ -165,19 +172,26 @@ fun AppsScreen(
                 item { SectionTitle("اپ‌های نصب‌شده (${filteredInstalled.size})") }
             }
             items(filteredInstalled, key = { it.packageName }) { app ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = uiState.selected.contains(app.packageName),
-                        onCheckedChange = { viewModel.toggleSelect(app.packageName) },
-                    )
-                    AppIcon(packageName = app.packageName, modifier = Modifier.size(40.dp))
-                    Spacer(Modifier.width(SaddSpacing.Small))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(app.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                        Text(app.packageName, style = MaterialTheme.typography.bodySmall)
+                // هر اپ نصب‌شده یک کارت Detox با حاشیه مویی است.
+                SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = uiState.selected.contains(app.packageName),
+                            onCheckedChange = { viewModel.toggleSelect(app.packageName) },
+                        )
+                        AppIcon(packageName = app.packageName, modifier = Modifier.size(40.dp))
+                        Spacer(Modifier.width(SaddSpacing.Small))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(app.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                            Text(
+                                app.packageName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -185,6 +199,7 @@ fun AppsScreen(
                 item { SectionTitle("اپ‌های بلاک‌شده (${uiState.blocked.size})") }
             }
             items(uiState.blocked, key = { it.packageName }) { app ->
+                // کارت قانون بلاک‌شده: آیکون واقعی اپ + سوییچ + چیپ تاخیر قرصی.
                 SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -192,7 +207,11 @@ fun AppsScreen(
                             Spacer(Modifier.width(SaddSpacing.Small))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(app.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                                Text(app.packageName, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    app.packageName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                             Switch(
                                 checked = app.enabled,
@@ -202,6 +221,7 @@ fun AppsScreen(
                                 Icon(Icons.Filled.Delete, contentDescription = "حذف قانون")
                             }
                         }
+                        Spacer(Modifier.height(SaddSpacing.Small))
                         DelayChip(delaySeconds = app.delaySeconds, onClick = { delayTarget = app.packageName })
                     }
                 }
@@ -222,11 +242,12 @@ private fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
     if (bitmap != null) {
         Image(bitmap = bitmap, contentDescription = null, modifier = modifier)
     } else {
+        // جایگزین آیکون اپ با رنگ مینت Detox وقتی آیکون واقعی خوانده نشود.
         Icon(
             Icons.Filled.Apps,
             contentDescription = null,
             modifier = modifier,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = ChipMint,
         )
     }
 }

@@ -5,24 +5,37 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sadd.blocker.R
 import com.sadd.blocker.core.ProtectionGuardDetector
@@ -33,8 +46,15 @@ import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictUnlock
 import com.sadd.blocker.domain.StrictUnlockMethod
+import com.sadd.blocker.ui.games.GameHost
+import com.sadd.blocker.ui.games.GameInfo
+import com.sadd.blocker.ui.games.GamesGrid
 import com.sadd.blocker.ui.theme.BlockerTheme
+import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.Mint
+import com.sadd.blocker.ui.theme.SaddGlass
+import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddHairlineColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -180,12 +200,21 @@ fun BlockedContent(
     delaySeconds: Int? = null,
     onBack: () -> Unit,
 ) {
+    // بازی انتخاب‌شده از بخش «وقتی موج میل می‌آید»؛ بستن بازی فقط به همین
+    // صفحه برمی‌گردد و هرگز اکتیویتی را نمی‌بندد (بازگشت به اپ بلاک‌شده ممکن نیست).
+    var selectedGame by remember { mutableStateOf<GameInfo?>(null) }
+    val openGame = selectedGame
+    if (openGame != null) {
+        GameHost(game = openGame, onClose = { selectedGame = null })
+        return
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Image(
@@ -206,34 +235,73 @@ fun BlockedContent(
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onBackground,
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            reason,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        if (category != null) {
-            Spacer(Modifier.height(12.dp))
-            AssistChip(onClick = {}, label = { Text("دسته: $category") })
+        Spacer(Modifier.height(12.dp))
+        // کارت Detox دلیل بلاک: دلیل، دسته و تاخیر داخل یک کارت hero.
+        SaddCard(modifier = Modifier.fillMaxWidth(), hero = true) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    reason,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                )
+                if (category != null) {
+                    Spacer(Modifier.height(12.dp))
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("دسته: $category") },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            labelColor = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+                    )
+                }
+                if (delaySeconds != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "تاخیر مداخله: $delaySeconds ثانیه",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+            }
         }
-        if (delaySeconds != null) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "تاخیر مداخله: $delaySeconds ثانیه",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-        }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         Text(
             "یک لحظه مکث کن — این انتخاب آگاهانه توست، نه یک اتفاق.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
         SaddButton(
             text = "بازگشت",
             onClick = onBack,
             modifier = Modifier.padding(top = 24.dp),
         )
+        // بخش بازی‌های کوچک: فقط داخل خود «سد» و فقط در محتوای عادی بلاک
+        // (حالت نگهبان این صفحه را اصلاً نشان نمی‌دهد). بازی‌ها بلاک را
+        // ضعیف نمی‌کنند؛ بستن هر بازی به همین صفحه برمی‌گردد.
+        Spacer(Modifier.height(SaddSpacing.XLarge))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SaddIconChip(icon = Icons.Filled.PlayArrow, color = ChipMint)
+            Spacer(Modifier.width(SaddSpacing.Medium))
+            Text(
+                "وقتی موج میل می‌آید",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Start,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(SaddSpacing.Medium))
+        GamesGrid(onGameClick = { selectedGame = it })
+        Spacer(Modifier.height(SaddSpacing.XLarge))
     }
 }

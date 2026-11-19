@@ -9,13 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +34,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.DiagnosticsViewModel
 import com.sadd.blocker.ui.ThemeViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPink
+import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /**
@@ -106,16 +110,12 @@ fun DiagnosticsScreen(
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (permission.granted) Icons.Filled.CheckCircle else Icons.Filled.Warning,
-                            contentDescription = null,
-                            tint = if (permission.granted) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.error
-                            },
+                        // چیپ آیکون Detox: فعال = مینت، غیرفعال = صورتی.
+                        SaddIconChip(
+                            icon = if (permission.granted) Icons.Filled.CheckCircle else Icons.Filled.Warning,
+                            color = if (permission.granted) ChipMint else ChipPink,
                         )
-                        Spacer(Modifier.size(SaddSpacing.Small))
+                        Spacer(Modifier.width(SaddSpacing.Medium))
                         Text(
                             permission.title,
                             style = MaterialTheme.typography.bodyLarge,
@@ -150,6 +150,16 @@ fun DiagnosticsScreen(
             SectionTitle("دیتابیس و سشن")
             SaddCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SaddIconChip(icon = Icons.Filled.Settings, color = ChipPurple)
+                        Spacer(Modifier.width(SaddSpacing.Medium))
+                        Text(
+                            "دیتابیس و سشن",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Spacer(Modifier.height(SaddSpacing.Small))
                     InfoRow("اپ‌های فعال", uiState.appsCount.toString())
                     InfoRow("وب‌سایت‌های فعال", uiState.websitesCount.toString())
                     InfoRow("کلمات فعال", uiState.keywordsCount.toString())
@@ -159,6 +169,16 @@ fun DiagnosticsScreen(
             SectionTitle("نسخه و رویداد")
             SaddCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SaddIconChip(icon = Icons.Filled.Info, color = ChipMint)
+                        Spacer(Modifier.width(SaddSpacing.Medium))
+                        Text(
+                            "نسخه و رویداد",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Spacer(Modifier.height(SaddSpacing.Small))
                     InfoRow("نسخه", "${uiState.versionName} (${uiState.versionCode})")
                     InfoRow("آخرین رویداد بلاک", "هنوز رویدادی ثبت نشده — ثبت رویداد با وصل‌شدن مکانیزم بلاک می‌آید.")
                 }

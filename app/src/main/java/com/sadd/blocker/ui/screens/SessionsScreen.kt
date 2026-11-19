@@ -17,9 +17,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,6 +36,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -46,11 +53,15 @@ import com.sadd.blocker.domain.TimeFormat
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.model.SessionDurations
 import com.sadd.blocker.ui.SessionsViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddGlassBorderColor
 import com.sadd.blocker.ui.theme.saddGlassDialogContainerColor
+import com.sadd.blocker.ui.theme.saddHairlineColor
 
 /** برچسب فارسی وضعیت سشن. */
 private fun sessionStatusLabel(status: String): String {
@@ -163,10 +174,18 @@ fun SessionsScreen(
                             verticalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
                         ) {
                             for (duration in SessionDurations.OPTIONS) {
+                                // چیپ مدت به سبک Detox: قرصی، انتخاب‌شده = primary توپر.
                                 FilterChip(
                                     selected = selectedDuration == duration,
                                     onClick = { selectedDuration = duration },
                                     label = { Text(TimeFormat.durationLabel(duration)) },
+                                    shape = RoundedCornerShape(SaddRadius.Button),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        labelColor = MaterialTheme.colorScheme.onSurface,
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    ),
                                 )
                             }
                         }
@@ -231,11 +250,16 @@ fun SessionsScreen(
             item {
                 SaddCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
-                        Text(
-                            "سشن فعال",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        // سرتیتر کارت سشن فعال به سبک Detox: چیپ آیکون تایمر + عنوان.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SaddIconChip(icon = Icons.Filled.Timer, color = ChipMint)
+                            Spacer(Modifier.width(SaddSpacing.Small))
+                            Text(
+                                "سشن فعال",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                         Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
                             "باقی‌مانده: ${uiState.remainingText}",
@@ -298,19 +322,27 @@ fun SessionsScreen(
         items(uiState.history, key = { it.id }) { session ->
             val reason = endedReasonLabel(session.endedReason)
             SaddCard(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
-                    Text(
-                        "${JalaliDate.formatDateTime(session.startEpochMs)} تا ${JalaliDate.formatDateTime(session.endEpochMs)}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "وضعیت: ${sessionStatusLabel(session.status)}" +
-                            (if (reason.isNotEmpty()) " ($reason)" else "") +
-                            (if (session.strict) " — Strict" else ""),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                // ردیف تاریخچه به سبک Detox: چیپ آیکون تایمر + بازه و وضعیت.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SaddIconChip(icon = Icons.Filled.Timer, color = ChipPurple)
+                    Spacer(Modifier.width(SaddSpacing.Small))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "${JalaliDate.formatDateTime(session.startEpochMs)} تا ${JalaliDate.formatDateTime(session.endEpochMs)}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "وضعیت: ${sessionStatusLabel(session.status)}" +
+                                (if (reason.isNotEmpty()) " ($reason)" else "") +
+                                (if (session.strict) " — Strict" else ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -350,6 +382,8 @@ private fun StartModeDialog(
                 StartModeOption(
                     title = "\u2066Strict\u2069 — سخت‌گیرانه",
                     description = "پایان سشن و تغییر قانون فقط با تایپ متن طولانی یا انتظار ممکن است.",
+                    icon = Icons.Filled.Lock,
+                    iconColor = ChipYellow,
                     isDefault = defaultStrict,
                     onClick = { onPick(true) },
                 )
@@ -357,6 +391,8 @@ private fun StartModeDialog(
                 StartModeOption(
                     title = "معمولی",
                     description = "پایان سشن و تغییر قانون آزاد است.",
+                    icon = Icons.Filled.PlayArrow,
+                    iconColor = ChipMint,
                     isDefault = !defaultStrict,
                     onClick = { onPick(false) },
                 )
@@ -369,48 +405,55 @@ private fun StartModeDialog(
     )
 }
 
-/** یک گزینه حالت در دیالوگ شروع سشن: عنوان + توضیح + برچسب پیش‌فرض. */
+/** یک گزینه حالت در دیالوگ شروع سشن به سبک Detox: چیپ آیکون رنگی + عنوان و توضیح + برچسب پیش‌فرض؛ حاشیه پیش‌فرض primary توپر، بقیه حاشیه مویی. */
 @Composable
 private fun StartModeOption(
     title: String,
     description: String,
+    icon: ImageVector,
+    iconColor: Color,
     isDefault: Boolean,
     onClick: () -> Unit,
 ) {
-    Column(
+    Row(
         modifier = Modifier.fillMaxWidth()
             .border(
                 1.dp,
                 if (isDefault) {
                     MaterialTheme.colorScheme.primary
                 } else {
-                    MaterialTheme.colorScheme.outline
+                    saddHairlineColor()
                 },
                 RoundedCornerShape(SaddRadius.Card),
             )
             .clickable(onClick = onClick)
             .padding(SaddSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-            )
-            if (isDefault) {
+        SaddIconChip(icon = icon, color = iconColor)
+        Spacer(Modifier.width(SaddSpacing.Small))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "پیش‌فرض",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
                 )
+                if (isDefault) {
+                    Text(
+                        "پیش‌فرض",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            description,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

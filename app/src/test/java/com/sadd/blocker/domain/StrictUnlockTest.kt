@@ -126,11 +126,14 @@ class StrictUnlockTest {
     }
 
     @Test
-    fun passageBankHasEightLongPassagesWithSources() {
-        assertEquals(8, STRICT_PASSAGES.size)
+    fun passageBankHasTwelveLongPassagesWithSources() {
+        assertEquals(12, STRICT_PASSAGES.size)
         for (passage in STRICT_PASSAGES) {
             assertTrue(passage.text.length in 500..750)
             assertTrue(passage.source.isNotBlank())
+            // هیچ متنی نشانه «» ندارد تا تایپ دستی همه متن ممکن باشد.
+            assertTrue(!passage.text.contains('«'))
+            assertTrue(!passage.text.contains('»'))
         }
     }
 
@@ -316,6 +319,41 @@ class StrictUnlockTest {
         assertEquals(0, GuardPolicy.effectiveDelaySeconds(0))
         assertEquals(0, GuardPolicy.effectiveDelaySeconds(5))
         assertEquals(0, GuardPolicy.effectiveDelaySeconds(15))
+    }
+
+    @Test
+    fun pasteInsertSingleCharIsNotPaste() {
+        // تایپ تک‌نویسه در ابتدا، وسط و انتها چسباندن نیست.
+        assertFalse(StrictUnlock.isPasteInsert("", "ک"))
+        assertFalse(StrictUnlock.isPasteInsert("کتاب", "کتاب "))
+        assertFalse(StrictUnlock.isPasteInsert("کتاب", "کتااب"))
+        assertFalse(StrictUnlock.isPasteInsert("کتاب", " کتاب"))
+    }
+
+    @Test
+    fun pasteInsertMultiCharIsPaste() {
+        // درج چند نویسه در ابتدا، وسط و انتها چسباندن است.
+        assertTrue(StrictUnlock.isPasteInsert("", "کتاب"))
+        assertTrue(StrictUnlock.isPasteInsert("کتاب", "کتاب یادگیری"))
+        assertTrue(StrictUnlock.isPasteInsert("یادگیری", "کتاب یادگیری"))
+        assertTrue(StrictUnlock.isPasteInsert("کتاب یادگیری", "کتاب خوب یادگیری"))
+    }
+
+    @Test
+    fun pasteInsertDeletionAndIdenticalAreNotPaste() {
+        // حذف و رشته یکسان چسباندن نیستند.
+        assertFalse(StrictUnlock.isPasteInsert("کتاب یادگیری", "کتاب"))
+        assertFalse(StrictUnlock.isPasteInsert("کتاب یادگیری", ""))
+        assertFalse(StrictUnlock.isPasteInsert("کتاب", "کتاب"))
+        assertFalse(StrictUnlock.isPasteInsert("", ""))
+    }
+
+    @Test
+    fun pasteInsertSelectionReplacementWithManyCharsIsPaste() {
+        // جایگزینی یک انتخاب با چند نویسه چسباندن است، ولی با یک نویسه نه.
+        assertTrue(StrictUnlock.isPasteInsert("کتاب یادگیری", "دفتر یادگیری"))
+        assertTrue(StrictUnlock.isPasteInsert("کتاب", "دفتر"))
+        assertFalse(StrictUnlock.isPasteInsert("کتاب", "کتات"))
     }
 
     @Test

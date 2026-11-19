@@ -5,11 +5,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +29,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.sadd.blocker.BuildConfig
 import com.sadd.blocker.R
 import com.sadd.blocker.ui.ThemeViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPink
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /**
@@ -45,36 +56,62 @@ fun AboutScreen(
             .padding(SaddSpacing.Large),
     ) {
         SaddTopBar("درباره و مستندات", onBack = onBack)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Image(
-                painter = painterResource(id = R.drawable.sadd_bear),
-                contentDescription = "خرس سد",
-                modifier = Modifier.size(64.dp),
-            )
-            Spacer(Modifier.size(SaddSpacing.Small))
-            Column {
-                Text("سد — \u2066Blocker\u2069", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text(
-                    "نسخه ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) — ساخته‌شده از صفر",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // کارت hero سربرگ: خرس سد + نام و نسخه.
+        SaddCard(modifier = Modifier.fillMaxWidth(), hero = true) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.sadd_bear),
+                    contentDescription = "خرس سد",
+                    modifier = Modifier.size(64.dp),
                 )
+                Spacer(Modifier.size(SaddSpacing.Small))
+                Column {
+                    Text("سد — \u2066Blocker\u2069", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "نسخه ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) — ساخته‌شده از صفر",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
         Spacer(Modifier.height(SaddSpacing.Large))
         ThemePickerSection(themeViewModel = themeViewModel)
         Spacer(Modifier.height(SaddSpacing.Large))
-        Text(
-            "«سد» عادت‌های دیجیتال را با تصمیم آگاهانه قطع می‌کند؛ خواندن مقاله یا پیام هرگز بلاک نمی‌شود — " +
-                "فقط جستجوی عمدی، ناوبری ممنوعه و باز کردن اپ ممنوعه، وسط سشن فعال.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                verticalAlignment = Alignment.Top,
+            ) {
+                SaddIconChip(icon = Icons.Filled.Info, color = ChipMint)
+                Spacer(Modifier.width(SaddSpacing.Medium))
+                Text(
+                    "«سد» عادت‌های دیجیتال را با تصمیم آگاهانه قطع می‌کند؛ خواندن مقاله یا پیام هرگز بلاک نمی‌شود — " +
+                        "فقط جستجوی عمدی، ناوبری ممنوعه و باز کردن اپ ممنوعه، وسط سشن فعال.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
         SectionTitle("معماری")
-        Text(
-            "Kotlin + Compose + Material 3، Room و DataStore؛ تشخیص نیت قانون‌محور، بدون مدل عصبی. " +
-                "بلاک وب با Accessibility است، نه با VPN. اجرای خودکار زمان‌بندی (WorkManager) هنوز وصل نشده است.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                verticalAlignment = Alignment.Top,
+            ) {
+                SaddIconChip(icon = Icons.Filled.Settings, color = ChipPurple)
+                Spacer(Modifier.width(SaddSpacing.Medium))
+                Text(
+                    "Kotlin + Compose + Material 3، Room و DataStore؛ تشخیص نیت قانون‌محور، بدون مدل عصبی. " +
+                        "بلاک وب با Accessibility است، نه با VPN. اجرای خودکار زمان‌بندی (WorkManager) هنوز وصل نشده است.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
         SectionTitle("محدودیت‌های صادقانه اندروید")
         val limits = listOf(
             "حذف نصب و \u2066force-stop\u2069 را هیچ اپ معمولی نمی‌تواند قطعی بگیرد؛ تنها قفل مطلق \u2066Device Owner\u2069 است که معمولاً ریست فکتوری می‌خواهد.",
@@ -85,14 +122,38 @@ fun AboutScreen(
             "سامسونگ و بهینه‌سازی باتری سرویس پس‌زمینه را می‌کشند؛ معافیت باتری و WorkManager احتمال را کم می‌کند، صفر نمی‌کند.",
             "شروع دقیق زمان‌بندی بدون آلارم دقیق تضمین ندارد و ممکن است تا ۱۵ دقیقه دیر شود.",
         )
-        for (limit in limits) {
-            Text("• $limit", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = SaddSpacing.Small))
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SaddIconChip(icon = Icons.Filled.Warning, color = ChipYellow)
+                    Spacer(Modifier.width(SaddSpacing.Medium))
+                    Text(
+                        "محدودیت‌های صادقانه اندروید",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Spacer(Modifier.height(SaddSpacing.Small))
+                for (limit in limits) {
+                    Text("• $limit", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = SaddSpacing.Small))
+                }
+            }
         }
         SectionTitle("حریم خصوصی")
-        Text(
-            "همه‌چیز لوکال است؛ هیچ ارسالی از جستجوها یا تاریخچه مرور به بیرون نیست.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                verticalAlignment = Alignment.Top,
+            ) {
+                SaddIconChip(icon = Icons.Filled.Lock, color = ChipPink)
+                Spacer(Modifier.width(SaddSpacing.Medium))
+                Text(
+                    "همه‌چیز لوکال است؛ هیچ ارسالی از جستجوها یا تاریخچه مرور به بیرون نیست.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
         Spacer(Modifier.height(SaddSpacing.Large))
     }
 }

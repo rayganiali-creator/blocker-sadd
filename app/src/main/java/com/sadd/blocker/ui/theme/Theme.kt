@@ -23,19 +23,28 @@ import com.sadd.blocker.R
 import com.sadd.blocker.data.datastore.AppTheme
 import com.sadd.blocker.data.datastore.ColorTheme
 
-// سد — توکن‌های تاییدشده (AUDIT.md §۳٫۲ + موکاپ‌های v2):
-// سرمه‌ای عمیق + مینت/تیل، پس‌زمینه روشن off-white، بدون مشکی خالص.
+// سد — سیستم دیزاین Detox AI (اسکرین‌شات‌های مرجع ۲۰۲۶-۱۱-۱۹):
+// سرمه‌ای خیلی تیره + کارت‌های آبی‌خاکستری با حاشیه نازک تیل و درخشش نرم،
+// چیپ‌های آیکون رنگی، ناوبری پایین قرصی با انتخاب زرد.
+// پس‌زمینه روشن off-white می‌ماند تا متن خوانا بماند؛ بدون مشکی خالص.
 val Mint = Color(0xFF7CFFD9)
 val Teal = Color(0xFF0E9F8A)
 val TealDark = Color(0xFF0B7A6B)
-val Navy = Color(0xFF0B1220)
-val NavyDeep = Color(0xFF071224)
-val NavySurface = Color(0xFF131E33)
+// پس‌زمینه/سطح تیره Detox: سرمه‌ای عمیق‌تر از قبل.
+val Navy = Color(0xFF0B1626)
+val NavyDeep = Color(0xFF050B18)
+val NavySurface = Color(0xFF12203A)
 val Coral = Color(0xFFFF7A59)
 val Sunny = Color(0xFFFFC53D)
 val Sky = Color(0xFF5AA9FF)
 val Grape = Color(0xFF9B7BFF)
 val LightBackground = Color(0xFFF7F8FA)
+// رنگ‌های چیپ آیکون (مثل اسکرین‌شات‌ها: مینت/تیل، بنفش، زرد، صورتی).
+// خود چیپ پس‌زمینه را با آلفای کم همین رنگ می‌سازد و آیکون تمام‌رنگ است.
+val ChipMint = Color(0xFF5EEAD4)
+val ChipPurple = Color(0xFFB79CFF)
+val ChipYellow = Color(0xFFFFC53D)
+val ChipPink = Color(0xFFFF8FAB)
 
 private val LightColors = lightColorScheme(
     primary = TealDark,
@@ -142,9 +151,9 @@ private fun sunsetColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF7A2E12), onPrimaryContainer = Color(0xFFFFDCC8),
             secondary = Color(0xFFF5B544), onSecondary = Color(0xFF2A1C00),
             tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
-            background = Color(0xFF1C100A), onBackground = Color(0xFFFFF1E6),
-            surface = Color(0xFF281710), onSurface = Color(0xFFFFF1E6),
-            surfaceVariant = Color(0xFF3D2718), onSurfaceVariant = Color(0xFFE3BFA4),
+            background = Color(0xFF120A06), onBackground = Color(0xFFFFF1E6),
+            surface = Color(0xFF1C120B), onSurface = Color(0xFFFFF1E6),
+            surfaceVariant = Color(0xFF2E1F14), onSurfaceVariant = Color(0xFFE3BFA4),
             outline = Color(0xFF6B4A38),
         )
     } else {
@@ -170,9 +179,9 @@ private fun forestColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF14532D), onPrimaryContainer = Color(0xFFC9EED6),
             secondary = Color(0xFFA8D98A), onSecondary = Color(0xFF16290A),
             tertiary = Color(0xFF7FD8E0), onTertiary = Color(0xFF00363C),
-            background = Color(0xFF0A1A10), onBackground = Color(0xFFEAF6EC),
-            surface = Color(0xFF122619), onSurface = Color(0xFFEAF6EC),
-            surfaceVariant = Color(0xFF1F3A28), onSurfaceVariant = Color(0xFFB3CDB8),
+            background = Color(0xFF050F08), onBackground = Color(0xFFEAF6EC),
+            surface = Color(0xFF0A1A10), onSurface = Color(0xFFEAF6EC),
+            surfaceVariant = Color(0xFF142B1D), onSurfaceVariant = Color(0xFFB3CDB8),
             outline = Color(0xFF4A6B52),
         )
     } else {
@@ -198,9 +207,9 @@ private fun oceanColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF0F3D5C), onPrimaryContainer = Color(0xFFCFE8FF),
             secondary = Color(0xFF7FD8E0), onSecondary = Color(0xFF00363C),
             tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
-            background = Color(0xFF081826), onBackground = Color(0xFFEAF3FA),
-            surface = Color(0xFF0F2438), onSurface = Color(0xFFEAF3FA),
-            surfaceVariant = Color(0xFF1B3549), onSurfaceVariant = Color(0xFFB1C7D8),
+            background = Color(0xFF040E18), onBackground = Color(0xFFEAF3FA),
+            surface = Color(0xFF081A2C), onSurface = Color(0xFFEAF3FA),
+            surfaceVariant = Color(0xFF112A42), onSurfaceVariant = Color(0xFFB1C7D8),
             outline = Color(0xFF45617A),
         )
     } else {
@@ -226,9 +235,9 @@ private fun grapeColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF4A2A86), onPrimaryContainer = Color(0xFFE4D8FF),
             secondary = Color(0xFFF0A0D0), onSecondary = Color(0xFF3D0A2E),
             tertiary = Color(0xFF7FD8E0), onTertiary = Color(0xFF00363C),
-            background = Color(0xFF150A26), onBackground = Color(0xFFF2ECFD),
-            surface = Color(0xFF1F1238), onSurface = Color(0xFFF2ECFD),
-            surfaceVariant = Color(0xFF2E2149), onSurfaceVariant = Color(0xFFC3B6DE),
+            background = Color(0xFF0B0618), onBackground = Color(0xFFF2ECFD),
+            surface = Color(0xFF150C28), onSurface = Color(0xFFF2ECFD),
+            surfaceVariant = Color(0xFF221838), onSurfaceVariant = Color(0xFFC3B6DE),
             outline = Color(0xFF5E4E80),
         )
     } else {
@@ -254,9 +263,9 @@ private fun roseColors(dark: Boolean): ColorScheme {
             primaryContainer = Color(0xFF7A2450), onPrimaryContainer = Color(0xFFFFD6E7),
             secondary = Color(0xFFFBBF24), onSecondary = Color(0xFF2A1C00),
             tertiary = Color(0xFFC9B0FF), onTertiary = Color(0xFF2A1150),
-            background = Color(0xFF220D18), onBackground = Color(0xFFFBEFF4),
-            surface = Color(0xFF301221), onSurface = Color(0xFFFBEFF4),
-            surfaceVariant = Color(0xFF42202F), onSurfaceVariant = Color(0xFFD6A9BE),
+            background = Color(0xFF160812), onBackground = Color(0xFFFBEFF4),
+            surface = Color(0xFF220E1A), onSurface = Color(0xFFFBEFF4),
+            surfaceVariant = Color(0xFF331A27), onSurfaceVariant = Color(0xFFD6A9BE),
             outline = Color(0xFF6E4456),
         )
     } else {
@@ -362,38 +371,44 @@ object SaddSpacing {
     val XLarge = 24.dp
 }
 
-/** شعاع نرم و بالشتی: کارت ۲۴dp، کارت hero ‏۲۸dp، دکمه ۲۸dp، چیپ ۸dp، دیالوگ ۲۸dp، فیلد متنی ۲۰dp. */
+/** شعاع Detox: کارت ۲۰dp، کارت hero ‏۲۴dp، دکمه قرصی ۲۸dp، چیپ ۱۲dp، دیالوگ ۲۸dp، فیلد متنی ۱۸dp. */
 object SaddRadius {
-    val Card = 24.dp
-    val Hero = 28.dp
+    val Card = 20.dp
+    val Hero = 24.dp
     val Button = 28.dp
-    val Chip = 8.dp
+    val Chip = 12.dp
     val Dialog = 28.dp
-    val TextField = 20.dp
+    val TextField = 18.dp
 }
 
 /**
- * توکن‌های شیشه‌ای («سد» — دکمه‌ها و دیالوگ‌های نرم‌تر):
+ * توکن‌های شیشه‌ای Detox («سد» — کارت‌ها و دیالوگ‌های نرم‌تر):
  * - ظرف دیالوگ: surface با آلفای ۰٫۹۲ — پس‌زمینه کمی از پشت دیده می‌شود،
  *   ولی متن با آلفای ۱۰۰٪ خوانا می‌ماند (کنتراست روی surface تیره/روشن
  *   همه ۶ پالت حفظ می‌شود، چون فقط ۸٪ شفافیت اضافه می‌شود).
- * - دکمه اصلی: primary با آلفای ۰٫۸۵ — روی پس‌زمینه سرمه‌ای/روشن هنوز
- *   onPrimary با کنتراست کامل خواناست.
- * - حاشیه: ۱dp از onSurface با آلفای ۰٫۱۲ — در تم تیره روشن و در تم
- *   روشن تیره دیده می‌شود، در هر ۶ پالت.
+ * - حاشیه مویی (hairline): ۱dp از primary پالت با آلفای ۰٫۴۰ — مثل حاشیه
+ *   تیل نازک اسکرین‌شات‌ها؛ هر ۶ پالت رنگ خودش را می‌گیرد و در روشن و
+ *   تیره هر دو دیده می‌شود (primary روشن روی سرمه‌ای، primary تیره روی سفید).
+ * - ButtonContainerAlpha فقط برای سازگاری API مانده؛ دکمه اصلی حالا
+ *   primary توپر است (Detox) و این توکن دیگر در SaddButton استفاده نمی‌شود.
  * این‌ها فقط توکن‌اند؛ اعمال‌شان در کامپوننت‌های مشترک (Common.kt) است.
  */
 object SaddGlass {
     val DialogContainerAlpha = 0.92f
     val ButtonContainerAlpha = 0.85f
     val BorderAlpha = 0.12f
+    val HairlineAlpha = 0.40f
     val BorderWidth = 1.dp
 }
 
-/** رنگ حاشیه شیشه‌ای: onSurface با آلفای کم — در تیره روشن، در روشن تیره. */
+/** رنگ حاشیه مویی Detox: primary پالت با آلفای ۰٫۴۰ — در هر ۶ پالت، روشن و تیره. */
 @Composable
-fun saddGlassBorderColor(): Color =
-    MaterialTheme.colorScheme.onSurface.copy(alpha = SaddGlass.BorderAlpha)
+fun saddHairlineColor(): Color =
+    MaterialTheme.colorScheme.primary.copy(alpha = SaddGlass.HairlineAlpha)
+
+/** رنگ حاشیه شیشه‌ای — حالا همان حاشیه مویی Detox است (سازگاری با کال‌سایت‌های قدیمی). */
+@Composable
+fun saddGlassBorderColor(): Color = saddHairlineColor()
 
 /** رنگ ظرف دیالوگ شیشه‌ای: surface با آلفای ۰٫۹۲. */
 @Composable

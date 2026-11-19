@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,23 +47,17 @@ fun ThemePickerSection(
 ) {
     val themeState by themeViewModel.uiState.collectAsStateWithLifecycle()
     SectionTitle("تم")
-    for ((theme, label) in listOf(
+    // انتخاب روشن/تیره/سیستمی با کنترل قطعه‌ای Detox.
+    val themeOptions = listOf(
         AppTheme.LIGHT to "روشن",
         AppTheme.DARK to "تیره",
         AppTheme.SYSTEM to "سیستمی (پیروی از سیستم)",
-    )) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RadioButton(
-                selected = themeState.theme == theme,
-                onClick = { themeViewModel.setTheme(theme) },
-            )
-            Spacer(Modifier.size(SaddSpacing.Small))
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-        }
-    }
+    )
+    SaddSegmentedControl(
+        options = themeOptions.map { it.second },
+        selectedIndex = themeOptions.indexOfFirst { it.first == themeState.theme }.coerceAtLeast(0),
+        onSelect = { themeViewModel.setTheme(themeOptions[it].first) },
+    )
     SectionTitle("رنگ‌بندی")
     Text(
         "رنگ‌بندی با روشن/تیره جداست؛ هر رنگ‌بندی روشن و تیره خودش را دارد و همه صفحه‌ها — داشبورد، سشن‌ها، قوانین، حالت‌ها، درباره و صفحه بلاک — همان را می‌گیرند.",
@@ -114,7 +107,7 @@ private fun PaletteCard(selected: Boolean, palette: ColorTheme, onClick: () -> U
         modifier = Modifier.then(
             if (selected) {
                 Modifier.border(
-                    1.dp,
+                    2.dp,
                     MaterialTheme.colorScheme.primary,
                     RoundedCornerShape(SaddRadius.Card),
                 )
@@ -125,16 +118,17 @@ private fun PaletteCard(selected: Boolean, palette: ColorTheme, onClick: () -> U
         onClick = onClick,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = SaddSpacing.Medium, vertical = SaddSpacing.Small),
+            modifier = Modifier.padding(horizontal = SaddSpacing.Medium, vertical = SaddSpacing.Medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             for (dot in dots) {
                 Box(
                     modifier = Modifier
                         .padding(end = 4.dp)
-                        .size(16.dp)
+                        .size(18.dp)
                         .clip(CircleShape)
-                        .background(dot),
+                        .background(dot)
+                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f), CircleShape),
                 )
             }
             Spacer(Modifier.size(SaddSpacing.Small))
@@ -142,6 +136,11 @@ private fun PaletteCard(selected: Boolean, palette: ColorTheme, onClick: () -> U
                 label,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
             )
         }
     }

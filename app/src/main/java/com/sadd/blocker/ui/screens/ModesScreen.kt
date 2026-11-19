@@ -1,10 +1,7 @@
 package com.sadd.blocker.ui.screens
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -28,6 +31,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -52,6 +57,10 @@ import com.sadd.blocker.domain.UninstallProtectionGate
 import com.sadd.blocker.domain.model.BlockMode
 import com.sadd.blocker.domain.repository.SessionRepository
 import com.sadd.blocker.ui.ModesViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPink
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -620,7 +629,6 @@ private fun strictPendingDescription(request: StrictCooldownRequest): String {
  * می‌خواهد — ولی خود صفحه سیستمی را نمی‌توان قفل کرد و اگر Accessibility
  * خاموش شود، نگهبان هم خاموش می‌شود.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ModesScreen(
     viewModel: ModesViewModel = hiltViewModel(),
@@ -699,6 +707,8 @@ fun ModesScreen(
             selected = uiState.blockMode == BlockMode.NORMAL,
             title = "\u2066Normal\u2069 — عادی",
             description = "صفحه مداخله با فرصت تجدیدنظر؛ با بازگشت می‌توانی صرف‌نظر کنی.",
+            icon = Icons.Filled.PlayArrow,
+            color = ChipMint,
             onClick = { strictViewModel.requestBlockMode(BlockMode.NORMAL) },
         )
         Spacer(Modifier.height(SaddSpacing.Medium))
@@ -708,6 +718,8 @@ fun ModesScreen(
             description = "وسط سشن، تغییر قانون و پایان سشن فقط با بازگشایی Strict ممکن است. " +
                 "جلوی حذف نصب را نمی‌گیرد؛ آن را پایین همین صفحه فعال کن. " +
                 "\u2066force-stop\u2069 را هیچ اپ معمولی نمی‌تواند بگیرد.",
+            icon = Icons.Filled.Lock,
+            color = ChipPurple,
             onClick = { strictViewModel.requestBlockMode(BlockMode.STRICT) },
         )
         if (uiState.blockMode == BlockMode.STRICT) {
@@ -724,6 +736,8 @@ fun ModesScreen(
                         selected = strictState.unlockMethod == StrictUnlockMethod.PASSAGE,
                         title = "تایپ متن طولانی",
                         description = "متن طولانی (حدود ۵۰۰ کاراکتر) را دقیقاً تایپ کن؛ تا کامل نشود، بازگشایی نمی‌شود.",
+                        icon = Icons.Filled.TextFields,
+                        color = ChipYellow,
                         onClick = { strictViewModel.requestUnlockMethod(StrictUnlockMethod.PASSAGE) },
                     )
                     Spacer(Modifier.height(SaddSpacing.Small))
@@ -731,6 +745,8 @@ fun ModesScreen(
                         selected = strictState.unlockMethod == StrictUnlockMethod.COOLDOWN,
                         title = "انتظار",
                         description = "مدت انتخاب‌شده باید کامل بگذرد؛ بستن اپ یا ری‌استارت زمان را صفر نمی‌کند.",
+                        icon = Icons.Filled.Timer,
+                        color = ChipPink,
                         onClick = { strictViewModel.requestUnlockMethod(StrictUnlockMethod.COOLDOWN) },
                     )
                     Spacer(Modifier.height(SaddSpacing.Medium))
@@ -740,18 +756,16 @@ fun ModesScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(SaddSpacing.Small))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
-                        verticalArrangement = Arrangement.spacedBy(SaddSpacing.Small),
-                    ) {
-                        for (hours in StrictUnlock.COOLDOWN_HOUR_OPTIONS) {
-                            FilterChip(
-                                selected = strictState.cooldownHours == hours,
-                                onClick = { strictViewModel.requestCooldownHours(hours) },
-                                label = { Text("$hours ساعت") },
-                            )
-                        }
-                    }
+                    // مدت انتظار به سبک Detox: کنترل قطعه‌ای قرصی با قطعه انتخاب‌شده توپر.
+                    SaddSegmentedControl(
+                        options = StrictUnlock.COOLDOWN_HOUR_OPTIONS.map { "$it ساعت" },
+                        selectedIndex = StrictUnlock.COOLDOWN_HOUR_OPTIONS
+                            .indexOf(strictState.cooldownHours)
+                            .coerceAtLeast(0),
+                        onSelect = { index ->
+                            strictViewModel.requestCooldownHours(StrictUnlock.COOLDOWN_HOUR_OPTIONS[index])
+                        },
+                    )
                     if (!strictState.strictSessionActive) {
                         Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
@@ -770,7 +784,11 @@ fun ModesScreen(
                     // ذخیره‌شده را: اگر تنظیم روشن ولی مدیر دستگاه فعال نباشد،
                     // تاگل خاموش است و ضربه روی آن فعال‌سازی را باز می‌کند —
                     // ضربه‌ای که برای فعال‌کردن است هرگز مدیر دستگاه را حذف نمی‌کند.
-                    SaddSwitchRow(
+                    // ردیف محافظت به سبک Detox: چیپ آیکون سپر + همان ردیف سوییچ قبلی (رفتار دست نخورده).
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SaddIconChip(icon = Icons.Filled.Shield, color = ChipMint)
+                        Spacer(Modifier.size(SaddSpacing.Small))
+                        SaddSwitchRow(
                         label = "جلوگیری از حذف نصب",
                         description = "«سد» مدیر دستگاه می‌شود و حذف نصب آن مسدود می‌شود.",
                         checked = strictState.uninstallAdminActive,
@@ -792,7 +810,9 @@ fun ModesScreen(
                                 showProtectionOffConfirm = true
                             }
                         },
-                    )
+                        modifier = Modifier.weight(1f),
+                        )
+                    }
                     // اعلان: محافظت روشن بود ولی مدیر دستگاه از تنظیمات سیستم
                     // غیرفعال شد (اپ نمی‌تواند جلوی آن را بگیرد؛ فقط خبر می‌دهد).
                     if (strictState.adminDeactivatedNotice) {
@@ -928,11 +948,16 @@ fun ModesScreen(
                 val remaining = StrictUnlock.cooldownRemainingMs(request, nowMs)
                 SaddCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
-                        Text(
-                            "تغییر در انتظار",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        // سرتیتر کارت تغییر در انتظار به سبک Detox: چیپ آیکون تایمر + عنوان.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            SaddIconChip(icon = Icons.Filled.Timer, color = ChipYellow)
+                            Spacer(Modifier.size(SaddSpacing.Small))
+                            Text(
+                                "تغییر در انتظار",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                         Spacer(Modifier.height(SaddSpacing.Small))
                         Text(
                             strictPendingDescription(request),
@@ -977,20 +1002,29 @@ fun ModesScreen(
         }
         Spacer(Modifier.height(SaddSpacing.Large))
         SaddCard(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                "بلاک فقط وسط سشن فعال کار می‌کند: جستجوی عمدی، ناوبری ممنوعه و باز کردن اپ ممنوعه. " +
-                    "خواندن و تایپ عادی هرگز بلاک نمی‌شود.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(SaddSpacing.Large),
-            )
+            // کارت اطلاع پایین صفحه به سبک Detox: چیپ آیکون اطلاع + متن.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SaddIconChip(icon = Icons.Filled.Info, color = ChipMint)
+                Spacer(Modifier.size(SaddSpacing.Small))
+                Text(
+                    "بلاک فقط وسط سشن فعال کار می‌کند: جستجوی عمدی، ناوبری ممنوعه و باز کردن اپ ممنوعه. " +
+                        "خواندن و تایپ عادی هرگز بلاک نمی‌شود.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
         Spacer(Modifier.height(SaddSpacing.Large))
     }
 }
 
+/** کارت انتخاب حالت به سبک Detox: رادیو + چیپ آیکون رنگی + عنوان و توضیح؛ انتخاب‌شده حاشیه primary توپر می‌گیرد. */
 @Composable
-private fun ModeCard(selected: Boolean, title: String, description: String, onClick: () -> Unit) {
+private fun ModeCard(selected: Boolean, title: String, description: String, icon: ImageVector, color: Color, onClick: () -> Unit) {
     SaddCard(
         modifier = Modifier.fillMaxWidth().then(
             if (selected) {
@@ -1011,7 +1045,9 @@ private fun ModeCard(selected: Boolean, title: String, description: String, onCl
         ) {
             RadioButton(selected = selected, onClick = onClick)
             Spacer(Modifier.size(SaddSpacing.Small))
-            Column {
+            SaddIconChip(icon = icon, color = color)
+            Spacer(Modifier.size(SaddSpacing.Small))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(description, style = MaterialTheme.typography.bodyMedium)
             }

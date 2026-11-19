@@ -32,6 +32,10 @@ $KOTLINC \
   app/src/main/java/com/sadd/blocker/core/BlockThrottle.kt \
   app/src/main/java/com/sadd/blocker/core/SessionCalculator.kt \
   app/src/main/java/com/sadd/blocker/core/PinCrypto.kt \
+  app/src/main/java/com/sadd/blocker/core/games/BlocksEngine.kt \
+  app/src/main/java/com/sadd/blocker/core/games/EchoEngine.kt \
+  app/src/main/java/com/sadd/blocker/core/games/PopEngine.kt \
+  app/src/main/java/com/sadd/blocker/core/games/BreatheEngine.kt \
   app/src/main/java/com/sadd/blocker/domain/TimeFormat.kt \
   app/src/main/java/com/sadd/blocker/domain/StrictUnlock.kt \
   app/src/main/java/com/sadd/blocker/domain/StrictPassages.kt \
@@ -57,6 +61,10 @@ $KOTLINC \
   app/src/test/java/com/sadd/blocker/core/BlockThrottleTest.kt \
   app/src/test/java/com/sadd/blocker/core/SessionCalculatorTest.kt \
   app/src/test/java/com/sadd/blocker/core/PinCryptoTest.kt \
+  app/src/test/java/com/sadd/blocker/core/games/BlocksEngineTest.kt \
+  app/src/test/java/com/sadd/blocker/core/games/EchoEngineTest.kt \
+  app/src/test/java/com/sadd/blocker/core/games/PopEngineTest.kt \
+  app/src/test/java/com/sadd/blocker/core/games/BreatheEngineTest.kt \
   app/src/test/java/com/sadd/blocker/domain/RuleValidationTest.kt \
   app/src/test/java/com/sadd/blocker/domain/StrictUnlockTest.kt \
   app/src/test/java/com/sadd/blocker/domain/OnboardingStepsTest.kt \
@@ -80,6 +88,10 @@ $JAVA -cp "$OUT/test-classes:$TB/junit.jar:$TB/hamcrest.jar:$COROUTINES_JAR:$TB/
   com.sadd.blocker.core.BlockThrottleTest \
   com.sadd.blocker.core.SessionCalculatorTest \
   com.sadd.blocker.core.PinCryptoTest \
+  com.sadd.blocker.core.games.BlocksEngineTest \
+  com.sadd.blocker.core.games.EchoEngineTest \
+  com.sadd.blocker.core.games.PopEngineTest \
+  com.sadd.blocker.core.games.BreatheEngineTest \
   com.sadd.blocker.domain.RuleValidationTest \
   com.sadd.blocker.domain.StrictUnlockTest \
   com.sadd.blocker.domain.OnboardingStepsTest \

@@ -3,13 +3,19 @@ package com.sadd.blocker.ui.screens
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,10 +24,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.BackupViewModel
+import com.sadd.blocker.ui.theme.ChipMint
+import com.sadd.blocker.ui.theme.ChipPurple
+import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.screens.StrictUnlockDialog
 import kotlinx.coroutines.launch
@@ -89,23 +99,61 @@ fun BackupScreen(
             type = MessageType.ERROR,
             onDismiss = { localError = null },
         )
-        SaddButton(
-            text = "خروجی بکاپ (JSON)",
-            onClick = { exportLauncher.launch("sadd-backup.json") },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // کارت خروجی بکاپ: چیپ آیکون + دکمه قرصی.
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SaddIconChip(icon = Icons.Filled.Shield, color = ChipMint)
+                    Spacer(Modifier.width(SaddSpacing.Medium))
+                    Text(
+                        "خروجی بکاپ (JSON)",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                Spacer(Modifier.height(SaddSpacing.Medium))
+                SaddButton(
+                    text = "خروجی بکاپ (JSON)",
+                    onClick = { exportLauncher.launch("sadd-backup.json") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
         Spacer(Modifier.height(SaddSpacing.Small))
-        SaddButton(
-            text = "ورود بکاپ از فایل",
-            onClick = { importLauncher.launch(arrayOf("application/json")) },
-            style = SaddButtonStyle.SECONDARY,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        // کارت ورود بکاپ: چیپ آیکون + دکمه ثانویه قرصی.
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SaddIconChip(icon = Icons.Filled.Lock, color = ChipPurple)
+                    Spacer(Modifier.width(SaddSpacing.Medium))
+                    Text(
+                        "ورود بکاپ از فایل",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                Spacer(Modifier.height(SaddSpacing.Medium))
+                SaddButton(
+                    text = "ورود بکاپ از فایل",
+                    onClick = { importLauncher.launch(arrayOf("application/json")) },
+                    style = SaddButtonStyle.SECONDARY,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
         Spacer(Modifier.height(SaddSpacing.Large))
-        Text(
-            "فایل بکاپ فقط روی همین دستگاه ساخته می‌شود و هیچ‌جا آپلود نمی‌شود.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                verticalAlignment = Alignment.Top,
+            ) {
+                SaddIconChip(icon = Icons.Filled.Info, color = ChipYellow)
+                Spacer(Modifier.width(SaddSpacing.Medium))
+                Text(
+                    "فایل بکاپ فقط روی همین دستگاه ساخته می‌شود و هیچ‌جا آپلود نمی‌شود.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
         Spacer(Modifier.height(SaddSpacing.Large))
     }
     // وسط سشن Strict، ریستور فقط بعد از بازگشایی Strict انجام می‌شود.

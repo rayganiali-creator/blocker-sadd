@@ -1,8 +1,11 @@
 package com.sadd.blocker.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -30,11 +34,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,6 +51,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
@@ -56,6 +65,7 @@ import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddGlassBorderColor
 import com.sadd.blocker.ui.theme.saddGlassDialogContainerColor
+import com.sadd.blocker.ui.theme.saddHairlineColor
 
 /** نوع پیام: موفقیت / خطا / اطلاع. */
 enum class MessageType {
@@ -111,9 +121,10 @@ fun SectionTitle(text: String) {
 }
 
 /**
- * کارت مشترک «سد»: نرم و بالشتی — شعاع ۲۴dp (کارت hero ‏۲۸dp)، سطح تونال
- * (surfaceVariant) با elevation ملایم ۲dp (hero ‏۴dp)؛ هرگز سایه سیاه تند ندارد.
- * شیشه‌ای: حاشیه نازک ۱dp به رنگ onSurface با ۱۲٪ آلفا (توکن SaddGlass).
+ * کارت مشترک «سد» به سبک Detox: سطح آبی‌خاکستری (surfaceVariant)،
+ * شعاع ۲۰dp (کارت hero ‏۲۴dp)، حاشیه مویی ۱dp به رنگ primary پالت
+ * و درخشش نرم هم‌رنگ primary (سایه رنگی ملایم، هرگز سایه سیاه تند).
+ * سایه رنگی همان API داشبورد است: Modifier.shadow با ambient/spot رنگی.
  */
 @Composable
 fun SaddCard(
@@ -125,10 +136,18 @@ fun SaddCard(
     val shape = RoundedCornerShape(if (hero) SaddRadius.Hero else SaddRadius.Card)
     val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     val elevation = CardDefaults.cardElevation(defaultElevation = if (hero) 4.dp else 2.dp)
-    val border = BorderStroke(SaddGlass.BorderWidth, saddGlassBorderColor())
+    val border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor())
+    // درخشش Detox: سایه نرم با رنگ primary کم‌آلفا دور کارت.
+    val glowColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+    val glowModifier = modifier.shadow(
+        elevation = if (hero) 10.dp else 6.dp,
+        shape = shape,
+        ambientColor = glowColor,
+        spotColor = glowColor,
+    )
     if (onClick != null) {
         Card(
-            modifier = modifier,
+            modifier = glowModifier,
             shape = shape,
             colors = colors,
             elevation = elevation,
@@ -139,7 +158,7 @@ fun SaddCard(
         }
     } else {
         Card(
-            modifier = modifier,
+            modifier = glowModifier,
             shape = shape,
             colors = colors,
             elevation = elevation,
@@ -154,7 +173,7 @@ enum class SaddButtonStyle {
     PRIMARY, SECONDARY, GHOST,
 }
 
-/** دکمه مشترک «سد»: اصلی / ثانویه (outlined) / شبح (text) — بالشتی، شعاع ۲۸dp و ارتفاع ۵۲dp. شیشه‌ای: دکمه اصلی سطح primary با ۸۵٪ آلفا + حاشیه نازک ۱dp (توکن SaddGlass)؛ متن روی آن ۱۰۰٪ می‌ماند. */
+/** دکمه مشترک «سد» به سبک Detox: اصلی توپر قرصی / ثانویه outlined با حاشیه مویی / شبح (text) — شعاع ۲۸dp و ارتفاع ۵۲dp. */
 @Composable
 fun SaddButton(
     text: String,
@@ -173,10 +192,9 @@ fun SaddButton(
             enabled = enabled,
             shape = shape,
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = SaddGlass.ButtonContainerAlpha),
+                containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ),
-            border = BorderStroke(SaddGlass.BorderWidth, saddGlassBorderColor()),
         ) {
             Text(text, fontWeight = FontWeight.SemiBold)
         }
@@ -185,6 +203,10 @@ fun SaddButton(
             modifier = tallModifier,
             enabled = enabled,
             shape = shape,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.primary,
+            ),
+            border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
         ) {
             Text(text)
         }
@@ -199,7 +221,7 @@ fun SaddButton(
     }
 }
 
-/** فیلد متنی مشترک «سد» با شعاع ۲۰dp. */
+/** فیلد متنی مشترک «سد» به سبک Detox: شعاع ۱۸dp، سطح surfaceVariant و حاشیه مویی (فوکوس: primary توپر). */
 @Composable
 fun SaddTextField(
     value: String,
@@ -221,6 +243,15 @@ fun SaddTextField(
         visualTransformation = visualTransformation,
         leadingIcon = leadingIcon,
         shape = RoundedCornerShape(SaddRadius.TextField),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = saddHairlineColor(),
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            cursorColor = MaterialTheme.colorScheme.primary,
+        ),
     )
 }
 
@@ -314,6 +345,7 @@ fun MessageBar(message: String?, type: MessageType = MessageType.INFO, onDismiss
         modifier = Modifier.fillMaxWidth().padding(bottom = SaddSpacing.Small),
         colors = CardDefaults.cardColors(containerColor = containerColor),
         shape = RoundedCornerShape(SaddRadius.Button),
+        border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
@@ -363,11 +395,19 @@ fun MessageSnackbarEffect(
     }
 }
 
-/** چیپ تاخیر قانون: null یعنی تاخیر سراسری. */
+/** چیپ تاخیر قانون به سبک Detox (سطح surfaceVariant + حاشیه مویی): null یعنی تاخیر سراسری. */
 @Composable
 fun DelayChip(delaySeconds: Int?, onClick: () -> Unit) {
     val label = if (delaySeconds == null) "تاخیر: سراسری" else "تاخیر: $delaySeconds ثانیه"
-    AssistChip(onClick = onClick, label = { Text(label) })
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label) },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            labelColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        border = BorderStroke(SaddGlass.BorderWidth, saddHairlineColor()),
+    )
 }
 
 /**
@@ -441,7 +481,18 @@ fun InfoRow(label: String, value: String) {
     }
 }
 
-/** ردیف برچسب + توضیح + سوییچ. */
+/** رنگ‌های سوییچ Detox: روشن = primary توپر، خاموش = surfaceVariant با حاشیه مویی. */
+@Composable
+private fun saddSwitchColors() = SwitchDefaults.colors(
+    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+    checkedTrackColor = MaterialTheme.colorScheme.primary,
+    checkedBorderColor = MaterialTheme.colorScheme.primary,
+    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+    uncheckedBorderColor = saddHairlineColor(),
+)
+
+/** ردیف برچسب + توضیح + سوییچ (سوییچ به سبک Detox). */
 @Composable
 fun SaddSwitchRow(
     label: String,
@@ -462,9 +513,143 @@ fun SaddSwitchRow(
                 textAlign = TextAlign.Start,
             )
             if (description != null) {
-                Text(description, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Start)
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Start,
+                )
             }
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = saddSwitchColors(),
+        )
+    }
+}
+
+/**
+ * چیپ آیکون Detox: مربع گرد ۴۴dp با پس‌زمینه کم‌آلفا و حاشیه هم‌رنگ
+ * و آیکون تمام‌رنگ وسط آن (مثل چیپ‌های رنگی اسکرین‌شات‌ها).
+ * رنگ را صدا‌زننده می‌دهد (مثلاً ChipMint / ChipPurple / ChipYellow / ChipPink).
+ */
+@Composable
+fun SaddIconChip(icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
+    val chipShape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = modifier
+            .size(44.dp)
+            .clip(chipShape)
+            .background(color.copy(alpha = 0.16f))
+            .border(1.dp, color.copy(alpha = 0.35f), chipShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+/**
+ * کنترل قطعه‌ای Detox: ظرف قرصی surfaceVariant با حاشیه مویی؛
+ * قطعه انتخاب‌شده primary توپر با متن onPrimary، بقیه ساده با متن کم‌رنگ.
+ * در RTL قطعه اول سمت راست (شروع) دیده می‌شود.
+ */
+@Composable
+fun SaddSegmentedControl(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val containerShape = RoundedCornerShape(SaddRadius.Button)
+    val segmentShape = RoundedCornerShape(SaddRadius.Button)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(containerShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(SaddGlass.BorderWidth, saddHairlineColor(), containerShape)
+            .padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        options.forEachIndexed { index, option ->
+            val selected = index == selectedIndex
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(segmentShape)
+                    .background(
+                        if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
+                    )
+                    .clickable { onSelect(index) }
+                    .padding(vertical = 10.dp, horizontal = SaddSpacing.Small),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    option,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * کارت سوییچ Detox: کارت با چیپ آیکون رنگی + برچسب/توضیح + سوییچ
+ * (مثل کارت‌های «Live count» و «Protected typing» اسکرین‌شات‌ها).
+ * SaddSwitchRow ساده سر جایش می‌ماند؛ این نسخه کارتی آن است.
+ */
+@Composable
+fun SaddToggleCard(
+    label: String,
+    description: String? = null,
+    icon: ImageVector,
+    iconColor: Color,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SaddCard(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SaddIconChip(icon = icon, color = iconColor)
+            Spacer(Modifier.width(SaddSpacing.Medium))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Start,
+                )
+                if (description != null) {
+                    Text(
+                        description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Start,
+                    )
+                }
+            }
+            Spacer(Modifier.width(SaddSpacing.Small))
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = saddSwitchColors(),
+            )
+        }
     }
 }
