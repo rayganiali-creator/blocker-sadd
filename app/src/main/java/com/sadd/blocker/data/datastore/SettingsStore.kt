@@ -70,6 +70,19 @@ class SettingsStore @Inject constructor(
         val PIN_FAILED_ATTEMPTS = intPreferencesKey("pin_failed_attempts")
         val PIN_LOCKED_UNTIL = longPreferencesKey("pin_locked_until_ms")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+        /**
+         * انتخاب محافظت از حذف نصب در ویزارد انجام شده است یا نه
+         * («فعال کن» یا «الان نه»)؛ پیش‌فرض انجام‌نشده. ردکردنش
+         * ویزارد را قفل نمی‌کند.
+         */
+        val PROTECTION_CHOICE_DONE = booleanPreferencesKey("protection_choice_done")
+        /**
+         * آموزش آشنایی با بخش‌های اپ دیده شده است یا نه؛ پیش‌فرض
+         * دیده‌نشده. فقط داخل جریان راه‌اندازی نشان داده می‌شود و
+         * با تمام‌کردن یا ردکردن آموزش (یا ردکردن کل راه‌اندازی)
+         * این پرچم می‌خورد تا دیگر نشان داده نشود.
+         */
+        val TUTORIAL_DONE = booleanPreferencesKey("tutorial_done")
         val BATTERY_EXEMPTION_ASKED = booleanPreferencesKey("battery_exemption_asked")
         /** روش بازگشایی Strict: PASSAGE (تایپ متن) یا COOLDOWN (انتظار). */
         val STRICT_UNLOCK_METHOD = stringPreferencesKey("strict_unlock_method")
@@ -372,6 +385,26 @@ class SettingsStore @Inject constructor(
     suspend fun setOnboardingDone(done: Boolean) {
         context.settingsDataStore.edit { prefs ->
             prefs[ONBOARDING_DONE] = done
+        }
+    }
+
+    /** انتخاب محافظت از حذف نصب در ویزارد انجام شده است یا نه؛ پیش‌فرض نه. */
+    val protectionChoiceDone: Flow<Boolean> = safeData
+        .map { prefs -> prefs[PROTECTION_CHOICE_DONE] ?: false }
+
+    suspend fun setProtectionChoiceDone(done: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[PROTECTION_CHOICE_DONE] = done
+        }
+    }
+
+    /** آموزش آشنایی دیده شده است یا نه؛ پیش‌فرض نه. */
+    val tutorialDone: Flow<Boolean> = safeData
+        .map { prefs -> prefs[TUTORIAL_DONE] ?: false }
+
+    suspend fun setTutorialDone(done: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[TUTORIAL_DONE] = done
         }
     }
 

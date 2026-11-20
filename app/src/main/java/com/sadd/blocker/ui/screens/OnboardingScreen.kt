@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -45,12 +46,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.R
 import com.sadd.blocker.domain.OnboardingSteps
+import com.sadd.blocker.domain.UninstallProtectionGate
 import com.sadd.blocker.ui.OnboardingViewModel
 import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.ChipPink
 import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddErrorTextColor
 import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
 import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 import com.sadd.blocker.ui.theme.saddSelectedContainerColor
@@ -59,7 +62,7 @@ import kotlinx.coroutines.launch
 
 /**
  * ویزارد راه‌اندازی اول‌نصب — دقیقاً طبق موکاپ تاییدشده:
- * سربرگ «راه‌اندازی سد» + خرس، نوار پیشرفت «مرحله X از ۵»، و کارت
+ * سربرگ «راه‌اندازی سد» + خرس، نوار پیشرفت «مرحله X از ۶»، و کارت
  * مرحله فعلی با توضیح و دکمه بزرگ.
  *
  * نمایش یکی‌یکی است: فقط کارت مرحله فعلی کامل دیده می‌شود؛ مرحله‌های
@@ -78,6 +81,14 @@ import kotlinx.coroutines.launch
  *
  * تیک هیچ مرحله‌ای جعل نمی‌شود: یا سیستم واقعاً آن را تایید کرده،
  * یا کاربر «انجامش دادم» را زده و «تأیید شما» نشان داده می‌شود.
+ *
+ * بعد از ۵ مرحله مجوز، مرحله انتخاب «محافظت در برابر حذف برنامه»
+ * می‌آید: «فعال کن» تنظیم محافظت را روشن و صفحه فعال‌سازی مدیر
+ * دستگاه را همان‌جا با ضربه باز می‌کند (مثل صفحه حالت بلاک)؛
+ * «الان نه» رد می‌شود و جای فعال‌کردن بعدی روی کارت نوشته شده است.
+ * بعد از همه مرحله‌ها، آموزش آشنایی با بخش‌های اپ یک‌بار نشان داده
+ * می‌شود (پرچم tutorial_done)؛ نصب قدیمی‌ای که راه‌اندازی را تمام
+ * کرده، آموزش را نمی‌بیند.
  */
 @Composable
 fun OnboardingScreen(
@@ -119,6 +130,14 @@ fun OnboardingScreen(
         }
     }
 
+    // آموزش آشنایی: بعد از همه مرحله‌ها (مجوزها + انتخاب محافظت) و فقط
+    // یک‌بار، داخل همین جریان راه‌اندازی. «شروع» و «رد کردن» هر دو
+    // راه‌اندازی را تمام می‌کنند و پرچم آموزش را می‌زنند.
+    if (uiState.showTutorial) {
+        TutorialContent(onFinish = { finish() })
+        return
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = SaddSpacing.Large),
     ) {
@@ -137,7 +156,7 @@ fun OnboardingScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "برای اینکه سد درست کار کند، این ۵ مرحله را انجام بده.",
+                        "برای اینکه سد درست کار کند، این مرحله‌ها را انجام بده.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -189,6 +208,26 @@ fun OnboardingScreen(
                                     color = saddPrimaryTextColor(),
                                 )
                             }
+                            // نتیجه تلاش فعال‌سازی مدیر دستگاه (مرحله محافظت) —
+                            // بعد از برگشت از صفحه سیستمی، زیر همان ردیف دیده می‌شود.
+                            if (step.key == OnboardingSteps.KEY_PROTECTION) {
+                                uiState.activationResult?.let { result ->
+                                    Text(
+                                        result,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (uiState.protectionAdminActive) {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        } else {
+                                            saddErrorTextColor()
+                                        },
+                                        modifier = Modifier.padding(
+                                            start = 32.dp,
+                                            top = 2.dp,
+                                            bottom = 2.dp,
+                                        ),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -220,13 +259,12 @@ fun OnboardingScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        if (currentStep.key == "accessibility") {
+                        if (currentStep.key == OnboardingSteps.KEY_ACCESSIBILITY) {
                             Spacer(Modifier.height(SaddSpacing.Medium))
                             Text(
-                                "روی گوشی تو ترتیب کار این‌طوری است: اول کلید خاکستری «سد» را " +
-                                    "می‌زنی و پیام را می‌بندی؛ بعد در اطلاعات برنامه Allow restricted " +
-                                    "settings را روشن می‌کنی؛ بعد برمی‌گردی و کلید حالا روشن شده و " +
-                                    "«سد» را فعال می‌کنی.",
+                                "اندروید برای برنامه‌هایی که دستی نصب شده‌اند، کلید دسترسی‌پذیری را " +
+                                    "قفل می‌کند تا وقتی از اطلاعات برنامه اجازه‌اش را بدهی؛ " +
+                                    "هیچ برنامه‌ای نمی‌تواند این قفل را دور بزند.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -241,6 +279,55 @@ fun OnboardingScreen(
                                 onOpenAppInfo = { openAppInfoPage(context) },
                                 onConfirmPhase = { viewModel.confirmAccessibilityPhase(it) },
                                 onRefresh = { viewModel.refresh() },
+                            )
+                        } else if (currentStep.key == OnboardingSteps.KEY_PROTECTION) {
+                            Spacer(Modifier.height(SaddSpacing.Medium))
+                            // «فعال کن»: تنظیم محافظت روشن و انتخاب ثبت می‌شود و صفحه
+                            // فعال‌سازی مدیر دستگاه همان‌جا با ضربه باز می‌شود (مثل
+                            // صفحه حالت بلاک)؛ شکست باز شدن با Toast و متن نتیجه
+                            // نشان داده می‌شود — هیچ‌وقت بی‌صدا نیست.
+                            SaddButton(
+                                text = "فعال کن",
+                                onClick = {
+                                    viewModel.enableProtection()
+                                    viewModel.markActivationAttempted()
+                                    if (!openAdminActivationPage(context)) {
+                                        viewModel.markActivationLaunchFailed()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            SaddButton(
+                                text = "الان نه",
+                                onClick = { viewModel.skipProtection() },
+                                style = SaddButtonStyle.SECONDARY,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            Text(
+                                "هر وقت خواستی از داشبورد ← حالت بلاک ← جلوگیری از حذف نصب " +
+                                    "می‌توانی فعالش کنی.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            Text(
+                                "از تنظیمات سیستم همیشه می‌شود غیرفعالش کرد؛ این قفل مطلق نیست.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            // خط تشخیص: وضعیت مدیر دستگاه و در دسترس بودن صفحه
+                            // فعال‌سازی روی همین گوشی (برای عیب‌یابی از راه دور).
+                            Text(
+                                UninstallProtectionGate.adminDiagnosticLine(
+                                    uiState.protectionAdminActive,
+                                    uiState.protectionActivationAvailable,
+                                    uiState.protectionListAvailable,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
                             Spacer(Modifier.height(SaddSpacing.Medium))
@@ -318,6 +405,7 @@ private fun stepVisual(key: String): Pair<ImageVector, Color> {
         OnboardingSteps.KEY_USAGE -> Icons.Filled.Info to ChipYellow
         OnboardingSteps.KEY_BATTERY -> Icons.Filled.Timer to ChipPink
         OnboardingSteps.KEY_ALARM -> Icons.Filled.Schedule to ChipMint
+        OnboardingSteps.KEY_PROTECTION -> Icons.Filled.Shield to ChipMint
         else -> Icons.Filled.Info to ChipYellow
     }
 }
@@ -332,12 +420,15 @@ private fun ctaLabel(key: String): String {
 
 /**
  * دنباله سه‌مرحله‌ای دسترسی‌پذیری، دقیقاً طبق ترتیب واقعی گوشی سید:
- * ۱) زدن کلید خاکستری «سد» و بستن پیام، ۲) روشن‌کردن Allow restricted
- * settings در اطلاعات برنامه، ۳) برگشت و فعال‌کردن «سد».
+ * ۱) Installed apps ← «سد» ← زدن کلید خاکستری و بستن پیام با Close،
+ * ۲) روشن‌کردن Allow restricted settings در اطلاعات برنامه،
+ * ۳) برگشت (Installed apps ← «سد») و فعال‌کردن «سد» (Allow).
  * هر مرحله دکمه بزرگ خودش را دارد؛ تایید دستی مرحله‌های ۱ و ۲ فقط
  * «تأیید شما»ست تا وقتی سرویس واقعاً فعال شود. مرحله ۳ دکمه تایید
  * دستی ندارد — انجام‌شدنش با فعال‌شدن واقعی سرویس خودکار تشخیص داده
- * می‌شود (تازه‌سازی موقع برگشت به اپ).
+ * می‌شود (تازه‌سازی موقع برگشت به اپ). نام‌های انگلیسی منوها همان‌طور
+ * که روی گوشی دیده می‌شوند داخل متن فارسی آمده‌اند تا پیدا کردنشان
+ * راحت باشد.
  */
 @Composable
 private fun AccessibilityPhases(
@@ -353,8 +444,12 @@ private fun AccessibilityPhases(
             phase = 1,
             currentPhase = currentPhase,
             title = "کلید خاکستری را بزن و پیام را ببند",
-            text = "در تنظیمات دسترسی‌پذیری، «سد» را پیدا کن و روی کلید خاکستری آن بزن. " +
-                "پیامی می‌آید؛ آن را ببند و برگرد.",
+            steps = listOf(
+                "روی \u2066Installed apps\u2069 بزن.",
+                "روی «سد» بزن.",
+                "دکمه پایین صفحه خاکستری است؛ رویش بزن.",
+                "پیامی که می‌آید را با \u2066Close\u2069 ببند.",
+            ),
             buttonText = "رفتن به تنظیمات دسترسی‌پذیری",
             onButtonClick = onOpenAccessibilitySettings,
             showConfirm = true,
@@ -366,9 +461,11 @@ private fun AccessibilityPhases(
             number = "۲",
             phase = 2,
             currentPhase = currentPhase,
-            title = "Allow restricted settings را روشن کن",
-            text = "در صفحه اطلاعات برنامه، روی ⋮ (سه‌نقطه بالای صفحه) بزن و " +
-                "«Allow restricted settings» را روشن کن، بعد برگرد به «سد».",
+            title = "\u2066Allow restricted settings\u2069 را روشن کن",
+            steps = listOf(
+                "بالای صفحه روی ⋮ (سه‌نقطه) بزن.",
+                "روی \u2066Allow restricted settings\u2069 بزن.",
+            ),
             buttonText = "رفتن به اطلاعات برنامه",
             onButtonClick = onOpenAppInfo,
             showConfirm = true,
@@ -381,8 +478,11 @@ private fun AccessibilityPhases(
             phase = 3,
             currentPhase = currentPhase,
             title = "«سد» را در دسترسی‌پذیری فعال کن",
-            text = "حالا کلید «سد» روشن شده؛ آن را فعال کن. وقتی فعال شود، " +
-                "ویزارد خودش جلو می‌رود.",
+            steps = listOf(
+                "دوباره روی \u2066Installed apps\u2069 بزن.",
+                "روی «سد» بزن.",
+                "این بار دکمه روشن شده؛ رویش بزن و \u2066Allow\u2069 کن.",
+            ),
             buttonText = "بازگشت به دسترسی‌پذیری",
             onButtonClick = onOpenAccessibilitySettings,
             showConfirm = false,
@@ -394,9 +494,10 @@ private fun AccessibilityPhases(
 
 /**
  * یک مرحله از دنباله دسترسی‌پذیری: دایره شماره (یا تیک برای انجام‌شده)،
- * عنوان، توضیح، دکمه بزرگ و — برای مرحله‌های ۱ و ۲ — دکمه
- * «انجام شد، ادامه». مرحله‌های آینده دکمه ندارند؛ مرحله‌های
- * انجام‌شده «تأیید شما» نشان می‌دهند تا وقتی سرویس واقعاً فعال شود.
+ * عنوان، قدم‌های شماره‌دار ضربه‌به‌ضربه، دکمه بزرگ و — برای مرحله‌های
+ * ۱ و ۲ — دکمه «انجام شد، ادامه». مرحله‌های آینده دکمه ندارند؛
+ * مرحله‌های انجام‌شده «تأیید شما» نشان می‌دهند تا وقتی سرویس واقعاً
+ * فعال شود.
  */
 @Composable
 private fun AccessibilityPhaseBlock(
@@ -404,7 +505,7 @@ private fun AccessibilityPhaseBlock(
     phase: Int,
     currentPhase: Int,
     title: String,
-    text: String,
+    steps: List<String>,
     buttonText: String,
     onButtonClick: () -> Unit,
     showConfirm: Boolean,
@@ -472,11 +573,29 @@ private fun AccessibilityPhaseBlock(
             }
         }
         Spacer(Modifier.height(SaddSpacing.Small))
-        Text(
-            text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // قدم‌های شماره‌دار ضربه‌به‌ضربه — هر قدم یک خط جدا تا ترتیب
+        // روی گوشی گم نشود.
+        val persianDigits = listOf("۱", "۲", "۳", "۴", "۵", "۶")
+        steps.forEachIndexed { index, step ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text(
+                    "${persianDigits.getOrElse(index) { (index + 1).toString() }})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = saddPrimaryTextColor(),
+                )
+                Spacer(Modifier.width(SaddSpacing.Small))
+                Text(
+                    step,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
         if (isCurrent) {
             Spacer(Modifier.height(SaddSpacing.Small))
             SaddButton(

@@ -8,11 +8,18 @@ import org.junit.Test
 class OnboardingStepsTest {
 
     @Test
-    fun orderHasFiveStepsWithAccessibilitySecond() {
-        assertEquals(5, OnboardingSteps.ORDER.size)
+    fun orderHasSixStepsWithAccessibilitySecondAndProtectionLast() {
+        assertEquals(6, OnboardingSteps.ORDER.size)
         assertEquals("notification", OnboardingSteps.ORDER.first())
         assertEquals("accessibility", OnboardingSteps.ORDER[1])
-        assertEquals("alarm", OnboardingSteps.ORDER.last())
+        assertEquals("protection", OnboardingSteps.ORDER.last())
+    }
+
+    @Test
+    fun permissionOrderHasFiveStepsEndingWithAlarm() {
+        assertEquals(5, OnboardingSteps.PERMISSION_ORDER.size)
+        assertEquals("alarm", OnboardingSteps.PERMISSION_ORDER.last())
+        assertFalse(OnboardingSteps.PERMISSION_ORDER.contains("protection"))
     }
 
     @Test
@@ -58,5 +65,25 @@ class OnboardingStepsTest {
     fun firstMissingIndexReturnsSizeWhenAllGranted() {
         assertEquals(3, OnboardingSteps.firstMissingIndex(listOf(true, true, true)))
         assertEquals(0, OnboardingSteps.firstMissingIndex(emptyList()))
+    }
+
+    @Test
+    fun protectionStepDoneWhenChoiceMadeOrAdminActive() {
+        // «فعال کن» یا «الان نه» — هر دو انتخاب را ثبت می‌کنند.
+        assertTrue(OnboardingSteps.isProtectionStepDone(choiceDone = true, adminActive = false))
+        // مدیر دستگاه دستی فعال شده، بدون انتخاب در ویزارد.
+        assertTrue(OnboardingSteps.isProtectionStepDone(choiceDone = false, adminActive = true))
+        assertTrue(OnboardingSteps.isProtectionStepDone(choiceDone = true, adminActive = true))
+        assertFalse(OnboardingSteps.isProtectionStepDone(choiceDone = false, adminActive = false))
+    }
+
+    @Test
+    fun tutorialShowsOnlyAfterAllStepsAndOnlyOnce() {
+        assertTrue(OnboardingSteps.shouldShowTutorial(allStepsDone = true, tutorialDone = false))
+        // هنوز مرحله‌ای مانده — آموزش نشان داده نمی‌شود.
+        assertFalse(OnboardingSteps.shouldShowTutorial(allStepsDone = false, tutorialDone = false))
+        // آموزش دیده شده — دیگر نشان داده نمی‌شود.
+        assertFalse(OnboardingSteps.shouldShowTutorial(allStepsDone = true, tutorialDone = true))
+        assertFalse(OnboardingSteps.shouldShowTutorial(allStepsDone = false, tutorialDone = true))
     }
 }

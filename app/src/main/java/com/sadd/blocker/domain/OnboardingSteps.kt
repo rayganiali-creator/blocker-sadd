@@ -5,12 +5,12 @@ package com.sadd.blocker.domain
  *
  * مرحله دسترسی‌پذیری یک دنباله سه‌مرحله‌ای است، دقیقاً طبق ترتیبی که
  * روی گوشی سید (A35) واقعاً اتفاق می‌افتد:
- *  ۱. اول به تنظیمات دسترسی‌پذیری می‌روی و کلید خاکستری «سد» را می‌زنی؛
- *     پیامی می‌آید و آن را می‌بندی.
+ *  ۱. اول به تنظیمات دسترسی‌پذیری می‌روی، Installed apps و بعد «سد» را
+ *     می‌زنی، کلید خاکستری پایین صفحه را می‌زنی و پیام را با Close می‌بندی.
  *  ۲. بعد به اطلاعات برنامه می‌روی و «Allow restricted settings» را
  *     از ⋮ روشن می‌کنی.
- *  ۳. بعد برمی‌گردی به دسترسی‌پذیری؛ کلید حالا روشن شده و «سد» را
- *     فعال می‌کنی.
+ *  ۳. بعد برمی‌گردی به دسترسی‌پذیری (Installed apps ← «سد»)؛ کلید حالا
+ *     روشن شده و «سد» را فعال می‌کنی (Allow).
  * پس «اجازه تنظیمات محدودشده» مرحله جدایی قبل از دسترسی‌پذیری نیست؛
  * مرحله دومِ همین دنباله است. ترتیب قبلی (restricted جدا، قبل از
  * accessibility) با جریان واقعی گوشی جور نبود و همین گیج‌کننده بود.
@@ -20,6 +20,12 @@ package com.sadd.blocker.domain
  * وقتی سرویس Accessibility واقعاً فعال شود؛ فعال‌شدن سرویس بدون Allow
  * restricted settings ممکن نیست، پس خودش مدرک انجام‌شدن هر سه مرحله است.
  * مرحله‌ها در فهرست قابل‌زدن و برگشت‌پذیرند.
+ *
+ * بعد از ۵ مرحله مجوز، یک مرحله انتخاب محافظت از حذف نصب می‌آید
+ * ([KEY_PROTECTION]) — انتخابی است و ردکردنش ویزارد را قفل نمی‌کند.
+ * بعد از آن، آموزش آشنایی با بخش‌های اپ یک‌بار نشان داده می‌شود
+ * (پرچم tutorial_done در DataStore) و فقط داخل همین جریان راه‌اندازی
+ * است، نه موقع هر استارت اپ.
  */
 object OnboardingSteps {
 
@@ -28,15 +34,20 @@ object OnboardingSteps {
     const val KEY_USAGE = "usage"
     const val KEY_BATTERY = "battery"
     const val KEY_ALARM = "alarm"
+    /** مرحله انتخاب محافظت از حذف نصب — بعد از مجوزها، انتخابی و ردشدنی. */
+    const val KEY_PROTECTION = "protection"
 
-    /** ترتیب مرحله‌ها — دسترسی‌پذیری با دنباله سه‌مرحله‌ای‌اش یک مرحله است. */
-    val ORDER = listOf(
+    /** ترتیب ۵ مرحله مجوز — برای نگاشت وضعیت‌های زنده سیستم. */
+    val PERMISSION_ORDER = listOf(
         KEY_NOTIFICATION,
         KEY_ACCESSIBILITY,
         KEY_USAGE,
         KEY_BATTERY,
         KEY_ALARM,
     )
+
+    /** ترتیب کامل ویزارد: ۵ مرحله مجوز + انتخاب محافظت از حذف نصب. */
+    val ORDER = PERMISSION_ORDER + KEY_PROTECTION
 
     /** تعداد مرحله‌های دنباله دسترسی‌پذیری. */
     const val ACCESSIBILITY_PHASE_COUNT = 3
@@ -61,6 +72,23 @@ object OnboardingSteps {
     /** مرحله بعد از تایید دستی یک مرحله؛ از ۳ جلوتر نمی‌رود. */
     fun nextAccessibilityPhase(currentPhase: Int): Int =
         (currentPhase + 1).coerceAtMost(ACCESSIBILITY_PHASE_COUNT)
+
+    /**
+     * مرحله محافظت انجام‌شده است وقتی کاربر انتخابش را کرده باشد
+     * («فعال کن» یا «الان نه») یا مدیر دستگاه همین حالا فعال باشد
+     * (مثلاً دستی از تنظیمات سیستم فعال شده).
+     */
+    fun isProtectionStepDone(choiceDone: Boolean, adminActive: Boolean): Boolean =
+        choiceDone || adminActive
+
+    /**
+     * آموزش آشنایی فقط وقتی نشان داده می‌شود که همه مرحله‌های ویزارد
+     * (مجوزها + انتخاب محافظت) انجام شده باشند و آموزش قبلاً دیده
+     * نشده باشد. به جریان راه‌اندازی گره خورده، نه به استارت اپ:
+     * نصب قدیمی‌ای که راه‌اندازی را تمام کرده، آموزش را نمی‌بیند.
+     */
+    fun shouldShowTutorial(allStepsDone: Boolean, tutorialDone: Boolean): Boolean =
+        allStepsDone && !tutorialDone
 
     /**
      * اندیس اولین مرحله ناتمام؛ اگر همه انجام شده‌اند، اندازه فهرست
