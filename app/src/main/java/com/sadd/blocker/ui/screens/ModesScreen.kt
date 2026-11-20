@@ -736,7 +736,7 @@ fun ModesScreen(
                     ModeCard(
                         selected = strictState.unlockMethod == StrictUnlockMethod.PASSAGE,
                         title = "تایپ متن طولانی",
-                        description = "متن طولانی (حدود ۵۰۰ کاراکتر) را دقیقاً تایپ کن؛ تا کامل نشود، بازگشایی نمی‌شود.",
+                        description = "متن طولانی (حدود ۴۰۰ کاراکتر) را دقیقاً تایپ کن؛ تا کامل نشود، بازگشایی نمی‌شود.",
                         icon = Icons.Filled.TextFields,
                         color = ChipYellow,
                         onClick = { strictViewModel.requestUnlockMethod(StrictUnlockMethod.PASSAGE) },

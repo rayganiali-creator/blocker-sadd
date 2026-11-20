@@ -129,8 +129,11 @@ class StrictUnlockTest {
     fun passageBankHasTwelveLongPassagesWithSources() {
         assertEquals(12, STRICT_PASSAGES.size)
         for (passage in STRICT_PASSAGES) {
-            assertTrue(passage.text.length in 500..750)
+            assertTrue(passage.text.length in 300..500)
             assertTrue(passage.source.isNotBlank())
+            // هر متن گزیده‌ای از یک خطبه نهج‌البلاغه است.
+            assertTrue(passage.source.contains("خطبه"))
+            assertTrue(passage.source.contains("نهج‌البلاغه"))
             // هیچ متنی نشانه «» ندارد تا تایپ دستی همه متن ممکن باشد.
             assertTrue(!passage.text.contains('«'))
             assertTrue(!passage.text.contains('»'))
