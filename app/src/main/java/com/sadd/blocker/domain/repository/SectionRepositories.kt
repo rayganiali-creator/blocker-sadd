@@ -21,6 +21,13 @@ interface SectionRuleRepository {
      * را اگر نیستند می‌سازد؛ تکراری نمی‌سازد (ایندکس یکتا در DB).
      */
     suspend fun ensurePresets()
+
+    /**
+     * همه پیش‌فرض‌های داخلی (SectionDetector.PRESETS) را خاموش می‌کند —
+     * برای مهاجرت یک‌باره «پیش‌فرض‌ها خاموش» (گزارش سید ۲۰۲۶-۱۱-۲۰).
+     * قانون‌های دستی کاربر دست نمی‌خورند.
+     */
+    suspend fun disableAllPresets()
     suspend fun setEnabled(packageName: String, sectionKey: String, enabled: Boolean)
 
     /**

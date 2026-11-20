@@ -127,4 +127,50 @@ class TextRedactorTest {
         assertFalse(TextRedactor.isOwnPackage("com.android.chrome", "com.sadd.blocker"))
         assertFalse(TextRedactor.isOwnPackage(null, "com.sadd.blocker"))
     }
+
+    // ---------- ضدفرار: حذف بازه اصلی (گزارش سید ۲۰۲۶-۱۱-۲۰) ----------
+
+    @Test
+    fun removeMatchedRuleRemovesEvadedSpanWithSeparators() {
+        // کل بازه اصلی، شامل جداکننده‌های داخلش، حذف می‌شود.
+        assertEquals(
+            "سلام خداحافظ",
+            TextRedactor.removeMatchedRule("سلام پور.ن هاب خداحافظ", "پورنهاب"),
+        )
+        assertEquals(
+            "سلام خداحافظ",
+            TextRedactor.removeMatchedRule("سلام پ و ر ن ه ا ب خداحافظ", "پورنهاب"),
+        )
+        assertEquals(
+            "سلام خداحافظ",
+            TextRedactor.removeMatchedRule("سلام پووورنهاب خداحافظ", "پورنهاب"),
+        )
+    }
+
+    @Test
+    fun removeMatchedRuleKeepsLongerWordIntact() {
+        // «فوتبال» با قانون «فوت» دست نمی‌خورد.
+        assertEquals(
+            "فوتبال دیدم",
+            TextRedactor.removeMatchedRule("فوتبال دیدم", "فوت"),
+        )
+    }
+
+    @Test
+    fun firstMatchRangeReturnsEvadedSpan() {
+        // بازه CUT باید کل «پور.ن هاب» را بگیرد، نه تکه‌ای از آن را.
+        assertEquals(
+            5 to 14,
+            TextRedactor.firstMatchRange("سلام پور.ن هاب خداحافظ", "پورنهاب"),
+        )
+    }
+
+    @Test
+    fun findMatchedKeywordCatchesEvadedKeyword() {
+        assertEquals(
+            "پورنهاب",
+            TextRedactor.findMatchedKeyword("پور.ن هاب", listOf("پورنهاب")),
+        )
+        assertNull(TextRedactor.findMatchedKeyword("فوتبال", listOf("فوت")))
+    }
 }

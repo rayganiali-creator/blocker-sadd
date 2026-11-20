@@ -111,4 +111,82 @@ class KeywordMatcherTest {
         assertEquals("example.com", KeywordMatcher.normalizeHost(".example.com."))
         assertEquals("user@example.com", KeywordMatcher.normalizeHost("user@example.com"))
     }
+
+    // ---------- ضدفرار (گزارش سید ۲۰۲۶-۱۱-۲۰) ----------
+
+    @Test
+    fun antiEvasionSeparatorBetweenLettersMatches() {
+        // «پور.ن هاب» نباید از «پورنهاب» فرار کند.
+        assertTrue(KeywordMatcher.matches("پور.ن هاب", "پورنهاب"))
+        assertTrue(KeywordMatcher.matches("پور-ن_هاب", "پورنهاب"))
+        assertTrue(KeywordMatcher.matches("پور/ن هاب", "پورنهاب"))
+    }
+
+    @Test
+    fun antiEvasionSpacedLettersMatch() {
+        assertTrue(KeywordMatcher.matches("پ و ر ن ه ا ب", "پورنهاب"))
+    }
+
+    @Test
+    fun antiEvasionRepeatedLettersMatch() {
+        assertTrue(KeywordMatcher.matches("پووورنهاب", "پورنهاب"))
+        assertTrue(KeywordMatcher.matches("پورنهاببب", "پورنهاب"))
+    }
+
+    @Test
+    fun antiEvasionDiacriticsAndTatweelMatch() {
+        // اعراب (U+064B..U+0652) و کشیدگی (U+0640) حذف می‌شوند.
+        assertTrue(KeywordMatcher.matches("پ\u064Fورنهاب", "پورنهاب"))
+        assertTrue(KeywordMatcher.matches("پورن\u0640هاب", "پورنهاب"))
+    }
+
+    @Test
+    fun antiEvasionLookalikeFoldsMatch() {
+        // ي/ك عربی، ة→ه، ئ→ی، آ→ا.
+        assertTrue(KeywordMatcher.matches("پورنهاب", "پورنهاب"))
+        assertTrue(KeywordMatcher.matches("كتاب", "کتاب"))
+        assertTrue(KeywordMatcher.matches("مدرسة", "مدرسه"))
+        assertTrue(KeywordMatcher.matches("رئیس", "رییس"))
+        assertTrue(KeywordMatcher.matches("آب", "اب"))
+    }
+
+    @Test
+    fun antiEvasionLatinLeetFoldsMatch() {
+        assertTrue(KeywordMatcher.matches("p0rn", "porn"))
+        assertTrue(KeywordMatcher.matches("p@rn", "parn"))
+        assertTrue(KeywordMatcher.matches("s3x", "sex"))
+    }
+
+    @Test
+    fun antiEvasionStillRejectsSubstringOfLongerWord() {
+        // مرز کلمه در متن اصلی: «فوتبال» هرگز «فوت» نیست.
+        assertFalse(KeywordMatcher.matches("فوتبال", "فوت"))
+        assertFalse(KeywordMatcher.matches("رفتم فوتبال دیدم", "فوت"))
+        // نیم‌فاصله چسباننده است، نه مرز (H-3).
+        assertFalse(KeywordMatcher.matches("فوت‌بال", "فوت"))
+        // حرف چسبیده قبل از بازه هم مچ را رد می‌کند.
+        assertFalse(KeywordMatcher.matches("اپورنهاب", "پورنهاب"))
+    }
+
+    @Test
+    fun antiEvasionBoundaryAtStringEdges() {
+        assertTrue(KeywordMatcher.matches("پورنهاب", "پورنهاب"))
+        assertTrue(KeywordMatcher.matches("پورنهاب آمد", "پورنهاب"))
+        assertTrue(KeywordMatcher.matches("آمد پورنهاب", "پورنهاب"))
+        // جداکننده بلافاصله بعد از بازه، مرز معتبر است.
+        assertTrue(KeywordMatcher.matches("پور.ن هاب!", "پورنهاب"))
+        assertTrue(KeywordMatcher.matches("(پور.ن هاب)", "پورنهاب"))
+    }
+
+    @Test
+    fun antiEvasionSpanCoversSeparatorsInside() {
+        val span = KeywordMatcher.findAntiEvasionSpan("سلام پور.ن هاب خداحافظ", "پورنهاب")
+        assertEquals(5 to 14, span)
+    }
+
+    @Test
+    fun plainExactMatchStillWorks() {
+        assertTrue(KeywordMatcher.matches("من فوت کردم", "فوت"))
+        assertTrue(KeywordMatcher.matches("پورنهاب", "پورنهاب"))
+    }
 }

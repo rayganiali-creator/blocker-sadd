@@ -300,14 +300,23 @@ class RoomSectionRuleRepository @Inject constructor(
     }
 
     override suspend fun ensurePresets() {
+        // پیش‌فرض‌ها خاموش ساخته می‌شوند (گزارش سید ۲۰۲۶-۱۱-۲۰):
+        // کاربر خودش هر بخشی را که می‌خواهد از صفحه بخش‌ها روشن می‌کند.
         for (preset in SectionDetector.PRESETS) {
             dao.insert(
                 SectionRuleEntity(
                     packageName = preset.packageName,
                     sectionKey = preset.sectionKey,
                     labelFa = preset.labelFa,
+                    enabled = false,
                 ),
             )
+        }
+    }
+
+    override suspend fun disableAllPresets() {
+        for (preset in SectionDetector.PRESETS) {
+            dao.setEnabled(preset.packageName, preset.sectionKey, false)
         }
     }
 

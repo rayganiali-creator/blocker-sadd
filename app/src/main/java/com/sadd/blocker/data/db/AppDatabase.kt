@@ -81,22 +81,22 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('org.telegram.messenger', 'telegram_search', 'جستجوی تلگرام', 1)",
+                "('org.telegram.messenger', 'telegram_search', 'جستجوی تلگرام', 0)",
         )
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('com.instagram.android', 'instagram_search', 'جستجوی اینستاگرام', 1)",
+                "('com.instagram.android', 'instagram_search', 'جستجوی اینستاگرام', 0)",
         )
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('com.instagram.android', 'instagram_explore', 'اکسپلور اینستاگرام', 1)",
+                "('com.instagram.android', 'instagram_explore', 'اکسپلور اینستاگرام', 0)",
         )
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('com.google.android.youtube', 'youtube_search', 'جستجوی یوتیوب', 1)",
+                "('com.google.android.youtube', 'youtube_search', 'جستجوی یوتیوب', 0)",
         )
     }
 }
@@ -113,27 +113,27 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('org.telegram.messenger', 'telegram_app', 'خود تلگرام', 1)",
+                "('org.telegram.messenger', 'telegram_app', 'خود تلگرام', 0)",
         )
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('com.instagram.android', 'instagram_app', 'خود اینستاگرام', 1)",
+                "('com.instagram.android', 'instagram_app', 'خود اینستاگرام', 0)",
         )
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('com.instagram.android', 'instagram_reels', 'ریلز اینستاگرام', 1)",
+                "('com.instagram.android', 'instagram_reels', 'ریلز اینستاگرام', 0)",
         )
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('com.google.android.youtube', 'youtube_app', 'خود یوتیوب', 1)",
+                "('com.google.android.youtube', 'youtube_app', 'خود یوتیوب', 0)",
         )
         db.execSQL(
             "INSERT OR IGNORE INTO section_rules " +
                 "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                "('com.google.android.youtube', 'youtube_shorts', 'شورتس یوتیوب', 1)",
+                "('com.google.android.youtube', 'youtube_shorts', 'شورتس یوتیوب', 0)",
         )
     }
 }
@@ -171,7 +171,7 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
             db.execSQL(
                 "INSERT OR IGNORE INTO section_rules " +
                     "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                    "('$pkg', '$key', '$label', 1)",
+                    "('$pkg', '$key', '$label', 0)",
             )
         }
     }
@@ -194,7 +194,7 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
             db.execSQL(
                 "INSERT OR IGNORE INTO section_rules " +
                     "(packageName, sectionKey, labelFa, enabled) VALUES " +
-                    "('$pkg', '$key', '$label', 1)",
+                    "('$pkg', '$key', '$label', 0)",
             )
         }
     }

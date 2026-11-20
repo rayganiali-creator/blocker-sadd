@@ -25,9 +25,12 @@ object PersianNormalizer {
     const val ZWJ = '\u200D'
 
     // اعراب و تشدید عربی/فارسی: U+064B تا U+0652 + U+0670
-    private fun isDiacritic(c: Char): Boolean {
+    fun isDiacritic(c: Char): Boolean {
         return c in '\u064B'..'\u0652' || c == '\u0670'
     }
+
+    /** کشیدگی (tatweel ـ) U+0640 — در مسیر ضدفرار حذف می‌شود. */
+    fun isTatweel(c: Char): Boolean = c == '\u0640'
 
     /** کاراکتر جداکننده کلمه است؟ (فاصله یا علامت نگارشی) */
     fun isWordSeparator(c: Char): Boolean {

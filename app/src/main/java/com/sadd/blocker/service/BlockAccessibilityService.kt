@@ -140,6 +140,16 @@ class BlockAccessibilityService : AccessibilityService() {
             } catch (_: Exception) {
                 // fail-open: مهاجرت خراب نمی‌کند؛ پیش‌فرض کد ۰ است.
             }
+            try {
+                // مهاجرت یک‌باره «پیش‌فرض‌های بخش خاموش» (گزارش سید
+                // ۲۰۲۶-۱۱-۲۰): نصب‌های موجود هم مثل نصب تازه، همه
+                // پیش‌فرض‌ها را خاموش می‌گیرند؛ کاربر خودش روشن می‌کند.
+                settingsStore.migratePresetsDefaultOffIfNeeded {
+                    sectionRuleRepository.disableAllPresets()
+                }
+            } catch (_: Exception) {
+                // fail-open: مهاجرت خراب نمی‌کند.
+            }
         }
     }
 
@@ -181,7 +191,9 @@ class BlockAccessibilityService : AccessibilityService() {
             if (type != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED &&
                 type != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
                 type != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
-                type != AccessibilityEvent.TYPE_VIEW_CLICKED
+                type != AccessibilityEvent.TYPE_VIEW_CLICKED &&
+                type != AccessibilityEvent.TYPE_VIEW_FOCUSED &&
+                type != AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
             ) {
                 return
             }
@@ -228,6 +240,10 @@ class BlockAccessibilityService : AccessibilityService() {
                 }
             } else {
                 val windowClass = event.className?.toString()
+                // شاهد تعامل (کلیک/فوکوس) همین‌جا از گره منبع گرفته
+                // می‌شود؛ رویداد بعد از بازگشت از callback بازیافت
+                // می‌شود و نمی‌توان گره را به کوروتین سپرد.
+                val interactionSignals = readInteractionSignals(event)
                 scope.launch {
                     try {
                         // نگهبان حذف نصب/توقف اجباری: قبل از چک سشن —
@@ -238,7 +254,7 @@ class BlockAccessibilityService : AccessibilityService() {
                     }
                     try {
                         // ریشه تازه خوانده می‌شود؛ گره زمان رویداد تا اینجا کهنه شده است.
-                        evaluateWindow(foregroundPkg, windowClass)
+                        evaluateWindow(foregroundPkg, windowClass, interactionSignals)
                     } catch (_: Exception) {
                         // fail-open
                     }
@@ -352,6 +368,124 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
+    /**
+     * شاهد تعامل از گره منبع رویداد کلیک/فوکوس — تنها شاهد معتبر بخش
+     * جستجو و مرور خصوصی (گزارش سید ۲۰۲۶-۱۱-۲۰: اسکرول از کنار نوار
+     * جستجو یا دیده شدن کلمه «incognito» در منو هرگز بلاک نمی‌کند).
+     *
+     * - TYPE_VIEW_CLICKED: متن/توضیح گره کلیک‌شده (و فرزندان مستقیمش)
+     *   در clickedTexts/clickedContentDescriptions می‌نشیند؛ اگر گره
+     *   نوار/فیلد جستجو باشد (فیلد ویرایشی با hint جستجو، یا
+     *   متن/توضیح/hint آن مارکر جستجو داشته باشد) searchFieldClicked
+     *   هم true می‌شود.
+     * - TYPE_VIEW_FOCUSED / TYPE_VIEW_ACCESSIBILITY_FOCUSED: اگر گره
+     *   فوکوس‌گرفته فیلد ویرایشی با hint جستجو باشد،
+     *   searchFieldFocused=true می‌شود.
+     *
+     * برای بقیه رویدادها null برمی‌گردد. گره‌ها همین‌جا بازیافت
+     * می‌شوند؛ رویداد بعد از callback بازیافت می‌شود.
+     */
+    private fun readInteractionSignals(
+        event: AccessibilityEvent,
+    ): SectionDetector.SectionSignals? {
+        val type = event.eventType
+        val isClick = type == AccessibilityEvent.TYPE_VIEW_CLICKED
+        val isFocus = type == AccessibilityEvent.TYPE_VIEW_FOCUSED ||
+            type == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED
+        if (!isClick && !isFocus) return null
+        val source = try {
+            event.source
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        try {
+            val text = try {
+                source.text?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            val desc = try {
+                source.contentDescription?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            val hint = try {
+                source.hintText?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            val editable = try {
+                source.isEditable
+            } catch (_: Exception) {
+                false
+            }
+            if (isFocus) {
+                if (!editable || !SectionDetector.isSearchHint(hint)) return null
+                return SectionDetector.SectionSignals(
+                    hasEditableTextField = true,
+                    editableHint = hint,
+                    searchFieldFocused = true,
+                )
+            }
+            // کلیک: متن/توضیح خود گره + فرزندان مستقیم (آیتم منو ممکن
+            // است متن را در فرزند نگه دارد).
+            val clickedTexts = ArrayList<String>()
+            val clickedDescriptions = ArrayList<String>()
+            text?.takeIf { it.isNotBlank() }?.let { clickedTexts.add(it) }
+            desc?.takeIf { it.isNotBlank() }?.let { clickedDescriptions.add(it) }
+            var searchClicked = SectionDetector.isSearchNodeText(text, desc, hint)
+            try {
+                for (i in 0 until source.childCount) {
+                    val child = try {
+                        source.getChild(i)
+                    } catch (_: Exception) {
+                        null
+                    } ?: continue
+                    try {
+                        val childText = child.text?.toString()
+                        val childDesc = child.contentDescription?.toString()
+                        val childHint = try {
+                            child.hintText?.toString()
+                        } catch (_: Exception) {
+                            null
+                        }
+                        childText?.takeIf { it.isNotBlank() }?.let { clickedTexts.add(it) }
+                        childDesc?.takeIf { it.isNotBlank() }?.let { clickedDescriptions.add(it) }
+                        if (SectionDetector.isSearchNodeText(childText, childDesc, childHint)) {
+                            searchClicked = true
+                        }
+                    } catch (_: Exception) {
+                        // نادیده
+                    } finally {
+                        try {
+                            child.recycle()
+                        } catch (_: Exception) {
+                            // نادیده
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // نادیده: شاهد خود گره کافی است.
+            }
+            if (clickedTexts.isEmpty() && clickedDescriptions.isEmpty() && !searchClicked) {
+                return null
+            }
+            return SectionDetector.SectionSignals(
+                searchFieldClicked = searchClicked,
+                clickedTexts = clickedTexts,
+                clickedContentDescriptions = clickedDescriptions,
+            )
+        } catch (_: Exception) {
+            return null
+        } finally {
+            try {
+                source.recycle()
+            } catch (_: Exception) {
+                // نادیده
+            }
+        }
+    }
+
     // ---------- عکس لحظه‌ای ----------
 
     private suspend fun loadSnapshot(forceRefresh: Boolean): Snapshot {
@@ -437,7 +571,7 @@ class BlockAccessibilityService : AccessibilityService() {
                 key = "section:$packageName:${rule.sectionKey}",
                 delaySeconds = delaySeconds,
             ) {
-                actOnSection(packageName, rule, delaySeconds, snapshot.strict)
+                actOnSection(packageName, rule, delaySeconds, snapshot.strict, evidence = signals)
             }
         }
     }
@@ -603,11 +737,12 @@ class BlockAccessibilityService : AccessibilityService() {
     private suspend fun evaluateWindow(
         packageName: String,
         windowClassName: String?,
+        interactionSignals: SectionDetector.SectionSignals? = null,
     ) {
         val snapshot = loadSnapshot(forceRefresh = false)
         if (!snapshot.sessionActive) return
         val root = activeRootOrNull() ?: return
-        val signals = collectSignals(root, windowClassName)
+        val signals = mergeInteractionSignals(collectSignals(root, windowClassName), interactionSignals)
         if (SectionDetector.isBrowserPackage(packageName)) {
             // پیش‌تر همه پکیج‌های مرورگر فقط به evaluateBrowserWindow
             // می‌رفتند و قانون بخش (خود کروم، Incognito) هرگز ارزیابی
@@ -618,6 +753,26 @@ class BlockAccessibilityService : AccessibilityService() {
             return
         }
         evaluateSectionRules(packageName, signals, windowClassName, snapshot)
+    }
+
+    /**
+     * شاهد تعامل (کلیک/فوکوس/تایپ) را روی سیگنال‌های درخت می‌نشاند:
+     * پرچم‌های تعامل OR می‌شوند و متن‌های کلیک‌شده اضافه می‌شوند تا
+     * تصمیم بخش روی شاهد واقعی بماند، نه روی صرفِ دیده شدن عنصر.
+     */
+    private fun mergeInteractionSignals(
+        base: SectionDetector.SectionSignals,
+        interaction: SectionDetector.SectionSignals?,
+    ): SectionDetector.SectionSignals {
+        if (interaction == null) return base
+        return base.copy(
+            searchFieldClicked = base.searchFieldClicked || interaction.searchFieldClicked,
+            searchFieldFocused = base.searchFieldFocused || interaction.searchFieldFocused,
+            searchFieldHasText = base.searchFieldHasText || interaction.searchFieldHasText,
+            clickedTexts = base.clickedTexts + interaction.clickedTexts,
+            clickedContentDescriptions = base.clickedContentDescriptions +
+                interaction.clickedContentDescriptions,
+        )
     }
 
     /**
@@ -642,7 +797,14 @@ class BlockAccessibilityService : AccessibilityService() {
                 key = "section:$packageName:${wholeAppRule.sectionKey}",
                 delaySeconds = snapshot.globalDelaySeconds,
             ) {
-                actOnSection(packageName, wholeAppRule, snapshot.globalDelaySeconds, snapshot.strict, windowClassName)
+                actOnSection(
+                    packageName,
+                    wholeAppRule,
+                    snapshot.globalDelaySeconds,
+                    snapshot.strict,
+                    windowClassName,
+                    evidence = signals,
+                )
             }
             return
         }
@@ -654,7 +816,7 @@ class BlockAccessibilityService : AccessibilityService() {
                 key = "section:$packageName:${rule.sectionKey}",
                 delaySeconds = delaySeconds,
             ) {
-                actOnSection(packageName, rule, delaySeconds, snapshot.strict, windowClassName)
+                actOnSection(packageName, rule, delaySeconds, snapshot.strict, windowClassName, evidence = signals)
             }
         }
     }
@@ -756,6 +918,7 @@ class BlockAccessibilityService : AccessibilityService() {
         delaySeconds: Int,
         strict: Boolean,
         windowClassName: String? = null,
+        evidence: SectionDetector.SectionSignals? = null,
     ): Boolean {
         val root = activeRootOrNull() ?: return false
         try {
@@ -772,8 +935,11 @@ class BlockAccessibilityService : AccessibilityService() {
             // راستی‌آزمایی دوباره: بخش هنوز روی صفحه است؟ کلاس پنجره از
             // لحظه زمان‌بندی نگه داشته می‌شود تا بخشی که فقط با کلاس
             // پنجره مچ شده بود (مثلاً فید با کلاس اکتیویتی) در این چک
-            // با کلاس null رد نشود.
-            val signals = collectSignals(root, windowClassName)
+            // با کلاس null رد نشود. شاهد تعامل لحظه زمان‌بندی (کلیک/
+            // فوکوس/تایپ) هم روی سیگنال تازه می‌نشیند — کلیک یک رویداد
+            // لحظه‌ای است و در درخت تازه دیگر دیده نمی‌شود، ولی همان
+            // کلیک دلیل بلاک است.
+            val signals = mergeInteractionSignals(collectSignals(root, windowClassName), evidence)
             if (!SectionDetector.isSectionShowing(packageName, rule.sectionKey, signals)) return false
             performGlobalAction(GLOBAL_ACTION_BACK)
             logBlock(
@@ -925,7 +1091,13 @@ class BlockAccessibilityService : AccessibilityService() {
                             } catch (_: Exception) {
                                 // نادیده
                             }
-                            if (!node.text.isNullOrBlank()) searchFieldHasText = true
+                            // عمداً searchFieldHasText از متن ایستای فیلد
+                            // پر نمی‌شود: فیلدی که فقط متن نگه داشته (متن
+                            // قبلی یا hint گزارش‌شده به‌صورت متن) شاهد
+                            // تعامل نیست — اسکرول از کنار نوار جستجو
+                            // هرگز بلاک نمی‌کند (گزارش سید ۲۰۲۶-۱۱-۲۰).
+                            // شاهد تایپ فقط از رویداد TYPE_VIEW_TEXT_CHANGED
+                            // می‌آید (readTextChangedSectionSignals).
                         }
                     }
                     for (i in 0 until node.childCount) {

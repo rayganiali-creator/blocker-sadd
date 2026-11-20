@@ -58,6 +58,16 @@ object KeywordMatcher {
 
     /** آیا [text] (خام) شامل قانون [ruleRaw] است؟ هر دو نرمال می‌شوند. */
     fun matches(text: String, ruleRaw: String): Boolean {
+        if (matchesWholeWord(text, ruleRaw)) return true
+        // گذر دوم ضدفرار (گزارش سید ۲۰۲۶-۱۱-۲۰): «پور.ن هاب» و
+        // «پ و ر ن ه ا ب» و «پووورنهاب» نباید از «پورنهاب» فرار کنند؛
+        // مرز کلمه در متن اصلی چک می‌شود تا «فوتبال» همچنان «فوت» را
+        // نگیرد.
+        return findAntiEvasionSpan(text, ruleRaw) != null
+    }
+
+    /** تطابق whole-word کلاسیک (اتم‌ها + مرز فاصله/نیم‌فاصله). */
+    private fun matchesWholeWord(text: String, ruleRaw: String): Boolean {
         val normalizedText = PersianNormalizer.normalize(text)
         val normalizedRule = PersianNormalizer.normalize(ruleRaw)
         if (normalizedRule.isEmpty() || normalizedText.isEmpty()) return false
@@ -91,6 +101,130 @@ object KeywordMatcher {
     fun firstMatch(text: String, rules: List<String>): String? {
         for (rule in rules) {
             if (matches(text, rule)) return rule
+        }
+        return null
+    }
+
+    // ---------- ضدفرار (anti-evasion) ----------
+
+    /** یک حرف نگه‌داشته‌شده در جریان تمیزشده + بازه‌اش در متن اصلی. */
+    private data class KeptChar(val ch: Char, val start: Int, var end: Int)
+
+    /**
+     * تاشدن حروف هم‌شکل برای مسیر ضدفرار: ي→ی، ك→ک، ة→ه، ؤ→و، ئ→ی،
+     * أ/إ/آ/ٱ→ا و leet محافظه‌کارانه لاتین (0→o، 1→l، 3→e، 4→a،
+     * ‎@→a، $→s) + lowercase. بقیه حروف دست نمی‌خورند.
+     */
+    private fun foldLookalike(c: Char): Char {
+        return when (c) {
+            'ي' -> 'ی'
+            'ك' -> 'ک'
+            'ة' -> 'ه'
+            'ؤ' -> 'و'
+            'ئ' -> 'ی'
+            'أ', 'إ', 'آ', 'ٱ' -> 'ا'
+            '0' -> 'o'
+            '1' -> 'l'
+            '3' -> 'e'
+            '4' -> 'a'
+            '@' -> 'a'
+            '$' -> 's'
+            else -> c.lowercaseChar()
+        }
+    }
+
+    /** آیا این حرف در جریان ضدفرار نگه داشته می‌شود؟ (حرف/رقم، یا @ و $ برای تاشدن leet) */
+    private fun isKeptChar(c: Char): Boolean {
+        return c.isLetterOrDigit() || c == '@' || c == '$'
+    }
+
+    /**
+     * جریان تمیزشده متن خام: فقط حروف/ارقام (و @/$) نگه داشته می‌شوند؛
+     * جداکننده‌ها (نقطه، فاصله، خط تیره، زیرخط، نیم‌فاصله، اسلش و…)
+     * و اعراب و کشیدگی حذف می‌شوند. تکرار متوالی یک حرف به یک حرف
+     * فرو می‌ریزد («پووور» → «پور») ولی بازه حرف نگه‌داشته‌شده تا
+     * آخرین تکرار کش می‌آید تا حذف، کل بازه اصلی را بردارد. اندیس
+     * اصلی هر حرف نگه داشته می‌شود تا مچ به بازه متن اصلی برگردد.
+     */
+    private fun cleanedStream(text: String): List<KeptChar> {
+        val kept = ArrayList<KeptChar>()
+        for (i in text.indices) {
+            val raw = text[i]
+            if (PersianNormalizer.isDiacritic(raw) || PersianNormalizer.isTatweel(raw)) continue
+            if (!isKeptChar(raw)) continue
+            val folded = foldLookalike(raw)
+            val last = kept.lastOrNull()
+            if (last != null && last.ch == folded) {
+                // تکرار همان حرف: فروبریز، ولی بازه را تا اینجا بکش.
+                last.end = i + 1
+            } else {
+                kept.add(KeptChar(folded, i, i + 1))
+            }
+        }
+        return kept
+    }
+
+    /** کلیدواژه تمیزشده برای مسیر ضدفرار (همان تاشدن و فروپاشی تکرار). */
+    private fun cleanedKeyword(ruleRaw: String): String {
+        return cleanedStream(ruleRaw).joinToString("") { it.ch.toString() }
+    }
+
+    /**
+     * مرز کلمه در متن اصلی: حرف بلافاصله قبل/بعد بازه باید غیرحرف
+     * باشد (یا لبه رشته). نیم‌فاصله/ZWJ چسباننده داخل کلمه‌اند و مرز
+     * حساب نمی‌شوند («فوت‌بال» همچنان «فوت» نیست). اعراب و کشیدگی
+     * چسبیده به لبه بازه رد می‌شوند تا حرف واقعی کناری سنجیده شود.
+     */
+    private fun isOriginalBoundary(text: String, spanStart: Int, spanEnd: Int): Boolean {
+        var before = spanStart - 1
+        while (before >= 0 &&
+            (PersianNormalizer.isDiacritic(text[before]) || PersianNormalizer.isTatweel(text[before]))
+        ) {
+            before--
+        }
+        if (before >= 0) {
+            val c = text[before]
+            if (c.isLetter() || PersianNormalizer.isJoiner(c)) return false
+        }
+        var after = spanEnd
+        while (after < text.length &&
+            (PersianNormalizer.isDiacritic(text[after]) || PersianNormalizer.isTatweel(text[after]))
+        ) {
+            after++
+        }
+        if (after < text.length) {
+            val c = text[after]
+            if (c.isLetter() || PersianNormalizer.isJoiner(c)) return false
+        }
+        return true
+    }
+
+    /**
+     * بازه (شروع، پایانِ‌انحصاری) اولین وقوع ضدفرار قانون [ruleRaw]
+     * در متن خام [text]، یا null.
+     *
+     * کلیدواژه تمیزشده در جریان تمیزشده جستجو می‌شود؛ هر وقوع به بازه
+     * اصلی برگردانده می‌شود (شامل جداکننده‌های داخل بازه) و فقط وقتی
+     * پذیرفته می‌شود که مرز کلمه در متن اصلی برقرار باشد — پس
+     * «پور.ن هاب» و «پ و ر ن ه ا ب» و «پووورنهاب» مچ می‌شوند ولی
+     * «فوتبال» هرگز «فوت» را نمی‌گیرد.
+     */
+    fun findAntiEvasionSpan(text: String, ruleRaw: String): Pair<Int, Int>? {
+        val keyword = cleanedKeyword(ruleRaw)
+        if (keyword.isEmpty()) return null
+        val stream = cleanedStream(text)
+        if (stream.size < keyword.length) return null
+        val streamText = stream.joinToString("") { it.ch.toString() }
+        var from = 0
+        while (from <= streamText.length - keyword.length) {
+            val idx = streamText.indexOf(keyword, from)
+            if (idx < 0) return null
+            val spanStart = stream[idx].start
+            val spanEnd = stream[idx + keyword.length - 1].end
+            if (isOriginalBoundary(text, spanStart, spanEnd)) {
+                return spanStart to spanEnd
+            }
+            from = idx + 1
         }
         return null
     }

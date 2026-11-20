@@ -83,12 +83,32 @@ object TextRedactor {
                 start++
             }
         }
-        if (removed.none { it }) return text
+        if (removed.none { it }) {
+            // گذر ضدفرار: وقوع گریخته («پور.ن هاب») با بازه اصلی حذف
+            // می‌شود — کل بازه، شامل جداکننده‌های داخلش.
+            return removeAntiEvasionSpans(text, ruleRaw)
+        }
         val kept = ArrayList<String>()
         for (i in words.indices) {
             if (!removed[i]) kept.add(words[i])
         }
-        return kept.joinToString(" ")
+        // وقوع گریخته دیگری ممکن است در متن باقی‌مانده باشد.
+        return removeAntiEvasionSpans(kept.joinToString(" "), ruleRaw)
+    }
+
+    /**
+     * حذف همه وقوع‌های ضدفرار قانون از متن خام: هر بازه اصلی (شامل
+     * جداکننده‌های داخل بازه) برداشته می‌شود و فاصله‌های دوتاییِ
+     * به‌جامانده فرو می‌ریزند. اگر وقوعی نباشد، همان متن برمی‌گردد.
+     */
+    private fun removeAntiEvasionSpans(text: String, ruleRaw: String): String {
+        var result = text
+        while (true) {
+            val span = KeywordMatcher.findAntiEvasionSpan(result, ruleRaw) ?: break
+            result = result.removeRange(span.first, span.second)
+        }
+        if (result == text) return text
+        return result.replace(Regex("\\s+"), " ").trim()
     }
 
     /** تعداد کاراکتر حذف‌شده — برای fallback دکمه backspace. */
@@ -126,6 +146,8 @@ object TextRedactor {
             }
             start++
         }
-        return null
+        // وقوع گریخته («پور.ن هاب») پنجره کلمه‌ای ندارد؛ بازه اصلی
+        // ضدفرار همان بازه‌ای است که CUT باید بردارد.
+        return KeywordMatcher.findAntiEvasionSpan(text, ruleRaw)
     }
 }

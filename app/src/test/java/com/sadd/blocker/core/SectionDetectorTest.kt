@@ -103,8 +103,10 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun instagramExploreDetectedByTitleWithoutEditableField() {
-        assertTrue(
+    fun instagramExploreNotDetectedByTitleAlone() {
+        // عنوان پنجره دیگر شاهد فید نیست (گزارش سید ۲۰۲۶-۱۱-۲۰): فقط
+        // تب واقعاً انتخاب‌شده بلاک می‌کند.
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
                 SectionDetector.SECTION_INSTAGRAM_EXPLORE,
@@ -352,12 +354,20 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun instagramReelsDetectedByWindowTitle() {
-        assertTrue(
+    fun instagramReelsNotDetectedByWindowTitleAlone() {
+        // عنوان/کلاس پنجره شاهد فید نیست؛ فقط تب انتخاب‌شده.
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
                 SectionDetector.SECTION_INSTAGRAM_REELS,
                 SectionSignals(windowTitle = "Reels"),
+            ),
+        )
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_REELS,
+                SectionSignals(windowClassName = "com.instagram.reels.ReelsActivity"),
             ),
         )
     }
@@ -416,8 +426,8 @@ class SectionDetectorTest {
     // ---------- شورتس یوتیوب ----------
 
     @Test
-    fun youtubeShortsDetectedByWindowTitle() {
-        assertTrue(
+    fun youtubeShortsNotDetectedByWindowTitleAlone() {
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.google.android.youtube",
                 SectionDetector.SECTION_YOUTUBE_SHORTS,
@@ -1097,54 +1107,136 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun chromeIncognitoDetectedByText() {
-        assertTrue(
+    fun chromeIncognitoWordPresentInMenuDoesNotBlock() {
+        // گزارش سید ۲۰۲۶-۱۱-۲۰: کلمه «incognito» که فقط در منو/فهرست
+        // دیده شود (بدون کلیک، بدون صفحه تب خصوصی) هرگز بلاک نمی‌کند.
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.android.chrome",
                 SectionDetector.SECTION_CHROME_INCOGNITO,
                 SectionSignals(texts = listOf("Incognito")),
             ),
         )
-    }
-
-    @Test
-    fun chromeIncognitoDetectedByContentDescription() {
-        assertTrue(
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.android.chrome",
                 SectionDetector.SECTION_CHROME_INCOGNITO,
                 SectionSignals(contentDescriptions = listOf("Incognito")),
             ),
         )
-    }
-
-    @Test
-    fun chromeIncognitoDetectedByPersianMarkers() {
-        assertTrue(
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.android.chrome",
                 SectionDetector.SECTION_CHROME_INCOGNITO,
                 SectionSignals(texts = listOf("مرور خصوصی")),
             ),
         )
-        assertTrue(
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.android.chrome",
                 SectionDetector.SECTION_CHROME_INCOGNITO,
                 SectionSignals(texts = listOf("ناشناس")),
             ),
         )
-    }
-
-    @Test
-    fun chromeIncognitoDetectedByWindowTitle() {
-        assertTrue(
+        assertFalse(
             SectionDetector.isSectionShowing(
                 "com.android.chrome",
                 SectionDetector.SECTION_CHROME_INCOGNITO,
                 SectionSignals(windowTitle = "Incognito"),
             ),
         )
+        // حتی متن خود آیتم منو، بدون کلیک، شاهد نیست.
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(texts = listOf("New Incognito tab")),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoDetectedByMenuItemClick() {
+        // کلیک واقعی روی آیتم منوی مرور خصوصی.
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(clickedTexts = listOf("New Incognito tab")),
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(clickedContentDescriptions = listOf("New Incognito tab")),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoDetectedByPersianMenuItemClick() {
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(clickedTexts = listOf("زبانه ناشناس جدید")),
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(clickedTexts = listOf("برگه ناشناس جدید")),
+            ),
+        )
+    }
+
+    @Test
+    fun chromeIncognitoDetectedByIncognitoTabPage() {
+        // خودِ صفحه تب خصوصی باز است (متن خالی تب تازه خصوصی).
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(texts = listOf("You've gone incognito")),
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.android.chrome",
+                SectionDetector.SECTION_CHROME_INCOGNITO,
+                SectionSignals(texts = listOf("ناشناس شده‌اید")),
+            ),
+        )
+    }
+
+    @Test
+    fun searchBlocksOnSearchBarClickWithoutFocusOrText() {
+        // کلیک روی نوار جستجو (قبل از فوکوس/تایپ) شاهد ورود به جستجو است.
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "org.telegram.messenger",
+                SectionDetector.SECTION_TELEGRAM_SEARCH,
+                SectionSignals(searchFieldClicked = true),
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_SEARCH,
+                SectionSignals(searchFieldClicked = true),
+            ),
+        )
+    }
+
+    @Test
+    fun isSearchNodeTextOnlyForSearchNodes() {
+        assertTrue(SectionDetector.isSearchNodeText("Search", null, null))
+        assertTrue(SectionDetector.isSearchNodeText(null, "جستجو", null))
+        assertTrue(SectionDetector.isSearchNodeText(null, null, "Search YouTube"))
+        assertFalse(SectionDetector.isSearchNodeText("Telegram", null, null))
+        assertFalse(SectionDetector.isSearchNodeText(null, null, null))
     }
 
     @Test

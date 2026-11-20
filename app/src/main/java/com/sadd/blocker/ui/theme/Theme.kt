@@ -430,6 +430,8 @@ object SaddRadius {
 object SaddGlass {
     val CardContainerAlpha = 0.52f
     val DialogContainerAlpha = 0.86f
+    /** سطح تقریباً مات برای متن‌های طولانی (دیالوگ بازگشایی Strict): خوانایی بر شیشه مقدم است. */
+    val OpaqueContainerAlpha = 0.97f
     val ButtonContainerAlpha = 0.85f
     val BorderAlpha = 0.12f
     val HairlineAlpha = 0.40f

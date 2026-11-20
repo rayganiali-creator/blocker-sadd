@@ -71,6 +71,16 @@ class SectionRulesViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
+            // مهاجرت یک‌باره «پیش‌فرض‌ها خاموش» قبل از seed: نصب‌های
+            // موجود هم همه پیش‌فرض‌ها را خاموش می‌گیرند (سرویس هم همین
+            // مهاجرت را اجرا می‌کند؛ idempotent است).
+            try {
+                settingsStore.migratePresetsDefaultOffIfNeeded {
+                    repository.disableAllPresets()
+                }
+            } catch (_: Exception) {
+                // fail-open: مهاجرت خراب نمی‌کند.
+            }
             repository.ensurePresets()
         }
         viewModelScope.launch {

@@ -111,6 +111,14 @@ class SettingsStore @Inject constructor(
          */
         val DELAY_DEFAULT_MIGRATED = booleanPreferencesKey("delay_default_migrated")
 
+        /**
+         * پرچم مهاجرت یک‌باره «پیش‌فرض‌های بخش خاموش» (گزارش سید
+         * ۲۰۲۶-۱۱-۲۰)؛ اگر نخورده باشد، اولین اجرا همه پیش‌فرض‌های
+         * بخش را خاموش می‌کند و پرچم را می‌زند تا انتخاب بعدی کاربر
+         * دست نخورد.
+         */
+        val PRESETS_DEFAULT_OFF_MIGRATED = booleanPreferencesKey("presets_default_off_migrated")
+
         /** بعد از ۵ تلاش اشتباه، PIN قفل می‌شود (H-8). */
         const val PIN_MAX_ATTEMPTS = 5
         /** قفل اول ۳۰ ثانیه؛ هر تلاش اشتباه بعدی دو برابر، تا سقف ۱۵ دقیقه. */
@@ -153,6 +161,23 @@ class SettingsStore @Inject constructor(
         context.settingsDataStore.edit { prefs ->
             prefs[GLOBAL_DELAY] = DelayOptions.DEFAULT_SECONDS
             prefs[DELAY_DEFAULT_MIGRATED] = true
+        }
+    }
+
+    /**
+     * مهاجرت یک‌باره «پیش‌فرض‌های بخش خاموش» (گزارش سید ۲۰۲۶-۱۱-۲۰):
+     * پیش‌فرض‌ها قبلاً روشن seed می‌شدند و سید می‌خواهد همه خاموش
+     * باشند تا خودش هر کدام را خواست روشن کند. اولین اجرا بعد از
+     * به‌روزرسانی، اگر پرچم نخورده باشد، [disablePresets] را صدا
+     * می‌زند (خاموش‌کردن همه پیش‌فرض‌های موجود در Room) و پرچم را
+     * می‌زند؛ بعد از آن، انتخاب کاربر دست نمی‌خورد. Idempotent است.
+     */
+    suspend fun migratePresetsDefaultOffIfNeeded(disablePresets: suspend () -> Unit) {
+        val migrated = safeData.first()[PRESETS_DEFAULT_OFF_MIGRATED] == true
+        if (!DelayMigration.shouldMigrate(migrated)) return
+        disablePresets()
+        context.settingsDataStore.edit { prefs ->
+            prefs[PRESETS_DEFAULT_OFF_MIGRATED] = true
         }
     }
 

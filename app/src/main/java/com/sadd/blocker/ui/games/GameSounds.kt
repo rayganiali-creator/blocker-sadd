@@ -20,9 +20,10 @@ object GameSounds {
     private const val AMPLITUDE = 0.22
 
     /**
-     * ترکیدن حباب پلاستیکی (bubble wrap): کلیک تیز نویزی + افت سریع فرکانس
-     * سینوس (۹۰۰→۲۰۰ هرتز) با پوش کاهشی تند؛ هر بار یکی از چند گونه با
-     * زیروبمی کمی متفاوت پخش می‌شود تا کشیدن انگشت روی حباب‌ها طبیعی صدا بدهد.
+     * ترکیدن بابل‌رپ بسته‌بندی (همان پلاستیک حباب‌داری که دور محصولات
+     * می‌پیچند — گزارش سید ۲۰۲۶-۱۱-۲۰): پارگی غشا، نه بوق موسیقایی و
+     * نه افت فرکانس طولانی. هر بار یکی از چند گونه با فرکانس مرکزی کمی
+     * متفاوت پخش می‌شود تا کشیدن انگشت روی حباب‌ها طبیعی صدا بدهد.
      */
     fun pop() {
         play(popBuffers[Random.nextInt(popBuffers.size)])
@@ -49,7 +50,8 @@ object GameSounds {
     }
 
     private val popBuffers: List<ShortArray> by lazy {
-        listOf(0.85, 0.95, 1.0, 1.1, 1.2).map { synthPlasticPop(it) }
+        // پنج گونه: فرکانس مرکزی فیلتر میان‌گذر ±۱۵٪ دور ۱۲۰۰ هرتز.
+        listOf(0.85, 0.925, 1.0, 1.075, 1.15).map { synthBubbleWrapPop(it) }
     }
     private val blipBuffer: ShortArray by lazy { synthTone(600f, 60) }
     private val thudBuffer: ShortArray by lazy { synthTone(120f, 130) }
@@ -68,28 +70,56 @@ object GameSounds {
     }
 
     /**
-     * صدای ترکیدن پلاستیک حباب‌دار: در ~۵ میلی‌ثانیه اول یک کلیک نویزی تیز
-     * (صدای پاره‌شدن پلاستیک) و زیر آن سینوسی با افت سریع فرکانس از
-     * ۹۰۰×[pitchFactor] تا ۲۰۰×[pitchFactor] هرتز و پوش کاهشی تند؛
-     * مجموع حدود ۸۰ میلی‌ثانیه است، مثل ترکیدن واقعی حباب بسته‌بندی.
+     * صدای ترکیدن بابل‌رپ بسته‌بندی — پارگی غشای پلاستیکی:
+     * - کلیک نویزی ۳ تا ۵ میلی‌ثانیه اول (لحظه پاره‌شدن غشا)؛
+     * - نویز میان‌گذرشده (فیلتر biquad، مرکز ~۱۲۰۰×[centerFactor]
+     *   هرتز، یعنی بازه ۱۰۰۰ تا ۱۴۰۰ هرتز) با پوش کاهشی نمایی سریع
+     *   (~۴۰ میلی‌ثانیه) — بدنه اصلی «پق» ترکیدن؛
+     * - سینوس بم کوتاه (~۲۵۰×[centerFactor] هرتز، بازه ۲۲۰ تا ۲۸۰)
+     *   با افت ~۲۵ میلی‌ثانیه — تنه هوا که از حباب بیرون می‌زند.
+     * هیچ افت فرکانس (pitch sweep) طولانی‌ای نیست؛ مجموع ~۸۰ میلی‌ثانیه
+     * است، مثل ترکیدن واقعی یک حباب بابل‌رپ.
      */
-    private fun synthPlasticPop(pitchFactor: Double): ShortArray {
+    private fun synthBubbleWrapPop(centerFactor: Double): ShortArray {
         val durationMs = 80
         val count = SAMPLE_RATE * durationMs / 1000
         val samples = ShortArray(count)
         val noise = Random(1234)
-        var phase = 0.0
+        // فیلتر میان‌گذر RBJ (بهره قله 0dB): مرکز و Q ثابت هر گونه.
+        val centerHz = 1200.0 * centerFactor
+        val q = 1.2
+        val w0 = 2.0 * PI * centerHz / SAMPLE_RATE
+        val alpha = sin(w0) / (2.0 * q)
+        val cosW0 = kotlin.math.cos(w0)
+        val b0 = alpha / (1.0 + alpha)
+        val b2 = -alpha / (1.0 + alpha)
+        val a1 = -2.0 * cosW0 / (1.0 + alpha)
+        val a2 = (1.0 - alpha) / (1.0 + alpha)
+        val bodyHz = 250.0 * centerFactor
+        var x1 = 0.0
+        var x2 = 0.0
+        var y1 = 0.0
+        var y2 = 0.0
+        val clickSamples = SAMPLE_RATE * 4 / 1000 // ~۴ میلی‌ثانیه
         for (i in 0 until count) {
-            val t = i.toDouble() / count
-            val freq = (900.0 - 700.0 * t) * pitchFactor
-            phase += 2.0 * PI * freq / SAMPLE_RATE
-            val body = sin(phase) * exp(-5.5 * t)
-            val click = if (i < 220) {
-                (noise.nextDouble() * 2.0 - 1.0) * exp(-i / 55.0)
+            val ms = i * 1000.0 / SAMPLE_RATE
+            val white = noise.nextDouble() * 2.0 - 1.0
+            // میان‌گذر روی نویز سفید + پوش نمایی سریع (~۴۰ms).
+            val filtered = b0 * white + b2 * x2 - a1 * y1 - a2 * y2
+            x2 = x1
+            x1 = white
+            y2 = y1
+            y1 = filtered
+            val membrane = filtered * exp(-ms / 40.0)
+            // کلیک پارگی فقط در چند میلی‌ثانیه اول.
+            val click = if (i < clickSamples) {
+                white * exp(-i / 40.0)
             } else {
                 0.0
             }
-            val value = (body * 0.8 + click * 0.6).coerceIn(-1.0, 1.0)
+            // تنه بم کوتاه (~۲۵ms افت).
+            val body = sin(2.0 * PI * bodyHz * i / SAMPLE_RATE) * exp(-ms / 22.0)
+            val value = (membrane * 1.4 + click * 0.7 + body * 0.45).coerceIn(-1.0, 1.0)
             samples[i] = (value * AMPLITUDE * Short.MAX_VALUE).toInt().toShort()
         }
         return samples

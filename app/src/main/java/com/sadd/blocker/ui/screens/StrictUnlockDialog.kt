@@ -45,7 +45,6 @@ import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddRadius
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddErrorTextColor
-import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
 import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 import kotlinx.coroutines.delay
@@ -92,9 +91,13 @@ fun StrictUnlockDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
+        // سطح تقریباً مات (نه شیشه‌ای): متن طولانی بازگشایی باید کاملاً
+        // خوانا باشد (گزارش سید ۲۰۲۶-۱۱-۲۰)؛ حاشیه درخشان و شعاع
+        // شیشه‌ای می‌ماند، فقط شفافیت سطح حذف می‌شود.
         SaddCard(
             modifier = Modifier.fillMaxWidth(),
             hero = true,
+            opaque = true,
         ) {
             Column(
                 modifier = Modifier
@@ -127,6 +130,7 @@ fun StrictUnlockDialog(
                     Spacer(Modifier.height(SaddSpacing.Medium))
                     SaddCard(
                         modifier = Modifier.fillMaxWidth(),
+                        opaque = true,
                     ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium)) {
                             Text(passage.text, style = MaterialTheme.typography.bodyMedium)
@@ -157,14 +161,15 @@ fun StrictUnlockDialog(
                             label = { Text("متن را اینجا تایپ کن") },
                             singleLine = false,
                             shape = RoundedCornerShape(SaddRadius.TextField),
-                            // رنگ‌های Liquid Glass فیلد تایپ (فقط ظاهری؛ منطق رد چسباندن بالا دست‌نخورده است).
+                            // ظرف فیلد هم مات است تا متن تایپ‌شده روی
+                            // پس‌زمینه شیشه‌ای گم نشود (خوانایی مقدم است).
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                                 unfocusedBorderColor = saddSpecularBorderColor(),
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                focusedContainerColor = saddGlassSurfaceColor(),
-                                unfocusedContainerColor = saddGlassSurfaceColor(),
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                                 focusedLabelColor = saddPrimaryTextColor(),
                                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 cursorColor = MaterialTheme.colorScheme.primary,

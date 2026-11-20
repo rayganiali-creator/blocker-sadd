@@ -172,10 +172,19 @@ fun SaddCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     hero: Boolean = false,
+    opaque: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val shape = RoundedCornerShape(if (hero) SaddRadius.Hero else SaddRadius.Card)
-    val colors = CardDefaults.cardColors(containerColor = saddGlassSurfaceColor())
+    // opaque=true برای جاهایی است که خوانایی متن بر شیشه‌ای بودن مقدم
+    // است (دیالوگ بازگشایی Strict): سطح تقریباً مات (آلفای ۰٫۹۷) با
+    // همان حاشیه درخشان و شعاع شیشه‌ای.
+    val containerColor = if (opaque) {
+        MaterialTheme.colorScheme.surface.copy(alpha = SaddGlass.OpaqueContainerAlpha)
+    } else {
+        saddGlassSurfaceColor()
+    }
+    val colors = CardDefaults.cardColors(containerColor = containerColor)
     // سایه را Modifier.shadow رنگی می‌سازد؛ ارتفاع خود کارت صفر است تا سایه دوتایی نشود.
     val elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     val glowColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
