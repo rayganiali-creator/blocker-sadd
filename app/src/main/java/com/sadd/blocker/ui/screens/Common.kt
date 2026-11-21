@@ -1,8 +1,10 @@
 package com.sadd.blocker.ui.screens
 
+import android.util.LruCache
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
@@ -60,9 +63,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -70,7 +76,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import com.sadd.blocker.domain.model.DelayOptions
+import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.Navy
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddRadius
@@ -159,6 +167,35 @@ fun SectionTitle(text: String) {
         textAlign = TextAlign.Start,
         modifier = Modifier.padding(top = SaddSpacing.Large, bottom = SaddSpacing.Small),
     )
+}
+
+/** کش حافظه‌ای آیکون اپ‌ها (پکیج → بیت‌مپ) تا هر ردیف از نو نخواند. */
+private val appIconCache = LruCache<String, ImageBitmap>(64)
+
+/**
+ * آیکون واقعی لانچر اپ کنار نامش (درخواست سید ۲۰۲۶-۱۱-۲۱: کنار نام
+ * هر اپ آیکونش باشد). از PackageManager خوانده و در کش حافظه‌ای
+ * نگه داشته می‌شود؛ اگر اپ نصب نیست یا خواندن شکست خورد، آیکون
+ * عمومی اپ‌ها با رنگ مینت Liquid Glass جایگزین می‌شود.
+ */
+@Composable
+fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap = remember(packageName) {
+        appIconCache.get(packageName) ?: runCatching {
+            context.packageManager.getApplicationIcon(packageName).toBitmap().asImageBitmap()
+        }.getOrNull()?.also { appIconCache.put(packageName, it) }
+    }
+    if (bitmap != null) {
+        Image(bitmap = bitmap, contentDescription = null, modifier = modifier)
+    } else {
+        Icon(
+            Icons.Filled.Apps,
+            contentDescription = null,
+            modifier = modifier,
+            tint = ChipMint,
+        )
+    }
 }
 
 /**

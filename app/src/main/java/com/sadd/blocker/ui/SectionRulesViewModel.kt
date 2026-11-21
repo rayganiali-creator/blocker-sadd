@@ -8,7 +8,6 @@ import com.sadd.blocker.data.system.InstalledAppInfo
 import com.sadd.blocker.data.system.InstalledAppsProvider
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
-import com.sadd.blocker.domain.StrictRuleAdd
 import com.sadd.blocker.domain.StrictRuleChange
 import com.sadd.blocker.domain.StrictUnlock
 import com.sadd.blocker.domain.StrictUnlockMethod
@@ -21,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -48,7 +48,8 @@ data class SectionRulesUiState(
  * هر بخش تاگل دارد. کاربر می‌تواند هر اپ نصب‌شده دیگری را هم اضافه کند:
  * «خود اپ» (قطعی، تطابق پکیج) یا یک بخش سفارشی با متن نشانه (بهترین تلاش).
  * مثل بقیه صفحه‌های قوانین، در سشن Strict فعال نمی‌توان قانون فعال را
- * غیرفعال کرد (H-2) و نمی‌توان قانون جدید اضافه کرد — مگر بعد از بازگشایی Strict.
+ * غیرفعال کرد (H-2) — مگر بعد از بازگشایی Strict. افزودن قانون جدید
+ * وسط سشن Strict آزاد است (فقط بلاک را قوی‌تر می‌کند).
  * قانون‌های دستی کاربر («خود اپ» و بخش سفارشی) را می‌توان حذف کرد؛
  * حذف قانون فعال در سشن Strict هم همان گیت بازگشایی را دارد.
  */
@@ -66,8 +67,6 @@ class SectionRulesViewModel @Inject constructor(
     private var lastRemoved: SectionRule? = null
     /** تغییر قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
     private var pendingStrictRuleChange: StrictRuleChange? = null
-    /** افزودن قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
-    private var pendingRuleAdd: StrictRuleAdd? = null
 
     init {
         viewModelScope.launch {
@@ -107,6 +106,17 @@ class SectionRulesViewModel @Inject constructor(
                 _uiState.update { it.copy(strictCooldownRequest = request) }
             }
         }
+        // پاک‌سازی یک‌باره درخواست انتظارِ قدیمیِ «افزودن قانون»: افزودن
+        // قانون دیگر گیت ندارد (فقط بلاک را قوی‌تر می‌کند)، پس
+        // درخواستِ ثبت‌شده قبل از این تغییر نباید در ModesScreen به‌صورت
+        // کارت شمارش معکوسِ گیرکرده بماند؛ درخواست RULE_CHANGE دست
+        // نمی‌خورد (هنوز گیت دارد).
+        viewModelScope.launch {
+            val request = settingsStore.strictCooldownRequest.firstOrNull()
+            if (request?.pendingKind == StrictPendingKind.RULE_ADD) {
+                settingsStore.clearStrictCooldownRequest()
+            }
+        }
     }
 
     fun setEnabled(packageName: String, sectionKey: String, enabled: Boolean) {
@@ -142,13 +152,9 @@ class SectionRulesViewModel @Inject constructor(
                 _uiState.update { it.copy(message = "«خود $appLabel» از قبل وجود دارد؛ همان را فعال کن.") }
                 return@launch
             }
-            // وسط سشن Strict، افزودن قانون هم تغییر است و فقط بعد از
-            // بازگشایی Strict (تایپ متن / انتظار) انجام می‌شود.
-            if (strictGuard.isStrictSessionActive()) {
-                pendingRuleAdd = StrictRuleAdd(StrictRuleChange.SCOPE_SECTION, packageName, appLabel)
-                _uiState.update { it.copy(strictUnlockVisible = true) }
-                return@launch
-            }
+            // افزودن قانون وسط سشن Strict آزاد است: فقط بلاک را قوی‌تر
+            // می‌کند (مثل تمدید سشن و افزودن زمان‌بندی). گیت Strict فقط
+            // روی حذف/غیرفعال/ویرایش قانونِ موجود است.
             applyAddWholeApp(packageName, appLabel)
         }
     }
@@ -185,19 +191,9 @@ class SectionRulesViewModel @Inject constructor(
                 _uiState.update { it.copy(message = "متن نشانه باید دست‌کم ۲ حرف باشد.") }
                 return@launch
             }
-            // وسط سشن Strict، افزودن قانون هم تغییر است و فقط بعد از
-            // بازگشایی Strict (تایپ متن / انتظار) انجام می‌شود.
-            // اعتبارسنجی بالا فقط خواندنی است و قبل از گیت می‌ماند تا
-            // ورودی نامعتبر، هزینه بازگشایی Strict را نگیرد.
-            if (strictGuard.isStrictSessionActive()) {
-                pendingRuleAdd = StrictRuleAdd(
-                    StrictRuleChange.SCOPE_SECTION,
-                    packageName,
-                    "$trimmedName|$signal",
-                )
-                _uiState.update { it.copy(strictUnlockVisible = true) }
-                return@launch
-            }
+            // افزودن قانون وسط سشن Strict آزاد است: فقط بلاک را قوی‌تر
+            // می‌کند (مثل تمدید سشن و افزودن زمان‌بندی). گیت Strict فقط
+            // روی حذف/غیرفعال/ویرایش قانونِ موجود است.
             applyAddCustomSection(packageName, appLabel, trimmedName, signal)
         }
     }
@@ -286,41 +282,13 @@ class SectionRulesViewModel @Inject constructor(
     }
 
     /**
-     * اعمال افزودن قانون یا تغییر قانون بعد از بازگشایی موفق در دیالوگ.
+     * اعمال تغییر قانون بعد از بازگشایی موفق در دیالوگ.
      * در روش انتظار، درخواست باید برای همین کار ثبت شده و کامل گذشته باشد.
      */
     fun confirmStrictUnlocked() {
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val state = _uiState.value
-            val add = pendingRuleAdd
-                ?: state.strictCooldownRequest?.takeIf { it.pendingKind == StrictPendingKind.RULE_ADD }?.pendingRuleAdd
-            if (add != null) {
-                if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
-                    val request = state.strictCooldownRequest
-                    if (request == null || !StrictUnlock.isCooldownElapsed(request, now) ||
-                        request.pendingRuleAdd != add
-                    ) {
-                        if (request != null && request.pendingRuleAdd != add) {
-                            pendingRuleAdd = null
-                            _uiState.update {
-                                it.copy(
-                                    strictUnlockVisible = false,
-                                    message = "این انتظار برای تغییر دیگری ثبت شده است؛ برای این تغییر دوباره درخواست بده.",
-                                )
-                            }
-                        }
-                        return@launch
-                    }
-                }
-                pendingRuleAdd = null
-                _uiState.update { it.copy(strictUnlockVisible = false) }
-                if (state.strictCooldownRequest?.pendingKind == StrictPendingKind.RULE_ADD) {
-                    settingsStore.clearStrictCooldownRequest()
-                }
-                applyRuleAdd(add)
-                return@launch
-            }
             val change = pendingStrictRuleChange
                 ?: state.strictCooldownRequest?.takeIf { it.pendingKind == StrictPendingKind.RULE_CHANGE }?.pendingRuleChange
             if (state.strictUnlockMethod == StrictUnlockMethod.COOLDOWN) {
@@ -350,24 +318,8 @@ class SectionRulesViewModel @Inject constructor(
         }
     }
 
-    /** ثبت درخواست انتظار برای افزودن قانون یا تغییر قانون (از دیالوگ بازگشایی). */
+    /** ثبت درخواست انتظار برای تغییر قانون (از دیالوگ بازگشایی). */
     fun recordStrictCooldownRequest() {
-        val add = pendingRuleAdd
-        if (add != null) {
-            val existing = _uiState.value.strictCooldownRequest
-            // درخواست تکراری همان افزودن: ساعت از اول شمرده نمی‌شود.
-            if (existing?.pendingKind == StrictPendingKind.RULE_ADD &&
-                existing.pendingRuleAdd == add
-            ) return
-            viewModelScope.launch {
-                settingsStore.recordStrictCooldownRequest(
-                    kind = StrictPendingKind.RULE_ADD,
-                    value = StrictRuleAdd.encode(add),
-                    durationHours = _uiState.value.strictCooldownHours,
-                )
-            }
-            return
-        }
         val pending = pendingStrictRuleChange ?: return
         val existing = _uiState.value.strictCooldownRequest
         // درخواست تکراری همان تغییر: ساعت از اول شمرده نمی‌شود.
@@ -385,28 +337,7 @@ class SectionRulesViewModel @Inject constructor(
 
     fun cancelStrictUnlock() {
         pendingStrictRuleChange = null
-        pendingRuleAdd = null
         _uiState.update { it.copy(strictUnlockVisible = false) }
-    }
-
-    /**
-     * افزودن قانونِ بازگشایی‌شده (فقط scope همین صفحه).
-     * «خود اپ» با value بدون «|» (همان برچسب اپ) و بخش سفارشی با
-     * value به‌صورت «نام|نشانه» از هم جدا می‌شوند؛ برچسب اپ برای
-     * بخش سفارشی موقع اعمال، از لیست اپ‌های نصب‌شده بازسازی می‌شود.
-     */
-    private suspend fun applyRuleAdd(add: StrictRuleAdd) {
-        if (add.scope != StrictRuleChange.SCOPE_SECTION) return
-        val separator = add.value.indexOf('|')
-        if (separator < 0) {
-            applyAddWholeApp(add.id, add.value)
-        } else {
-            val name = add.value.substring(0, separator)
-            val signal = add.value.substring(separator + 1)
-            val appLabel = _uiState.value.installed
-                .firstOrNull { it.packageName == add.id }?.label ?: add.id
-            applyAddCustomSection(add.id, appLabel, name, signal)
-        }
     }
 
     /** اعمال تغییر قانونِ بازگشایی‌شده (فقط scope همین صفحه). */

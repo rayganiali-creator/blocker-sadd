@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -180,7 +182,25 @@ fun SectionRulesScreen(
             }
             val grouped = uiState.rules.groupBy { it.packageName }
             for ((packageName, rules) in grouped) {
-                item { SectionTitle(appLabelFa(packageName, installedLabels)) }
+                item {
+                    // سربرگ گروه اپ: آیکون واقعی اپ + نامش (درخواست سید
+                    // ۲۰۲۶-۱۱-۲۱: کنار نام هر اپ آیکونش باشد).
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = SaddSpacing.Large, bottom = SaddSpacing.Small),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AppIcon(packageName = packageName, modifier = Modifier.size(28.dp))
+                        Spacer(Modifier.width(SaddSpacing.Small))
+                        Text(
+                            appLabelFa(packageName, installedLabels),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Start,
+                        )
+                    }
+                }
                 val ordered = rules.sortedBy { rule -> presetOrder(rule.sectionKey) }
                 items(ordered, key = { it.packageName + "/" + it.sectionKey }) { rule ->
                     // ردیف بخش به سبک Liquid Glass: چیپ آیکون رنگی + برچسب/توضیح + سوییچ.
@@ -283,7 +303,7 @@ private fun AddSectionPanel(
                         modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        SaddIconChip(icon = Icons.Filled.Apps, color = ChipMint)
+                        AppIcon(packageName = app.packageName, modifier = Modifier.size(36.dp))
                         Spacer(Modifier.width(SaddSpacing.Medium))
                         Text(
                             app.label,

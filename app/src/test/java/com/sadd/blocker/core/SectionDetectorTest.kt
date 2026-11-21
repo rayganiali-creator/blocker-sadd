@@ -1212,8 +1212,9 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun searchBlocksOnSearchBarClickWithoutFocusOrText() {
-        // کلیک روی نوار جستجو (قبل از فوکوس/تایپ) شاهد ورود به جستجو است.
+    fun searchBlocksOnSearchFieldClickWithoutFocusOrText() {
+        // کلیک روی خودِ فیلد جستجو (قبل از فوکوس/تایپ) شاهد ورود به
+        // جستجو است — سرویس این پرچم را فقط برای فیلد ویرایشی می‌گذارد.
         assertTrue(
             SectionDetector.isSectionShowing(
                 "org.telegram.messenger",
@@ -1231,12 +1232,89 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun isSearchNodeTextOnlyForSearchNodes() {
-        assertTrue(SectionDetector.isSearchNodeText("Search", null, null))
-        assertTrue(SectionDetector.isSearchNodeText(null, "جستجو", null))
-        assertTrue(SectionDetector.isSearchNodeText(null, null, "Search YouTube"))
-        assertFalse(SectionDetector.isSearchNodeText("Telegram", null, null))
-        assertFalse(SectionDetector.isSearchNodeText(null, null, null))
+    fun isSearchFieldClickOnlyForEditableSearchFields() {
+        // خودِ فیلد ویرایشی جستجو: کلیک شاهد است.
+        assertTrue(SectionDetector.isSearchFieldClick(isEditable = true, hint = "Search"))
+        assertTrue(SectionDetector.isSearchFieldClick(isEditable = true, hint = "جستجو"))
+        assertTrue(SectionDetector.isSearchFieldClick(isEditable = true, hint = "Search YouTube"))
+        // تب «Search and explore» اینستاگرام ویرایشی نیست — کلیک رویش
+        // ورود به اکسپلور است، نه جستجو (گزارش سید ۲۰۲۶-۱۱-۲۱).
+        assertFalse(SectionDetector.isSearchFieldClick(isEditable = false, hint = null))
+        assertFalse(SectionDetector.isSearchFieldClick(isEditable = false, hint = "Search"))
+        // فیلد ویرایشی غیرجستجو (چت/کامنت) شاهد جستجو نیست.
+        assertFalse(SectionDetector.isSearchFieldClick(isEditable = true, hint = "Message"))
+        assertFalse(SectionDetector.isSearchFieldClick(isEditable = true, hint = null))
+    }
+
+    @Test
+    fun instagramExploreTabTapDoesNotTriggerSearch() {
+        // رگرسیون گزارش سید ۲۰۲۶-۱۱-۲۱: قانون جستجو روشن، قانون
+        // اکسپلور خاموش؛ زدن روی تب اکسپلور («Search and explore»)
+        // نباید بخش جستجو را بلاک کند. سیگنال‌ها همان چیزی است که
+        // سرویس بعد از کلیک روی تب می‌سازد: تب انتخاب شده، متن
+        // کلیک‌شده «Search and explore»، ولی searchFieldClicked=false
+        // (تب ویرایشی نیست) و فیلد جستجو فوکوس/متن ندارد.
+        val signals = SectionSignals(
+            hasEditableTextField = true,
+            editableHint = "Search",
+            selectedContentDescriptions = listOf("Search and explore"),
+            clickedContentDescriptions = listOf("Search and explore"),
+        )
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_SEARCH,
+                signals,
+            ),
+        )
+        // و اکسپلور با همان سیگنال‌ها (اگر قانونش روشن باشد) بلاک می‌شود.
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_EXPLORE,
+                signals,
+            ),
+        )
+    }
+
+    @Test
+    fun instagramSearchBlocksWhenTypingIntoSearchField() {
+        // تایپ در فیلد جستجوی اینستاگرام = ورود به جستجو.
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_SEARCH,
+                typedSearchField("Search"),
+            ),
+        )
+    }
+
+    @Test
+    fun whatsappStatusDetectedByUpdatesTab() {
+        // واتساپ جدید تب را «Updates» نامیده است؛ وضعیت داخل همان تب
+        // است و قانون وضعیت باید روی آن بلاک کند.
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.whatsapp",
+                SectionDetector.SECTION_WHATSAPP_STATUS,
+                SectionSignals(selectedTexts = listOf("Updates")),
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSectionShowing(
+                "com.whatsapp",
+                SectionDetector.SECTION_WHATSAPP_STATUS,
+                SectionSignals(selectedTexts = listOf("به‌روزرسانی‌ها")),
+            ),
+        )
+        // برچسب Updates در درخت هست ولی تب انتخاب نشده — بلاک نمی‌شود.
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.whatsapp",
+                SectionDetector.SECTION_WHATSAPP_STATUS,
+                SectionSignals(texts = listOf("Updates")),
+            ),
+        )
     }
 
     @Test

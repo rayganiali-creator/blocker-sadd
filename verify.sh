@@ -29,6 +29,7 @@ $KOTLINC \
   app/src/main/java/com/sadd/blocker/core/SectionDetector.kt \
   app/src/main/java/com/sadd/blocker/core/ProtectionGuardDetector.kt \
   app/src/main/java/com/sadd/blocker/core/TextRedactor.kt \
+  app/src/main/java/com/sadd/blocker/core/KeyboardBlocker.kt \
   app/src/main/java/com/sadd/blocker/core/BlockThrottle.kt \
   app/src/main/java/com/sadd/blocker/core/SessionCalculator.kt \
   app/src/main/java/com/sadd/blocker/core/PinCrypto.kt \
@@ -61,6 +62,7 @@ $KOTLINC \
   app/src/test/java/com/sadd/blocker/core/SectionDetectorTest.kt \
   app/src/test/java/com/sadd/blocker/core/ProtectionGuardDetectorTest.kt \
   app/src/test/java/com/sadd/blocker/core/TextRedactorTest.kt \
+  app/src/test/java/com/sadd/blocker/core/KeyboardBlockerTest.kt \
   app/src/test/java/com/sadd/blocker/core/BlockThrottleTest.kt \
   app/src/test/java/com/sadd/blocker/core/SessionCalculatorTest.kt \
   app/src/test/java/com/sadd/blocker/core/PinCryptoTest.kt \
@@ -72,6 +74,7 @@ $KOTLINC \
   app/src/test/java/com/sadd/blocker/core/games/LetItPassEngineTest.kt \
   app/src/test/java/com/sadd/blocker/domain/RuleValidationTest.kt \
   app/src/test/java/com/sadd/blocker/domain/StrictUnlockTest.kt \
+  app/src/test/java/com/sadd/blocker/domain/StrictSessionGuardTest.kt \
   app/src/test/java/com/sadd/blocker/domain/OnboardingStepsTest.kt \
   app/src/test/java/com/sadd/blocker/domain/TutorialPagesTest.kt \
   app/src/test/java/com/sadd/blocker/domain/UninstallProtectionGateTest.kt \
@@ -91,6 +94,7 @@ $JAVA -cp "$OUT/test-classes:$TB/junit.jar:$TB/hamcrest.jar:$COROUTINES_JAR:$TB/
   com.sadd.blocker.core.SectionDetectorTest \
   com.sadd.blocker.core.ProtectionGuardDetectorTest \
   com.sadd.blocker.core.TextRedactorTest \
+  com.sadd.blocker.core.KeyboardBlockerTest \
   com.sadd.blocker.core.BlockThrottleTest \
   com.sadd.blocker.core.SessionCalculatorTest \
   com.sadd.blocker.core.PinCryptoTest \
@@ -102,6 +106,7 @@ $JAVA -cp "$OUT/test-classes:$TB/junit.jar:$TB/hamcrest.jar:$COROUTINES_JAR:$TB/
   com.sadd.blocker.core.games.LetItPassEngineTest \
   com.sadd.blocker.domain.RuleValidationTest \
   com.sadd.blocker.domain.StrictUnlockTest \
+  com.sadd.blocker.domain.StrictSessionGuardTest \
   com.sadd.blocker.domain.OnboardingStepsTest \
   com.sadd.blocker.domain.TutorialPagesTest \
   com.sadd.blocker.domain.UninstallProtectionGateTest \

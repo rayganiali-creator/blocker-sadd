@@ -3,9 +3,11 @@ package com.sadd.blocker.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.sadd.blocker.core.BlockThrottle
+import com.sadd.blocker.core.KeyboardBlocker
 import com.sadd.blocker.core.KeywordMatcher
 import com.sadd.blocker.core.ProtectionGuardDetector
 import com.sadd.blocker.core.SectionDetector
@@ -173,6 +175,13 @@ class BlockAccessibilityService : AccessibilityService() {
         val keywords: List<KeywordRule>,
         val websites: List<BlockedWebsite>,
         val sections: List<SectionRule>,
+        /**
+         * کیبورد هوشمند سد، کیبورد فعلی سیستم است؟ وقتی بله، بخش
+         * کلمه‌ای متن تایپ‌شده اینجا رد می‌شود (خود کیبورد کلمه
+         * بلاک‌شده را موقع تایپ پاک می‌کند تا دو بار هندل نشود)؛
+         * بلاک اپ/بخش و دامنه مرورگر سر جایشان می‌مانند.
+         */
+        val saddImeCurrent: Boolean = false,
     )
 
     @Volatile
@@ -375,9 +384,11 @@ class BlockAccessibilityService : AccessibilityService() {
      *
      * - TYPE_VIEW_CLICKED: متن/توضیح گره کلیک‌شده (و فرزندان مستقیمش)
      *   در clickedTexts/clickedContentDescriptions می‌نشیند؛ اگر گره
-     *   نوار/فیلد جستجو باشد (فیلد ویرایشی با hint جستجو، یا
-     *   متن/توضیح/hint آن مارکر جستجو داشته باشد) searchFieldClicked
-     *   هم true می‌شود.
+     *   (یا فرزند مستقیمش) خودِ فیلد ویرایشی جستجو باشد
+     *   ([SectionDetector.isSearchFieldClick]) searchFieldClicked هم
+     *   true می‌شود. کلیک روی تبی که برچسبش «Search» دارد (تب
+     *   «Search and explore» اینستاگرام) شاهد جستجو نیست — آن کلیک
+     *   ورود به اکسپلور است (گزارش سید ۲۰۲۶-۱۱-۲۱).
      * - TYPE_VIEW_FOCUSED / TYPE_VIEW_ACCESSIBILITY_FOCUSED: اگر گره
      *   فوکوس‌گرفته فیلد ویرایشی با hint جستجو باشد،
      *   searchFieldFocused=true می‌شود.
@@ -433,7 +444,7 @@ class BlockAccessibilityService : AccessibilityService() {
             val clickedDescriptions = ArrayList<String>()
             text?.takeIf { it.isNotBlank() }?.let { clickedTexts.add(it) }
             desc?.takeIf { it.isNotBlank() }?.let { clickedDescriptions.add(it) }
-            var searchClicked = SectionDetector.isSearchNodeText(text, desc, hint)
+            var searchClicked = SectionDetector.isSearchFieldClick(editable, hint)
             try {
                 for (i in 0 until source.childCount) {
                     val child = try {
@@ -451,7 +462,12 @@ class BlockAccessibilityService : AccessibilityService() {
                         }
                         childText?.takeIf { it.isNotBlank() }?.let { clickedTexts.add(it) }
                         childDesc?.takeIf { it.isNotBlank() }?.let { clickedDescriptions.add(it) }
-                        if (SectionDetector.isSearchNodeText(childText, childDesc, childHint)) {
+                        val childEditable = try {
+                            child.isEditable
+                        } catch (_: Exception) {
+                            false
+                        }
+                        if (SectionDetector.isSearchFieldClick(childEditable, childHint)) {
                             searchClicked = true
                         }
                     } catch (_: Exception) {
@@ -508,6 +524,7 @@ class BlockAccessibilityService : AccessibilityService() {
                 keywords = keywordRepository.list().filter { it.enabled },
                 websites = websiteRepository.list().filter { it.enabled },
                 sections = sectionRuleRepository.getEnabled(),
+                saddImeCurrent = readSaddImeCurrent(),
             )
         } catch (_: Exception) {
             // fail-open: اگر قوانین خوانده نشدند، هیچ بلاکی صادر نمی‌شود.
@@ -525,15 +542,38 @@ class BlockAccessibilityService : AccessibilityService() {
         return fresh
     }
 
+    /**
+     * آیا کیبورد هوشمند سد، کیبورد فعلی سیستم است؟
+     * (Settings.Secure.DEFAULT_INPUT_METHOD با پکیج خودمان شروع می‌شود.)
+     * هر خطایی یعنی «نه» — fail-open به رفتار همیشگی سرویس.
+     */
+    private fun readSaddImeCurrent(): Boolean {
+        return try {
+            val current = Settings.Secure.getString(
+                contentResolver,
+                Settings.Secure.DEFAULT_INPUT_METHOD,
+            )
+            KeyboardBlocker.isSaddImeCurrent(current, packageName)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     // ---------- ارزیابی متن تایپ‌شده ----------
 
     private suspend fun evaluateText(packageName: String, text: String) {
         val snapshot = loadSnapshot(forceRefresh = false)
         if (!snapshot.sessionActive) return
         if (SectionDetector.isBrowserPackage(packageName)) {
-            evaluateBrowserText(packageName, text, snapshot)
+            // وقتی کیبورد سد کیبورد فعلی است، بخش کلمه‌ای را خودش موقع
+            // تایپ پاک می‌کند؛ اینجا فقط دامنه چک می‌شود.
+            evaluateBrowserText(packageName, text, snapshot, skipKeyword = snapshot.saddImeCurrent)
             return
         }
+        // کیبورد سد فعال است: کلمه بلاک‌شده را خودش موقع تایپ پاک
+        // می‌کند؛ اینجا دوباره هندل نمی‌شود. بلاک اپ/بخش از مسیرهای
+        // دیگر سر جایش است.
+        if (snapshot.saddImeCurrent) return
         val matched = TextRedactor.findMatchedKeyword(
             text,
             snapshot.keywords.map { it.rawText },
@@ -576,11 +616,16 @@ class BlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** متن omnibox/جعبه جستجوی مرورگر: اول دامنه، بعد کلمه. */
+    /**
+     * متن omnibox/جعبه جستجوی مرورگر: اول دامنه، بعد کلمه.
+     * [skipKeyword] وقتی کیبورد سد کیبورد فعلی است: کلمه را خودش موقع
+     * تایپ پاک می‌کند و اینجا فقط دامنه چک می‌شود.
+     */
     private suspend fun evaluateBrowserText(
         packageName: String,
         text: String,
         snapshot: Snapshot,
+        skipKeyword: Boolean = false,
     ) {
         val host = TextRedactor.extractHostCandidate(text)
         if (host != null) {
@@ -603,6 +648,7 @@ class BlockAccessibilityService : AccessibilityService() {
                 return
             }
         }
+        if (skipKeyword) return
         val matched = TextRedactor.findMatchedKeyword(
             text,
             snapshot.keywords.map { it.rawText },

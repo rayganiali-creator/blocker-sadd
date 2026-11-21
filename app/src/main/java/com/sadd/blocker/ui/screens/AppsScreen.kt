@@ -1,7 +1,5 @@
 package com.sadd.blocker.ui.screens
 
-import android.util.LruCache
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,22 +35,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.AppsViewModel
-import com.sadd.blocker.ui.theme.ChipMint
 import com.sadd.blocker.ui.theme.Navy
 import com.sadd.blocker.ui.theme.SaddSpacing
-
-/** کش حافظه‌ای آیکون اپ‌ها (حداکثر ۶۴ آیکون) — بدون بارگذاری دوباره از PackageManager. */
-private val appIconCache = LruCache<String, ImageBitmap>(64)
 
 /**
  * بلاک اپ‌ها.
@@ -243,26 +233,5 @@ fun AppsScreen(
             }
             item { Spacer(Modifier.height(SaddSpacing.Large)) }
         }
-    }
-}
-
-@Composable
-private fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val bitmap = remember(packageName) {
-        appIconCache.get(packageName) ?: runCatching {
-            context.packageManager.getApplicationIcon(packageName).toBitmap().asImageBitmap()
-        }.getOrNull()?.also { appIconCache.put(packageName, it) }
-    }
-    if (bitmap != null) {
-        Image(bitmap = bitmap, contentDescription = null, modifier = modifier)
-    } else {
-        // جایگزین آیکون اپ با رنگ مینت Liquid Glass وقتی آیکون واقعی خوانده نشود.
-        Icon(
-            Icons.Filled.Apps,
-            contentDescription = null,
-            modifier = modifier,
-            tint = ChipMint,
-        )
     }
 }

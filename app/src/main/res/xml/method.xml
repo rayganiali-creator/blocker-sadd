@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- کیبورد هوشمند سد: زیرنوع فارسی و انگلیسی. -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.sadd.blocker.MainActivity"
+    android:supportsSwitchingToNextInputMethod="true">
+    <subtype
+        android:label="فارسی"
+        android:imeSubtypeLocale="fa"
+        android:imeSubtypeMode="keyboard"
+        android:isAuxiliary="false" />
+    <subtype
+        android:label="English"
+        android:imeSubtypeLocale="en"
+        android:imeSubtypeMode="keyboard"
+        android:isAuxiliary="false" />
+</input-method>

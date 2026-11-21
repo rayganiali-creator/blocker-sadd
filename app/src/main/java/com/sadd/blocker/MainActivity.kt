@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TextFields
@@ -39,6 +40,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -66,6 +68,7 @@ import com.sadd.blocker.ui.screens.PinScreen
 import com.sadd.blocker.ui.screens.SchedulingScreen
 import com.sadd.blocker.ui.screens.SectionRulesScreen
 import com.sadd.blocker.ui.screens.SessionsScreen
+import com.sadd.blocker.ui.screens.SmartKeyboardScreen
 import com.sadd.blocker.ui.screens.WebsitesScreen
 import com.sadd.blocker.ui.screens.rememberPressScale
 import com.sadd.blocker.ui.theme.BlockerTheme
@@ -124,6 +127,9 @@ fun BlockerNav(onboardingDone: Boolean) {
         // تب جدا برای بازی‌های کوچک (خواسته سید ۲۰۲۶-۱۱-۱۹) — علاوه بر
         // ورود بازی‌ها از صفحه بلاک؛ همیشه در دسترس و مستقل از سشن/Strict.
         BottomDestination("games", "بازی‌ها", Icons.Filled.SportsEsports),
+        // کیبورد هوشمند سد (خواسته سید ۲۰۲۶-۱۱-۲۱): کیبورد خود سد که
+        // وسط سشن کلمه بلاک‌شده را موقع تایپ پاک می‌کند.
+        BottomDestination("smart_keyboard", "کیبورد هوشمند", Icons.Filled.Keyboard),
     )
     // پس‌زمینه Liquid Glass زیر همه صفحه‌ها؛ Scaffold شفاف است تا گرادیان دیده شود.
     SaddBackdrop {
@@ -214,6 +220,9 @@ fun BlockerNav(onboardingDone: Boolean) {
             }
             composable("games") {
                 GamesScreen()
+            }
+            composable("smart_keyboard") {
+                SmartKeyboardScreen()
             }
             composable("scheduling") {
                 SchedulingScreen(
@@ -316,6 +325,8 @@ private fun NavItem(
                 destination.label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 color = if (selected) {
                     NavyDeep
                 } else {

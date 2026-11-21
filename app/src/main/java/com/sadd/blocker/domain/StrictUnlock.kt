@@ -55,7 +55,14 @@ enum class StrictPendingKind {
     SCHEDULE_ADD,
     /** ریستور بکاپ (جایگزینی قوانین)؛ pendingValue خالی است. */
     BACKUP_RESTORE,
-    /** افزودن قانون جدید؛ pendingValue کدگذاری [StrictRuleAdd] است. */
+    /**
+     * افزودن قانون جدید؛ pendingValue کدگذاری [StrictRuleAdd] است.
+     * قدیمی (legacy): افزودن قانون از ۲۰۲۶-۱۱-۲۱ وسط سشن Strict آزاد
+     * است (فقط بلاک را قوی‌تر می‌کند)، پس دیگر هیچ درخواستی با این نوع
+     * ثبت نمی‌شود. مقدار enum و کدگذاری فقط برای خواندن درخواست‌های
+     * ذخیره‌شده قدیمی مانده‌اند؛ ViewModelهای قوانین آن‌ها را یک‌باره
+     * پاک می‌کنند تا در ModesScreen گیر نکنند.
+     */
     RULE_ADD,
 }
 

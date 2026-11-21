@@ -44,7 +44,12 @@ package com.sadd.blocker.core
  * - instagram_search (com.instagram.android): مثل تلگرام — فیلد جستجو
  *   با hint «Search» / «جستجو» واقعاً فعال است (فوکوس یا متن
  *   تایپ‌شده). تب جستجوی اینستاگرام یک نوار جستجو با placeholder
- *   «Search» دارد.
+ *   «Search» دارد. کلیک روی خودِ تب «Search and explore» هرگز شاهد
+ *   جستجو نیست (گزارش سید ۲۰۲۶-۱۱-۲۱: زدن روی اکسپلور، با اینکه
+ *   قانون اکسپلور خاموش و فقط جستجو روشن بود، بلاک می‌شد — چون متن
+ *   تب «Search» داشت و کلیک روی آن «کلیک روی جستجو» حساب می‌شد).
+ *   شاهد کلیک فقط وقتی است که گره کلیک‌شده (یا فرزند مستقیمش) خودِ
+ *   فیلد ویرایشی جستجو باشد ([isSearchFieldClick])؛ برچسب تب هرگز.
  * - instagram_explore (com.instagram.android): مارکر «explore» /
  *   «اکسپلور» فقط در متن/توضیح گره‌ای که واقعاً
  *   انتخاب شده (تب فعال اکسپلور)؛ و فیلد جستجو فعال نیست. برچسب تب
@@ -71,12 +76,14 @@ package com.sadd.blocker.core
  *   «خود یوتیوب» گزینه مطمئن است.
  * - whatsapp_search (com.whatsapp): مثل تلگرام — فیلد جستجو واقعاً
  *   فعال است (فوکوس یا متن تایپ‌شده).
- * - whatsapp_status (com.whatsapp): مارکر «status» / «وضعیت» در
- *   فقط در گره انتخاب‌شده، و فیلد جستجو فعال نیست.
+ * - whatsapp_status (com.whatsapp): مارکر «status» / «وضعیت» /
+ *   «updates» / «به‌روزرسانی» در فقط در گره انتخاب‌شده، و فیلد
+ *   جستجو فعال نیست.
  *   برچسب تب وضعیت در ناوبری پایین به‌تنهایی بلاک نمی‌کند. بهترین
  *   تلاش است و fail-open: واتساپ در نسخه‌های جدید تب را «Updates»
- *   نامیده است، پس اگر «Status» دیگر جایی نباشد بلاک نمی‌شود؛ و اگر
- *   وضعیت انتخاب تب گزارش نشود هم بلاک نمی‌شود. برای بلاک قطعی کل
+ *   نامیده است (وضعیت داخل همان تب است)، پس «updates» هم مارکر
+ *   است و قانون وضعیت روی تب Updates بلاک می‌کند؛ اگر وضعیت انتخاب
+ *   تب گزارش نشود بلاک نمی‌شود. برای بلاک قطعی کل
  *   واتساپ، «خود واتساپ» گزینه مطمئن است.
  * - tiktok_search / tiktok_foryou: هر دو پکیج تیک‌تاک
  *   (com.zhiliaoapp.musically و com.ss.android.ugc.trill)؛ جستجو
@@ -247,9 +254,11 @@ object SectionDetector {
      *
      * شواهد فعال‌سازی (برای دقت بخش، نه صرفِ دیده شدن):
      * - [searchFieldClicked]: سرویس این پرچم را فقط از رویداد واقعی
-     *   TYPE_VIEW_CLICKED پر می‌کند، وقتی گره کلیک‌شده فیلد/نوار جستجو
-     *   است (فیلد ویرایشی با hint جستجو، یا متن/توضیح/hint آن مارکر
-     *   جستجو دارد).
+     *   TYPE_VIEW_CLICKED پر می‌کند، وقتی گره کلیک‌شده (یا فرزند
+     *   مستقیمش) خودِ فیلد ویرایشی جستجو است ([isSearchFieldClick]).
+     *   کلیک روی تبی که برچسبش «Search» دارد (مثل تب «Search and
+     *   explore» اینستاگرام) هرگز این پرچم را نمی‌گیرد — آن کلیک
+     *   ورود به اکسپلور است، نه جستجو (گزارش سید ۲۰۲۶-۱۱-۲۱).
      * - [searchFieldFocused]: فیلد ویرایشی با hint جستجو فوکوس دارد
      *   (isFocused یا isAccessibilityFocused) — کاربر رویش زده است.
      * - [searchFieldHasText]: فقط از مسیر رویداد تایپ
@@ -295,7 +304,7 @@ object SectionDetector {
     private val EXPLORE_MARKERS = listOf("explore", "اکسپلور")
     private val REELS_MARKERS = listOf("reels", "ریلز")
     private val SHORTS_MARKERS = listOf("shorts", "شورتس")
-    private val STATUS_MARKERS = listOf("status", "وضعیت")
+    private val STATUS_MARKERS = listOf("status", "وضعیت", "updates", "به‌روزرسانی")
     private val FORYOU_MARKERS = listOf("for you", "برای شما")
     private val HOME_MARKERS = listOf("home", "خانه")
     private val FACEBOOK_REELS_MARKERS = listOf("reels", "ریلز", "watch", "واچ")
@@ -388,16 +397,20 @@ object SectionDetector {
     }
 
     /**
-     * آیا متن/توضیح/hint یک گره، آن را نوار یا فیلد جستجو نشان می‌دهد؟
-     * سرویس از این برای پر کردن [SectionSignals.searchFieldClicked] روی
-     * رویداد TYPE_VIEW_CLICKED استفاده می‌کند: گره کلیک‌شده یا فیلد
-     * ویرایشی با hint جستجو است، یا متن/توضیحش مارکر جستجو دارد
-     * (آیکون/نوار جستجو که قبل از باز شدن فیلد، ویرایشی نیست).
+     * آیا کلیک روی این گره، کلیک روی خودِ فیلد جستجو است؟ فقط وقتی
+     * گره ویرایشی است و hint جستجو دارد. سرویس از این برای پر کردن
+     * [SectionSignals.searchFieldClicked] روی رویداد TYPE_VIEW_CLICKED
+     * استفاده می‌کند (خود گره و فرزندان مستقیمش).
+     *
+     * چرا فقط فیلد ویرایشی؟ برچسب تب هم می‌تواند «Search» داشته باشد
+     * (تب «Search and explore» اینستاگرام، تب جستجوی ایکس) و کلیک روی
+     * آن ورود به فید/اکسپلور است، نه جستجو — با معیار متنی قبلی، زدن
+     * روی اکسپلور اینستاگرام بخش «جستجو» را بلاک می‌کرد (گزارش سید
+     * ۲۰۲۶-۱۱-۲۱). آیکون/نوار جستجوی غیرقابل‌ویرایش هم شاهد کلیک
+     * نیست؛ زدنش فیلد واقعی را فوکوس می‌کند و همان فوکوس شاهد است.
      */
-    fun isSearchNodeText(text: String?, contentDescription: String?, hint: String?): Boolean {
-        return containsMarker(hint, SEARCH_MARKERS) ||
-            containsMarker(text, SEARCH_MARKERS) ||
-            containsMarker(contentDescription, SEARCH_MARKERS)
+    fun isSearchFieldClick(isEditable: Boolean, hint: String?): Boolean {
+        return isEditable && isSearchHint(hint)
     }
 
     /** آیا یکی از منابع (عنوان/کلاس پنجره، متن‌ها، توضیح‌ها) مارکر را دارد؟ */
