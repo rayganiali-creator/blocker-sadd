@@ -6,6 +6,9 @@ import android.content.Intent
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
@@ -31,15 +35,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.core.KeyboardBlocker
+import com.sadd.blocker.core.KeyboardThemes
 import com.sadd.blocker.service.SaddKeyboardService
+import com.sadd.blocker.ui.SmartKeyboardViewModel
 import com.sadd.blocker.ui.theme.SaddSpacing
 
 /**
@@ -56,11 +65,12 @@ import com.sadd.blocker.ui.theme.SaddSpacing
  * غیرفعال کند یا جلوی برگشتن به آن را بگیرد.
  */
 @Composable
-fun SmartKeyboardScreen() {
+fun SmartKeyboardScreen(viewModel: SmartKeyboardViewModel = hiltViewModel()) {
     val context = LocalContext.current
     var imeEnabled by remember { mutableStateOf(isImeEnabled(context)) }
     var imeSelected by remember { mutableStateOf(isImeSelected(context)) }
     var testText by remember { mutableStateOf("") }
+    val keyboardThemeKey by viewModel.keyboardThemeKey.collectAsStateWithLifecycle()
 
     fun refresh() {
         imeEnabled = isImeEnabled(context)
@@ -128,6 +138,57 @@ fun SmartKeyboardScreen() {
             modifier = Modifier.fillMaxWidth(),
             style = SaddButtonStyle.SECONDARY,
         )
+        Spacer(Modifier.height(SaddSpacing.Medium))
+
+        // رنگ کیبورد: همان انتخابی که دکمه رنگ نوار ابزار خود کیبورد
+        // هم عوضش می‌کند (یک ترجیح مشترک در DataStore).
+        SaddCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Large)) {
+                Text(
+                    "رنگ کیبورد",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.height(SaddSpacing.Small))
+                for (theme in KeyboardThemes.ALL) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { viewModel.setKeyboardTheme(theme.key) }
+                            .padding(vertical = SaddSpacing.Small),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(theme.keyBackground)),
+                        )
+                        Spacer(Modifier.width(SaddSpacing.Small))
+                        Text(
+                            theme.labelFa,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (theme.key == keyboardThemeKey) {
+                            Icon(
+                                Icons.Filled.CheckCircle,
+                                contentDescription = "انتخاب شده",
+                                modifier = Modifier.size(22.dp),
+                                tint = Color(0xFF34D399),
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(SaddSpacing.Small))
+                Text(
+                    "از خود کیبورد هم با دکمه رنگ در نوار بالای کلیدها عوض می‌شود.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         Spacer(Modifier.height(SaddSpacing.Medium))
 
         // توضیح کوتاه + محدودیت صادقانه.

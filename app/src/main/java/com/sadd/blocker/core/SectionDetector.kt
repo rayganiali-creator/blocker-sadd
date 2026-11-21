@@ -48,8 +48,12 @@ package com.sadd.blocker.core
  *   جستجو نیست (گزارش سید ۲۰۲۶-۱۱-۲۱: زدن روی اکسپلور، با اینکه
  *   قانون اکسپلور خاموش و فقط جستجو روشن بود، بلاک می‌شد — چون متن
  *   تب «Search» داشت و کلیک روی آن «کلیک روی جستجو» حساب می‌شد).
- *   شاهد کلیک فقط وقتی است که گره کلیک‌شده (یا فرزند مستقیمش) خودِ
- *   فیلد ویرایشی جستجو باشد ([isSearchFieldClick])؛ برچسب تب هرگز.
+ *   تب‌ها checkable‌اند و از شاهد کلیک حذف شده‌اند
+ *   ([isSearchFieldClick])؛ شاهد کلیک فقط فیلد ویرایشی جستجو (خود گره
+ *   یا نواده‌اش در زیردرخت) یا نوار جستجوی غیرقابل‌ویرایش با مارکر
+ *   جستجوست. (به‌روزرسانی همان روز: معیار «فقط فیلد ویرایشی با hint»
+ *   بیش‌ازحد تنگ بود و جستجوی اینستاگرام اصلاً بلاک نمی‌شد؛ مارکر حالا
+ *   در hint/متن/توضیح سنجیده می‌شود و زیردرخت هم پیمایش می‌شود.)
  * - instagram_explore (com.instagram.android): مارکر «explore» /
  *   «اکسپلور» فقط در متن/توضیح گره‌ای که واقعاً
  *   انتخاب شده (تب فعال اکسپلور)؛ و فیلد جستجو فعال نیست. برچسب تب
@@ -254,8 +258,9 @@ object SectionDetector {
      *
      * شواهد فعال‌سازی (برای دقت بخش، نه صرفِ دیده شدن):
      * - [searchFieldClicked]: سرویس این پرچم را فقط از رویداد واقعی
-     *   TYPE_VIEW_CLICKED پر می‌کند، وقتی گره کلیک‌شده (یا فرزند
-     *   مستقیمش) خودِ فیلد ویرایشی جستجو است ([isSearchFieldClick]).
+     *   TYPE_VIEW_CLICKED پر می‌کند، وقتی [isSearchFieldClick] روی گره
+     *   کلیک‌شده درست باشد (فیلد ویرایشی جستجو در خود گره یا زیردرختش،
+     *   یا نوار جستجوی غیرقابل‌ویرایش با مارکر؛ گره checkable هرگز).
      *   کلیک روی تبی که برچسبش «Search» دارد (مثل تب «Search and
      *   explore» اینستاگرام) هرگز این پرچم را نمی‌گیرد — آن کلیک
      *   ورود به اکسپلور است، نه جستجو (گزارش سید ۲۰۲۶-۱۱-۲۱).
@@ -379,6 +384,29 @@ object SectionDetector {
         return containsMarker(hint, SEARCH_MARKERS)
     }
 
+    /**
+     * آیا یکی از hint / متن / توضیح محتوایی گره، مارکر جستجو دارد؟
+     * (به‌روزرسانی ۲۰۲۶-۱۱-۲۱، گزارش سید: جستجوی اینستاگرام اصلاً
+     * بلاک نمی‌شد — فیلد جستجوی اینستاگرام مارکر را در hint نمی‌دهد،
+     * در متن placeholder یا توضیح محتوایی می‌دهد؛ پس هر سه منبع
+     * سنجیده می‌شوند، نه فقط hint.)
+     */
+    fun hasSearchMarker(hint: String?, text: String?, contentDescription: String?): Boolean {
+        return containsMarker(hint, SEARCH_MARKERS) ||
+            containsMarker(text, SEARCH_MARKERS) ||
+            containsMarker(contentDescription, SEARCH_MARKERS)
+    }
+
+    /** آیا این گره، فیلد ویرایشی جستجو است؟ (ویرایشی + مارکر در hint/متن/توضیح.) */
+    fun isSearchEditableNode(
+        isEditable: Boolean,
+        hint: String?,
+        text: String?,
+        contentDescription: String?,
+    ): Boolean {
+        return isEditable && hasSearchMarker(hint, text, contentDescription)
+    }
+
     /** آیا [sectionKey] یکی از بخش‌های «جستجو» است؟ */
     fun isSearchSection(sectionKey: String): Boolean {
         return SEARCH_SECTION_KEYS.contains(sectionKey)
@@ -397,20 +425,69 @@ object SectionDetector {
     }
 
     /**
-     * آیا کلیک روی این گره، کلیک روی خودِ فیلد جستجو است؟ فقط وقتی
-     * گره ویرایشی است و hint جستجو دارد. سرویس از این برای پر کردن
-     * [SectionSignals.searchFieldClicked] روی رویداد TYPE_VIEW_CLICKED
-     * استفاده می‌کند (خود گره و فرزندان مستقیمش).
+     * آیا کلیک روی این گره، کلیک روی جستجو است؟ (به‌روزرسانی
+     * ۲۰۲۶-۱۱-۲۱، گزارش سید: جستجوی اینستاگرام اصلاً بلاک نمی‌شد.)
      *
-     * چرا فقط فیلد ویرایشی؟ برچسب تب هم می‌تواند «Search» داشته باشد
-     * (تب «Search and explore» اینستاگرام، تب جستجوی ایکس) و کلیک روی
-     * آن ورود به فید/اکسپلور است، نه جستجو — با معیار متنی قبلی، زدن
-     * روی اکسپلور اینستاگرام بخش «جستجو» را بلاک می‌کرد (گزارش سید
-     * ۲۰۲۶-۱۱-۲۱). آیکون/نوار جستجوی غیرقابل‌ویرایش هم شاهد کلیک
-     * نیست؛ زدنش فیلد واقعی را فوکوس می‌کند و همان فوکوس شاهد است.
+     * شاهد کلیک وقتی است که:
+     * - گره (یا یکی از نوادگانش) فیلد ویرایشی جستجو باشد
+     *   ([hasEditableSearchDescendant] را سرویس با پیمایش زیردرخت پر
+     *   می‌کند — نوار جستجوی اینستاگرام یک ظرف غیرقابل‌ویرایش است و
+     *   فیلد واقعی چند سطح پایین‌تر است، نه فرزند مستقیم)، یا
+     * - خود گره ویرایشی جستجو باشد ([isSearchEditableNode])، یا
+     * - گره غیرقابل‌ویرایش ولی دارای مارکر جستجو در hint/متن/توضیح
+     *   باشد (نوار جستجوی «نما»ی اینستاگرام که با زدنش صفحه جستجو
+     *   باز می‌شود).
+     *
+     * گره checkable (تب‌های ناوبری پایین) هرگز شاهد کلیک نیست: تب
+     * «Search and explore» اینستاگرام checkable است و کلیک رویش ورود
+     * به اکسپلور است، نه جستجو (گزارش سید ۲۰۲۶-۱۱-۲۱) — همین حذف
+     * checkable است که آتش اشتباه روی اکسپلور را خاموش نگه می‌دارد،
+     * در حالی که کلیک روی نوار/فیلد واقعی جستجو دوباره بلاک می‌شود.
      */
-    fun isSearchFieldClick(isEditable: Boolean, hint: String?): Boolean {
-        return isEditable && isSearchHint(hint)
+    fun isSearchFieldClick(
+        isEditable: Boolean,
+        isCheckable: Boolean,
+        hint: String?,
+        text: String?,
+        contentDescription: String?,
+        hasEditableSearchDescendant: Boolean,
+    ): Boolean {
+        if (isCheckable) return false
+        if (hasEditableSearchDescendant) return true
+        if (isSearchEditableNode(isEditable, hint, text, contentDescription)) return true
+        return hasSearchMarker(hint, text, contentDescription)
+    }
+
+    /**
+     * آیا فوکوس این گره، شاهد ورود به جستجو است؟ فیلد ویرایشی جستجو
+     * فوکوس گرفته، یا ظرفی فوکوس گرفته که فیلد جستجو در زیردرختش
+     * است. تب checkable هرگز شاهد نیست (همان دلیل [isSearchFieldClick]).
+     */
+    fun isSearchFieldFocus(
+        isEditable: Boolean,
+        isCheckable: Boolean,
+        hint: String?,
+        text: String?,
+        contentDescription: String?,
+        hasEditableSearchDescendant: Boolean,
+    ): Boolean {
+        if (isCheckable) return false
+        if (hasEditableSearchDescendant) return true
+        return isSearchEditableNode(isEditable, hint, text, contentDescription)
+    }
+
+    /**
+     * آیا تغییر متن این گره، تایپ در فیلد جستجو است؟ فقط فیلد
+     * ویرایشی با مارکر جستجو (hint/متن/توضیح) — تایپ در چت/کامنت
+     * شاهد جستجو نیست.
+     */
+    fun isSearchFieldTextChange(
+        isEditable: Boolean,
+        hint: String?,
+        text: String?,
+        contentDescription: String?,
+    ): Boolean {
+        return isSearchEditableNode(isEditable, hint, text, contentDescription)
     }
 
     /** آیا یکی از منابع (عنوان/کلاس پنجره، متن‌ها، توضیح‌ها) مارکر را دارد؟ */

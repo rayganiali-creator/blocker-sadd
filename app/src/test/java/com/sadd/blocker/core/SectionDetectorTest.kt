@@ -1232,18 +1232,158 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun isSearchFieldClickOnlyForEditableSearchFields() {
-        // خودِ فیلد ویرایشی جستجو: کلیک شاهد است.
-        assertTrue(SectionDetector.isSearchFieldClick(isEditable = true, hint = "Search"))
-        assertTrue(SectionDetector.isSearchFieldClick(isEditable = true, hint = "جستجو"))
-        assertTrue(SectionDetector.isSearchFieldClick(isEditable = true, hint = "Search YouTube"))
-        // تب «Search and explore» اینستاگرام ویرایشی نیست — کلیک رویش
+    fun isSearchFieldClickCoversRealSearchBarsButNeverTabs() {
+        // خودِ فیلد ویرایشی جستجو (مارکر در hint): کلیک شاهد است.
+        assertTrue(
+            SectionDetector.isSearchFieldClick(
+                isEditable = true, isCheckable = false,
+                hint = "Search", text = null, contentDescription = null,
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSearchFieldClick(
+                isEditable = true, isCheckable = false,
+                hint = "جستجو", text = null, contentDescription = null,
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSearchFieldClick(
+                isEditable = true, isCheckable = false,
+                hint = "Search YouTube", text = null, contentDescription = null,
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        // فیلد ویرایشی که مارکر را در توضیح محتوایی می‌دهد، نه hint
+        // (اینستاگرام): کلیک شاهد است.
+        assertTrue(
+            SectionDetector.isSearchFieldClick(
+                isEditable = true, isCheckable = false,
+                hint = null, text = null, contentDescription = "Search",
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        // ظرف نوار جستجو (غیرقابل‌ویرایش) که فیلد واقعی در زیردرختش
+        // است: کلیک شاهد است.
+        assertTrue(
+            SectionDetector.isSearchFieldClick(
+                isEditable = false, isCheckable = false,
+                hint = null, text = null, contentDescription = null,
+                hasEditableSearchDescendant = true,
+            ),
+        )
+        // نوار جستجوی «نما» (غیرقابل‌ویرایش، متن «Search»): کلیک شاهد است.
+        assertTrue(
+            SectionDetector.isSearchFieldClick(
+                isEditable = false, isCheckable = false,
+                hint = null, text = "Search", contentDescription = null,
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        // تب «Search and explore» اینستاگرام checkable است — کلیک رویش
         // ورود به اکسپلور است، نه جستجو (گزارش سید ۲۰۲۶-۱۱-۲۱).
-        assertFalse(SectionDetector.isSearchFieldClick(isEditable = false, hint = null))
-        assertFalse(SectionDetector.isSearchFieldClick(isEditable = false, hint = "Search"))
+        assertFalse(
+            SectionDetector.isSearchFieldClick(
+                isEditable = false, isCheckable = true,
+                hint = null, text = null, contentDescription = "Search and explore",
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        // حتی اگر تب checkable نواده ویرایشی داشته باشد، شاهد نیست.
+        assertFalse(
+            SectionDetector.isSearchFieldClick(
+                isEditable = false, isCheckable = true,
+                hint = null, text = "Search", contentDescription = null,
+                hasEditableSearchDescendant = true,
+            ),
+        )
         // فیلد ویرایشی غیرجستجو (چت/کامنت) شاهد جستجو نیست.
-        assertFalse(SectionDetector.isSearchFieldClick(isEditable = true, hint = "Message"))
-        assertFalse(SectionDetector.isSearchFieldClick(isEditable = true, hint = null))
+        assertFalse(
+            SectionDetector.isSearchFieldClick(
+                isEditable = true, isCheckable = false,
+                hint = "Message", text = null, contentDescription = null,
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        assertFalse(
+            SectionDetector.isSearchFieldClick(
+                isEditable = true, isCheckable = false,
+                hint = null, text = null, contentDescription = null,
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        // گره غیرقابل‌ویرایش بدون مارکر شاهد نیست.
+        assertFalse(
+            SectionDetector.isSearchFieldClick(
+                isEditable = false, isCheckable = false,
+                hint = null, text = "Home", contentDescription = null,
+                hasEditableSearchDescendant = false,
+            ),
+        )
+    }
+
+    @Test
+    fun isSearchFieldFocusCoversSearchFieldsButNeverTabs() {
+        // فیلد ویرایشی با مارکر در توضیح (hint خالی): فوکوس شاهد است.
+        assertTrue(
+            SectionDetector.isSearchFieldFocus(
+                isEditable = true, isCheckable = false,
+                hint = null, text = null, contentDescription = "Search",
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        // ظرف فوکوس‌گرفته با فیلد جستجو در زیردرخت: شاهد است.
+        assertTrue(
+            SectionDetector.isSearchFieldFocus(
+                isEditable = false, isCheckable = false,
+                hint = null, text = null, contentDescription = null,
+                hasEditableSearchDescendant = true,
+            ),
+        )
+        // تب checkable فوکوس‌گرفته شاهد نیست.
+        assertFalse(
+            SectionDetector.isSearchFieldFocus(
+                isEditable = false, isCheckable = true,
+                hint = null, text = null, contentDescription = "Search and explore",
+                hasEditableSearchDescendant = false,
+            ),
+        )
+        // فیلد کامنت فوکوس‌گرفته شاهد جستجو نیست.
+        assertFalse(
+            SectionDetector.isSearchFieldFocus(
+                isEditable = true, isCheckable = false,
+                hint = "Add a comment", text = null, contentDescription = null,
+                hasEditableSearchDescendant = false,
+            ),
+        )
+    }
+
+    @Test
+    fun isSearchFieldTextChangeOnlyForSearchFields() {
+        // تایپ در فیلد جستجو (مارکر در hint یا توضیح): شاهد است.
+        assertTrue(
+            SectionDetector.isSearchFieldTextChange(
+                isEditable = true, hint = "Search", text = "abc", contentDescription = null,
+            ),
+        )
+        assertTrue(
+            SectionDetector.isSearchFieldTextChange(
+                isEditable = true, hint = null, text = "abc", contentDescription = "Search",
+            ),
+        )
+        // تایپ در فیلد کامنت: شاهد جستجو نیست.
+        assertFalse(
+            SectionDetector.isSearchFieldTextChange(
+                isEditable = true, hint = "Add a comment", text = "hello", contentDescription = null,
+            ),
+        )
+        // گره غیرقابل‌ویرایش: شاهد نیست.
+        assertFalse(
+            SectionDetector.isSearchFieldTextChange(
+                isEditable = false, hint = "Search", text = "Search", contentDescription = null,
+            ),
+        )
     }
 
     @Test
@@ -1285,6 +1425,24 @@ class SectionDetectorTest {
                 "com.instagram.android",
                 SectionDetector.SECTION_INSTAGRAM_SEARCH,
                 typedSearchField("Search"),
+            ),
+        )
+    }
+
+    @Test
+    fun instagramSearchDoesNotBlockWhenTypingIntoCommentBox() {
+        // تایپ در فیلد کامنت (بدون مارکر جستجو) شاهد ورود به جستجو
+        // نیست — سرویس برای چنین فیلدی هیچ پرچم جستجویی نمی‌گذارد.
+        val signals = SectionSignals(
+            hasEditableTextField = true,
+            editableHint = "Add a comment",
+            editableTexts = listOf("hello"),
+        )
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                SectionDetector.SECTION_INSTAGRAM_SEARCH,
+                signals,
             ),
         )
     }

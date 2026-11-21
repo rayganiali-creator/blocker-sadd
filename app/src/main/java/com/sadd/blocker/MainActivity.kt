@@ -1,5 +1,6 @@
 package com.sadd.blocker
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,8 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,8 +97,15 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settingsStore: SettingsStore
 
+    /**
+     * مقصدی که از بیرون (چرخ‌دنده نوار ابزار کیبورد هوشمند) خواسته شده
+     * است؛ بعد از ساخته‌شدن گراف ناوبری یک بار مصرف و خالی می‌شود.
+     */
+    private var pendingRoute by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingRoute = intent?.getStringExtra(EXTRA_OPEN_ROUTE)
         // مهاجرت یک‌باره تاخیر پیش‌فرض به فوری (نصب‌های قدیمی با ۵ ثانیه ذخیره‌شده).
         lifecycleScope.launch { settingsStore.migrateDelayDefaultIfNeeded() }
         setContent {
@@ -106,18 +117,54 @@ class MainActivity : ComponentActivity() {
                 .collectAsStateWithLifecycle<Boolean?>(initialValue = null)
             BlockerTheme(theme = theme, colorTheme = colorTheme) {
                 if (onboardingDone != null) {
-                    BlockerNav(onboardingDone = onboardingDone == true)
+                    BlockerNav(
+                        onboardingDone = onboardingDone == true,
+                        pendingRoute = pendingRoute,
+                        onPendingRouteConsumed = { pendingRoute = null },
+                    )
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingRoute = intent.getStringExtra(EXTRA_OPEN_ROUTE)
+    }
+
+    companion object {
+        /** اکسترای مقصد ناوبری برای لانچ از بیرون (مثلاً نوار ابزار کیبورد). */
+        const val EXTRA_OPEN_ROUTE = "open_route"
+
+        /** مسیر تب «کیبورد هوشمند». */
+        const val ROUTE_SMART_KEYBOARD = "smart_keyboard"
     }
 }
 
 private data class BottomDestination(val route: String, val label: String, val icon: ImageVector)
 
 @Composable
-fun BlockerNav(onboardingDone: Boolean) {
+fun BlockerNav(
+    onboardingDone: Boolean,
+    pendingRoute: String? = null,
+    onPendingRouteConsumed: () -> Unit = {},
+) {
     val navController = rememberNavController()
+    // مقصد خواسته‌شده از بیرون (چرخ‌دنده کیبورد → تب کیبورد هوشمند):
+    // فقط بعد از راه‌اندازی و یک بار؛ ویزارد راه‌اندازی را رد نمی‌کند.
+    LaunchedEffect(pendingRoute, onboardingDone) {
+        val route = pendingRoute ?: return@LaunchedEffect
+        if (!onboardingDone) return@LaunchedEffect
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+        onPendingRouteConsumed()
+    }
     val bottomDestinations = listOf(
         BottomDestination("dashboard", "داشبورد", Icons.Filled.Home),
         BottomDestination("apps", "اپ‌ها", Icons.Filled.Apps),

@@ -30,6 +30,7 @@ $KOTLINC \
   app/src/main/java/com/sadd/blocker/core/ProtectionGuardDetector.kt \
   app/src/main/java/com/sadd/blocker/core/TextRedactor.kt \
   app/src/main/java/com/sadd/blocker/core/KeyboardBlocker.kt \
+  app/src/main/java/com/sadd/blocker/core/KeyboardLayouts.kt \
   app/src/main/java/com/sadd/blocker/core/BlockThrottle.kt \
   app/src/main/java/com/sadd/blocker/core/SessionCalculator.kt \
   app/src/main/java/com/sadd/blocker/core/PinCrypto.kt \
@@ -63,6 +64,7 @@ $KOTLINC \
   app/src/test/java/com/sadd/blocker/core/ProtectionGuardDetectorTest.kt \
   app/src/test/java/com/sadd/blocker/core/TextRedactorTest.kt \
   app/src/test/java/com/sadd/blocker/core/KeyboardBlockerTest.kt \
+  app/src/test/java/com/sadd/blocker/core/KeyboardLayoutsTest.kt \
   app/src/test/java/com/sadd/blocker/core/BlockThrottleTest.kt \
   app/src/test/java/com/sadd/blocker/core/SessionCalculatorTest.kt \
   app/src/test/java/com/sadd/blocker/core/PinCryptoTest.kt \
@@ -95,6 +97,7 @@ $JAVA -cp "$OUT/test-classes:$TB/junit.jar:$TB/hamcrest.jar:$COROUTINES_JAR:$TB/
   com.sadd.blocker.core.ProtectionGuardDetectorTest \
   com.sadd.blocker.core.TextRedactorTest \
   com.sadd.blocker.core.KeyboardBlockerTest \
+  com.sadd.blocker.core.KeyboardLayoutsTest \
   com.sadd.blocker.core.BlockThrottleTest \
   com.sadd.blocker.core.SessionCalculatorTest \
   com.sadd.blocker.core.PinCryptoTest \

@@ -327,11 +327,12 @@ class BlockAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * سیگنال بخش از گره منبع رویداد تایپ: فقط وقتی گره، فیلد ویرایشی با
-     * hint جستجو و متن غیرخالی است، سیگنال برمی‌گردد؛ وگرنه null (تایپ
-     * در چت/کامنت/متن عادی، شاهد ورود به جستجو نیست). گره همین‌جا
-     * بازیافت می‌شود؛ رویداد بعد از callback بازیافت می‌شود و نمی‌توان
-     * آن را به کوروتین سپرد.
+     * سیگنال بخش از گره منبع رویداد تایپ: فقط وقتی گره، فیلد ویرایشی
+     * جستجو ([SectionDetector.isSearchFieldTextChange] — مارکر در
+     * hint/متن/توضیح) با متن غیرخالی است، سیگنال برمی‌گردد؛ وگرنه null
+     * (تایپ در چت/کامنت/متن عادی، شاهد ورود به جستجو نیست). گره
+     * همین‌جا بازیافت می‌شود؛ رویداد بعد از callback بازیافت می‌شود و
+     * نمی‌توان آن را به کوروتین سپرد.
      */
     private fun readTextChangedSectionSignals(
         event: AccessibilityEvent,
@@ -342,18 +343,27 @@ class BlockAccessibilityService : AccessibilityService() {
             null
         } ?: return null
         try {
-            if (!source.isEditable) return null
             val hint = try {
                 source.hintText?.toString()
             } catch (_: Exception) {
                 null
             }
-            if (!SectionDetector.isSearchHint(hint)) return null
             val text = try {
                 source.text?.toString()
             } catch (_: Exception) {
                 null
             }
+            val desc = try {
+                source.contentDescription?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            val editable = try {
+                source.isEditable
+            } catch (_: Exception) {
+                false
+            }
+            if (!SectionDetector.isSearchFieldTextChange(editable, hint, text, desc)) return null
             if (text.isNullOrBlank()) return null
             val focused = try {
                 source.isFocused || source.isAccessibilityFocused
@@ -383,15 +393,16 @@ class BlockAccessibilityService : AccessibilityService() {
      * جستجو یا دیده شدن کلمه «incognito» در منو هرگز بلاک نمی‌کند).
      *
      * - TYPE_VIEW_CLICKED: متن/توضیح گره کلیک‌شده (و فرزندان مستقیمش)
-     *   در clickedTexts/clickedContentDescriptions می‌نشیند؛ اگر گره
-     *   (یا فرزند مستقیمش) خودِ فیلد ویرایشی جستجو باشد
-     *   ([SectionDetector.isSearchFieldClick]) searchFieldClicked هم
-     *   true می‌شود. کلیک روی تبی که برچسبش «Search» دارد (تب
-     *   «Search and explore» اینستاگرام) شاهد جستجو نیست — آن کلیک
-     *   ورود به اکسپلور است (گزارش سید ۲۰۲۶-۱۱-۲۱).
-     * - TYPE_VIEW_FOCUSED / TYPE_VIEW_ACCESSIBILITY_FOCUSED: اگر گره
-     *   فوکوس‌گرفته فیلد ویرایشی با hint جستجو باشد،
-     *   searchFieldFocused=true می‌شود.
+     *   در clickedTexts/clickedContentDescriptions می‌نشیند؛ اگر
+     *   [SectionDetector.isSearchFieldClick] روی گره درست باشد (فیلد
+     *   ویرایشی جستجو در خود گره یا زیردرختش، یا نوار جستجوی
+     *   غیرقابل‌ویرایش با مارکر) searchFieldClicked هم true می‌شود.
+     *   گره checkable (تب ناوبری) هرگز شاهد نیست — کلیک روی تب
+     *   «Search and explore» اینستاگرام ورود به اکسپلور است، نه جستجو
+     *   (گزارش سید ۲۰۲۶-۱۱-۲۱).
+     * - TYPE_VIEW_FOCUSED / TYPE_VIEW_ACCESSIBILITY_FOCUSED: اگر
+     *   [SectionDetector.isSearchFieldFocus] روی گره فوکوس‌گرفته درست
+     *   باشد، searchFieldFocused=true می‌شود.
      *
      * برای بقیه رویدادها null برمی‌گردد. گره‌ها همین‌جا بازیافت
      * می‌شوند؛ رویداد بعد از callback بازیافت می‌شود.
@@ -430,8 +441,19 @@ class BlockAccessibilityService : AccessibilityService() {
             } catch (_: Exception) {
                 false
             }
+            val checkable = try {
+                source.isCheckable
+            } catch (_: Exception) {
+                false
+            }
             if (isFocus) {
-                if (!editable || !SectionDetector.isSearchHint(hint)) return null
+                val hasDescendant = hasEditableSearchDescendant(source)
+                if (!SectionDetector.isSearchFieldFocus(
+                        editable, checkable, hint, text, desc, hasDescendant,
+                    )
+                ) {
+                    return null
+                }
                 return SectionDetector.SectionSignals(
                     hasEditableTextField = true,
                     editableHint = hint,
@@ -444,7 +466,10 @@ class BlockAccessibilityService : AccessibilityService() {
             val clickedDescriptions = ArrayList<String>()
             text?.takeIf { it.isNotBlank() }?.let { clickedTexts.add(it) }
             desc?.takeIf { it.isNotBlank() }?.let { clickedDescriptions.add(it) }
-            var searchClicked = SectionDetector.isSearchFieldClick(editable, hint)
+            val searchClicked = SectionDetector.isSearchFieldClick(
+                editable, checkable, hint, text, desc,
+                hasEditableSearchDescendant(source),
+            )
             try {
                 for (i in 0 until source.childCount) {
                     val child = try {
@@ -455,21 +480,8 @@ class BlockAccessibilityService : AccessibilityService() {
                     try {
                         val childText = child.text?.toString()
                         val childDesc = child.contentDescription?.toString()
-                        val childHint = try {
-                            child.hintText?.toString()
-                        } catch (_: Exception) {
-                            null
-                        }
                         childText?.takeIf { it.isNotBlank() }?.let { clickedTexts.add(it) }
                         childDesc?.takeIf { it.isNotBlank() }?.let { clickedDescriptions.add(it) }
-                        val childEditable = try {
-                            child.isEditable
-                        } catch (_: Exception) {
-                            false
-                        }
-                        if (SectionDetector.isSearchFieldClick(childEditable, childHint)) {
-                            searchClicked = true
-                        }
                     } catch (_: Exception) {
                         // نادیده
                     } finally {
@@ -500,6 +512,92 @@ class BlockAccessibilityService : AccessibilityService() {
                 // نادیده
             }
         }
+    }
+
+    /**
+     * آیا در زیردرخت [root] (نه خود ریشه) فیلد ویرایشی جستجو هست؟
+     * نوار جستجوی اینستاگرام یک ظرف غیرقابل‌ویرایش است و فیلد واقعی
+     * چند سطح پایین‌تر است؛ چکِ فقط فرزندان مستقیم آن را نمی‌دید و
+     * جستجو هرگز بلاک نمی‌شد (گزارش سید ۲۰۲۶-۱۱-۲۱). پیمایش محدود
+     * است (سقف گره) و همه گره‌های گرفته‌شده بازیافت می‌شوند؛ خود
+     * [root] را صداکننده بازیافت می‌کند.
+     */
+    private fun hasEditableSearchDescendant(root: AccessibilityNodeInfo): Boolean {
+        val stack = ArrayDeque<AccessibilityNodeInfo>()
+        try {
+            for (i in 0 until root.childCount) {
+                try {
+                    root.getChild(i)?.let { stack.add(it) }
+                } catch (_: Exception) {
+                    // نادیده
+                }
+            }
+        } catch (_: Exception) {
+            return false
+        }
+        var visited = 0
+        try {
+            while (stack.isNotEmpty() && visited < MAX_SEARCH_SUBTREE_NODES) {
+                val node = stack.removeFirst()
+                visited++
+                try {
+                    val nodeEditable = try {
+                        node.isEditable
+                    } catch (_: Exception) {
+                        false
+                    }
+                    if (nodeEditable) {
+                        val nodeHint = try {
+                            node.hintText?.toString()
+                        } catch (_: Exception) {
+                            null
+                        }
+                        val nodeText = try {
+                            node.text?.toString()
+                        } catch (_: Exception) {
+                            null
+                        }
+                        val nodeDesc = try {
+                            node.contentDescription?.toString()
+                        } catch (_: Exception) {
+                            null
+                        }
+                        if (SectionDetector.isSearchEditableNode(
+                                nodeEditable, nodeHint, nodeText, nodeDesc,
+                            )
+                        ) {
+                            return true
+                        }
+                    }
+                    for (i in 0 until node.childCount) {
+                        try {
+                            node.getChild(i)?.let { stack.add(it) }
+                        } catch (_: Exception) {
+                            // نادیده
+                        }
+                    }
+                } catch (_: Exception) {
+                    // نادیده
+                } finally {
+                    try {
+                        node.recycle()
+                    } catch (_: Exception) {
+                        // نادیده
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // fail-open: شاهد زیردرخت پیدا نشد.
+        } finally {
+            for (leftover in stack) {
+                try {
+                    leftover.recycle()
+                } catch (_: Exception) {
+                    // نادیده
+                }
+            }
+        }
+        return false
     }
 
     // ---------- عکس لحظه‌ای ----------
@@ -1129,7 +1227,10 @@ class BlockAccessibilityService : AccessibilityService() {
                             null
                         }
                         if (hint == null) hint = nodeHint
-                        if (SectionDetector.isSearchHint(nodeHint)) {
+                        // مارکر جستجو در هر سه منبع (hint/متن/توضیح) —
+                        // فیلد جستجوی اینستاگرام مارکر را در hint نمی‌دهد
+                        // (گزارش سید ۲۰۲۶-۱۱-۲۱).
+                        if (SectionDetector.hasSearchMarker(nodeHint, nodeText, nodeDesc)) {
                             try {
                                 if (node.isFocused || node.isAccessibilityFocused) {
                                     searchFieldFocused = true
@@ -1257,5 +1358,8 @@ class BlockAccessibilityService : AccessibilityService() {
 
         /** سقف گره‌های خوانده‌شده در هر پیمایش درخت (جلوگیری از هنگ). */
         private const val MAX_NODES = 800
+
+        /** سقف گره‌های پیمایش زیردرخت برای یافتن فیلد جستجو (کلیک/فوکوس). */
+        private const val MAX_SEARCH_SUBTREE_NODES = 128
     }
 }

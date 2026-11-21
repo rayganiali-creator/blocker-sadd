@@ -1,5 +1,6 @@
 package com.sadd.blocker.service
 
+import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
@@ -11,25 +12,42 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.room.Room
+import com.sadd.blocker.MainActivity
 import com.sadd.blocker.core.KeyboardBlocker
+import com.sadd.blocker.core.KeyboardLayouts
+import com.sadd.blocker.core.KeyboardTheme
+import com.sadd.blocker.core.KeyboardThemes
+import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.db.AppDatabase
+import com.sadd.blocker.data.db.MIGRATION_1_2
+import com.sadd.blocker.data.db.MIGRATION_2_3
+import com.sadd.blocker.data.db.MIGRATION_3_4
+import com.sadd.blocker.data.db.MIGRATION_4_5
+import com.sadd.blocker.data.db.MIGRATION_5_6
+import com.sadd.blocker.data.repository.RoomBlockEventRepository
+import com.sadd.blocker.data.repository.RoomKeywordRepository
+import com.sadd.blocker.data.repository.RoomSessionRepository
 import com.sadd.blocker.domain.model.BlockEventKind
 import com.sadd.blocker.domain.repository.BlockEventRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
 import com.sadd.blocker.domain.repository.SessionRepository
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * «کیبورد هوشمند» سد — کیبورد خود سد (درخواست سید ۲۰۲۶-۱۱-۲۱).
  *
  * مثل هر کیبوردی تایپ می‌کند (فارسی، انگلیسی با شیفت، صفحه اعداد و
- * نمادها، بک‌اسپیس با تکرار، فاصله، اینتر، کلید تعویض زبان). وسط
- * سشن فعال، بعد از هر commit تصمیم خالص [KeyboardBlocker.decide]
+ * نمادها، بک‌اسپیس با تکرار، فاصله، اینتر). بالای کلیدها یک نوار
+ * ابزار باریک به سبک کیبورد سامسونگ است: چرخ‌دنده تنظیمات (بازکردن
+ * سد روی تب «کیبورد هوشمند»)، دکمه رنگ (چرخه تم‌های رنگی کیبورد،
+ * انتخاب در DataStore ذخیره می‌شود) و کلید تعویض زبان فارسی/انگلیسی.
+ * وسط سشن فعال، بعد از هر commit تصمیم خالص [KeyboardBlocker.decide]
  * گرفته می‌شود: اگر کلمه‌ای که همین الان تمام شده (فاصله/علائم/ارسال)
  * کلمه بلاک‌شده باشد، همان لحظه از فیلد پاک می‌شود — بدون صفحه بلاک
  * و بدون تاخیر تنظیم‌شده — و یک رویداد بلاک با همان نوع مسیر
@@ -40,6 +58,14 @@ import javax.inject.Inject
  * نمی‌کند. متن خود سد (پکیج خودمان) و فیلدهای رمز عبور هرگز چک
  * نمی‌شوند — رمز نباید دست بخورد.
  *
+ * وابستگی‌ها دستی ساخته می‌شوند (بدون Hilt): تزریق Hilt به
+ * InputMethodService کلاسیک‌ترین دلیل کرش کیبوردهاست (گزارش سید
+ * ۲۰۲۶-۱۱-۲۱: «کیبورده کار نمیکنه») — سیستم IME را خودش می‌سازد و
+ * اگر تزریق در onCreate بیفتد، کیبورد اصلاً بالا نمی‌آید. اینجا
+ * Room و Repositoryها با lazy از applicationContext ساخته می‌شوند و
+ * ساخت نما هم در try/catch است: اگر ساخت کامل کیبورد افتاد، یک
+ * کیبورد حداقلی (فاصله/بک‌اسپیس/اینتر) برمی‌گردد تا تایپ هرگز نخوابد.
+ *
  * هماهنگی با BlockAccessibilityService: وقتی این کیبورد، کیبورد
  * فعلی سیستم است، سرویس Accessibility بخش کلمه‌ای متن تایپ‌شده را
  * رد می‌کند (تا کلمه دو بار هندل نشود)؛ بلاک اپ/بخش و دامنه مرورگر
@@ -49,17 +75,27 @@ import javax.inject.Inject
  * کند یا جلوی برگشتن به آن را بگیرد — فعال‌سازی و انتخاب این کیبورد
  * یک بار در تنظیمات سیستم با دست کاربر انجام می‌شود.
  */
-@AndroidEntryPoint
 class SaddKeyboardService : InputMethodService() {
 
-    @Inject
-    lateinit var sessionRepository: SessionRepository
-
-    @Inject
-    lateinit var keywordRepository: KeywordRepository
-
-    @Inject
-    lateinit var blockEventRepository: BlockEventRepository
+    // وابستگی‌های دستی (بدون Hilt) — فقط وقتی لازم شدند ساخته می‌شوند
+    // و هر خطایی در ساخت/خواندنشان تایپ را خراب نمی‌کند (fail-open).
+    private val database: AppDatabase by lazy {
+        Room.databaseBuilder(applicationContext, AppDatabase::class.java, "blocker.db")
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+            .build()
+    }
+    private val sessionRepository: SessionRepository by lazy {
+        RoomSessionRepository(database.sessionDao())
+    }
+    private val keywordRepository: KeywordRepository by lazy {
+        RoomKeywordRepository(database.keywordRuleDao())
+    }
+    private val blockEventRepository: BlockEventRepository by lazy {
+        RoomBlockEventRepository(database.blockEventDao())
+    }
+    private val settingsStore: SettingsStore by lazy {
+        SettingsStore(applicationContext)
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val repeatHandler = Handler(Looper.getMainLooper())
@@ -74,9 +110,13 @@ class SaddKeyboardService : InputMethodService() {
     @Volatile
     private var snapshot: Snapshot? = null
 
+    /** تم رنگی فعلی کیبورد؛ از DataStore خوانده و با دکمه رنگ عوض می‌شود. */
+    @Volatile
+    private var kbTheme: KeyboardTheme = KeyboardThemes.DEFAULT
+
     private enum class KbLayout { FA, EN, SYMBOLS }
 
-    private enum class KeyKind { TEXT, BACKSPACE, SHIFT, SPACE, ENTER, SYMBOLS, LETTERS, LANG }
+    private enum class KeyKind { TEXT, BACKSPACE, SHIFT, SPACE, ENTER, SYMBOLS, LETTERS }
 
     private data class KbKey(
         val label: String,
@@ -105,13 +145,19 @@ class SaddKeyboardService : InputMethodService() {
     // ---------- چرخه حیات IME ----------
 
     override fun onCreateInputView(): View {
-        val container = LinearLayout(this)
-        container.orientation = LinearLayout.VERTICAL
-        container.setBackgroundColor(KEYBOARD_BG)
-        container.setPadding(dp(4), dp(6), dp(4), dp(6))
-        root = container
-        rebuildRows()
-        return container
+        return try {
+            val container = LinearLayout(this)
+            container.orientation = LinearLayout.VERTICAL
+            container.setBackgroundColor(kbTheme.background)
+            container.setPadding(dp(4), dp(6), dp(4), dp(6))
+            root = container
+            rebuildRows()
+            container
+        } catch (_: Exception) {
+            // fail-open: ساخت کامل کیبورد افتاد — کیبورد حداقلی برگردد
+            // تا تایپ هرگز نخوابد.
+            fallbackInputView()
+        }
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
@@ -150,6 +196,7 @@ class SaddKeyboardService : InputMethodService() {
     private fun rebuildRows() {
         val container = root ?: return
         try {
+            container.setBackgroundColor(kbTheme.background)
             container.removeAllViews()
             val direction = if (layout == KbLayout.FA) {
                 View.LAYOUT_DIRECTION_RTL
@@ -157,6 +204,7 @@ class SaddKeyboardService : InputMethodService() {
                 View.LAYOUT_DIRECTION_LTR
             }
             container.layoutDirection = direction
+            container.addView(makeToolbar())
             for (rowKeys in rowsFor(layout)) {
                 val row = LinearLayout(this)
                 row.orientation = LinearLayout.HORIZONTAL
@@ -171,42 +219,92 @@ class SaddKeyboardService : InputMethodService() {
         }
     }
 
+    /**
+     * نوار ابزار باریک بالای کلیدها (به سبک کیبورد سامسونگ): چرخ‌دنده
+     * تنظیمات، دکمه رنگ (چرخه تم‌ها) و تعویض زبان. همیشه چپ‌به‌راست
+     * است تا جای دکمه‌ها ثابت بماند؛ هر اکشن fail-open است.
+     */
+    private fun makeToolbar(): LinearLayout {
+        val bar = LinearLayout(this)
+        bar.orientation = LinearLayout.HORIZONTAL
+        bar.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        bar.setBackgroundColor(kbTheme.toolbarBackground)
+        bar.setPadding(dp(2), dp(2), dp(2), dp(2))
+
+        val settingsBtn = makeToolbarButton("⚙", "تنظیمات کیبورد هوشمند")
+        settingsBtn.setOnClickListener { openKeyboardSettings() }
+        bar.addView(settingsBtn)
+
+        val themeBtn = makeToolbarButton("🎨", "رنگ کیبورد")
+        themeBtn.setOnClickListener { cycleTheme() }
+        bar.addView(themeBtn)
+
+        // فاصله‌گیر تا کلید زبان به انتهای نوار برود.
+        val spacer = View(this)
+        spacer.layoutParams = LinearLayout.LayoutParams(0, dp(38), 1f)
+        bar.addView(spacer)
+
+        val langLabel = if (letterLayout == KbLayout.FA) "EN" else "فا"
+        val langBtn = makeToolbarButton(langLabel, "تعویض زبان")
+        langBtn.setOnClickListener { switchLanguage() }
+        bar.addView(langBtn)
+
+        return bar
+    }
+
+    private fun makeToolbarButton(label: String, description: String): Button {
+        val btn = Button(this)
+        btn.text = label
+        btn.contentDescription = description
+        btn.isFocusable = false
+        btn.isFocusableInTouchMode = false
+        btn.setTextColor(kbTheme.toolbarText)
+        btn.textSize = 15f
+        btn.background = keyBackground(kbTheme.toolbarBackground)
+        btn.setPadding(dp(10), 0, dp(10), 0)
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            dp(38),
+        )
+        params.setMargins(dp(2), dp(1), dp(2), dp(1))
+        btn.layoutParams = params
+        return btn
+    }
+
     private fun rowsFor(current: KbLayout): List<List<KbKey>> {
         return when (current) {
             KbLayout.FA -> listOf(
-                listOf("ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج", "چ").map { KbKey(it) },
-                listOf("ش", "س", "ی", "ب", "ل", "ا", "ت", "ن", "م", "ک", "گ").map { KbKey(it) },
-                listOf("ظ", "ط", "ز", "ر", "ذ", "د", "پ", "و", "ئ").map { KbKey(it) } +
+                KeyboardLayouts.PERSIAN_ROWS[0].map { KbKey(it) },
+                KeyboardLayouts.PERSIAN_ROWS[1].map { KbKey(it) },
+                KeyboardLayouts.PERSIAN_ROWS[2].map { KbKey(it) } +
                     KbKey("⌫", KeyKind.BACKSPACE),
                 listOf(
                     KbKey("۱۲۳", KeyKind.SYMBOLS),
                     KbKey("،"),
                     KbKey("", KeyKind.SPACE, weight = 3f),
                     KbKey("."),
-                    KbKey("EN", KeyKind.LANG),
                     KbKey(enterLabel(), KeyKind.ENTER),
                 ),
             )
             KbLayout.EN -> listOf(
-                listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p").map { KbKey(it) },
-                listOf("a", "s", "d", "f", "g", "h", "j", "k", "l").map { KbKey(it) },
+                KeyboardLayouts.ENGLISH_ROWS[0].map { KbKey(it) },
+                KeyboardLayouts.ENGLISH_ROWS[1].map { KbKey(it) },
                 listOf(KbKey("⇧", KeyKind.SHIFT)) +
-                    listOf("z", "x", "c", "v", "b", "n", "m").map { KbKey(it) } +
+                    KeyboardLayouts.ENGLISH_ROWS[2].map { KbKey(it) } +
                     KbKey("⌫", KeyKind.BACKSPACE),
                 listOf(
                     KbKey("123", KeyKind.SYMBOLS),
                     KbKey(","),
                     KbKey("", KeyKind.SPACE, weight = 3f),
                     KbKey("."),
-                    KbKey("فا", KeyKind.LANG),
                     KbKey(enterLabel(), KeyKind.ENTER),
                 ),
             )
             KbLayout.SYMBOLS -> listOf(
-                listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0").map { KbKey(it) },
-                listOf("!", "@", "#", "$", "%", "^", "&", "*", "(", ")").map { KbKey(it) },
-                listOf("-", "_", "=", "+", "[", "]", "{", "}", ":", ";").map { KbKey(it) },
-                listOf("آ", "ء", "ـ", "؟", "،", "؛", "«", "»", "'", "\"", "/", "\\").map { KbKey(it) },
+                KeyboardLayouts.SYMBOL_ROWS[0].map { KbKey(it) },
+                KeyboardLayouts.SYMBOL_ROWS[1].map { KbKey(it) },
+                KeyboardLayouts.SYMBOL_ROWS[2].map { KbKey(it) },
+                KeyboardLayouts.SYMBOL_ROWS[3].map { KbKey(it) },
                 listOf(
                     KbKey("اب", KeyKind.LETTERS),
                     KbKey("."),
@@ -224,9 +322,9 @@ class SaddKeyboardService : InputMethodService() {
         btn.text = displayLabel(key)
         btn.isFocusable = false
         btn.isFocusableInTouchMode = false
-        btn.setTextColor(0xFFFFFFFF.toInt())
+        btn.setTextColor(kbTheme.keyText)
         btn.textSize = if (key.kind == KeyKind.TEXT && key.label.length == 1) 19f else 14f
-        btn.background = keyBackground()
+        btn.background = keyBackground(kbTheme.keyBackground)
         btn.setPadding(0, 0, 0, 0)
         val params = LinearLayout.LayoutParams(0, dp(50), key.weight)
         params.setMargins(dp(2), dp(2), dp(2), dp(2))
@@ -246,11 +344,11 @@ class SaddKeyboardService : InputMethodService() {
         return key.label
     }
 
-    private fun keyBackground(): GradientDrawable {
+    private fun keyBackground(color: Int): GradientDrawable {
         val drawable = GradientDrawable()
         drawable.shape = GradientDrawable.RECTANGLE
         drawable.cornerRadius = dp(8).toFloat()
-        drawable.setColor(KEY_BG)
+        drawable.setColor(color)
         return drawable
     }
 
@@ -267,7 +365,33 @@ class SaddKeyboardService : InputMethodService() {
         }
     }
 
-    // ---------- رفتار کلیدها ----------
+    /**
+     * کیبورد حداقلی وقتی ساخت کامل نما می‌افتد: فقط فاصله، بک‌اسپیس و
+     * اینتر — تایپ هیچ‌وقت نمی‌خوابد.
+     */
+    private fun fallbackInputView(): View {
+        val container = LinearLayout(this)
+        container.orientation = LinearLayout.HORIZONTAL
+        container.setBackgroundColor(kbTheme.background)
+        val space = Button(this)
+        space.text = "فاصله"
+        space.setOnClickListener { commit(" ") }
+        space.layoutParams = LinearLayout.LayoutParams(0, dp(50), 2f)
+        val backspace = Button(this)
+        backspace.text = "⌫"
+        backspace.setOnClickListener { doBackspace() }
+        backspace.layoutParams = LinearLayout.LayoutParams(0, dp(50), 1f)
+        val enter = Button(this)
+        enter.text = "⏎"
+        enter.setOnClickListener { onEnter() }
+        enter.layoutParams = LinearLayout.LayoutParams(0, dp(50), 1f)
+        container.addView(space)
+        container.addView(backspace)
+        container.addView(enter)
+        return container
+    }
+
+    // ---------- رفتار کلیدها و نوار ابزار ----------
 
     private fun onKey(key: KbKey) {
         try {
@@ -294,15 +418,59 @@ class SaddKeyboardService : InputMethodService() {
                     layout = letterLayout
                     rebuildRows()
                 }
-                KeyKind.LANG -> {
-                    letterLayout = if (letterLayout == KbLayout.FA) KbLayout.EN else KbLayout.FA
-                    layout = letterLayout
-                    rebuildRows()
-                }
                 KeyKind.BACKSPACE -> doBackspace()
             }
         } catch (_: Exception) {
             // fail-open: خطای یک کلید، کیبورد را نمی‌خواباند.
+        }
+    }
+
+    /** تعویض زبان از نوار ابزار (تنها جای تعویض زبان — ردیف پایین دیگر ندارد). */
+    private fun switchLanguage() {
+        try {
+            letterLayout = if (letterLayout == KbLayout.FA) KbLayout.EN else KbLayout.FA
+            layout = letterLayout
+            rebuildRows()
+        } catch (_: Exception) {
+            // fail-open
+        }
+    }
+
+    /** چرخه تم رنگی کیبورد؛ انتخاب همان لحظه اعمال و در DataStore ذخیره می‌شود. */
+    private fun cycleTheme() {
+        try {
+            kbTheme = KeyboardThemes.next(kbTheme)
+            rebuildRows()
+            val key = kbTheme.key
+            scope.launch {
+                try {
+                    settingsStore.setKeyboardTheme(key)
+                } catch (_: Exception) {
+                    // fail-open: تم روی صفحه عوض شده، ذخیره نشدنش تایپ را خراب نمی‌کند.
+                }
+            }
+        } catch (_: Exception) {
+            // fail-open
+        }
+    }
+
+    /** چرخ‌دنده نوار ابزار: سد را روی تب «کیبورد هوشمند» باز می‌کند. */
+    private fun openKeyboardSettings() {
+        try {
+            val intent = Intent(this, MainActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.putExtra(MainActivity.EXTRA_OPEN_ROUTE, MainActivity.ROUTE_SMART_KEYBOARD)
+            startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                Toast.makeText(
+                    this,
+                    "تنظیمات باز نشد: ${e.message ?: e.javaClass.simpleName}",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            } catch (_: Exception) {
+                // fail-open
+            }
         }
     }
 
@@ -442,6 +610,17 @@ class SaddKeyboardService : InputMethodService() {
 
     private fun warmSnapshot() {
         scope.launch {
+            // تم رنگی ذخیره‌شده هم همین‌جا خوانده می‌شود؛ اگر با تم
+            // فعلی فرق داشت، نما با تم تازه بازسازی می‌شود.
+            try {
+                val loaded = KeyboardThemes.themeByKey(settingsStore.keyboardTheme.first())
+                if (loaded.key != kbTheme.key) {
+                    kbTheme = loaded
+                    rebuildRows()
+                }
+            } catch (_: Exception) {
+                // fail-open: تم پیش‌فرض می‌ماند.
+            }
             val fresh = loadSnapshot()
             if (fresh != null) snapshot = fresh
         }
@@ -471,7 +650,5 @@ class SaddKeyboardService : InputMethodService() {
         private const val TEXT_WINDOW = 200
         private const val REPEAT_INITIAL_DELAY_MS = 400L
         private const val REPEAT_INTERVAL_MS = 55L
-        private const val KEYBOARD_BG = 0xFF14142B.toInt()
-        private const val KEY_BG = 0xFF2A2A4A.toInt()
     }
 }
