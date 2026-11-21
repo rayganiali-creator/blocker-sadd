@@ -1,6 +1,5 @@
 package com.sadd.blocker
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.TextFields
@@ -31,11 +29,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,7 +67,6 @@ import com.sadd.blocker.ui.screens.PinScreen
 import com.sadd.blocker.ui.screens.SchedulingScreen
 import com.sadd.blocker.ui.screens.SectionRulesScreen
 import com.sadd.blocker.ui.screens.SessionsScreen
-import com.sadd.blocker.ui.screens.SmartKeyboardScreen
 import com.sadd.blocker.ui.screens.WebsitesScreen
 import com.sadd.blocker.ui.screens.rememberPressScale
 import com.sadd.blocker.ui.theme.BlockerTheme
@@ -88,7 +82,7 @@ import javax.inject.Inject
 
 /**
  * MainActivity — ناوبری کامل ۱۲ صفحه + تم روشن/تیره از DataStore.
- * نوار پایین ۵ مقصد اصلی را دارد؛ صفحه‌های ثانویه از داشبورد باز می‌شوند
+ * نوار پایین ۶ مقصد اصلی را دارد؛ صفحه‌های ثانویه از داشبورد باز می‌شوند
  * و دکمه بازگشت خودشان را دارند.
  */
 @AndroidEntryPoint
@@ -97,15 +91,8 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settingsStore: SettingsStore
 
-    /**
-     * مقصدی که از بیرون (چرخ‌دنده نوار ابزار کیبورد هوشمند) خواسته شده
-     * است؛ بعد از ساخته‌شدن گراف ناوبری یک بار مصرف و خالی می‌شود.
-     */
-    private var pendingRoute by mutableStateOf<String?>(null)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        pendingRoute = intent?.getStringExtra(EXTRA_OPEN_ROUTE)
         // مهاجرت یک‌باره تاخیر پیش‌فرض به فوری (نصب‌های قدیمی با ۵ ثانیه ذخیره‌شده).
         lifecycleScope.launch { settingsStore.migrateDelayDefaultIfNeeded() }
         setContent {
@@ -119,26 +106,10 @@ class MainActivity : ComponentActivity() {
                 if (onboardingDone != null) {
                     BlockerNav(
                         onboardingDone = onboardingDone == true,
-                        pendingRoute = pendingRoute,
-                        onPendingRouteConsumed = { pendingRoute = null },
                     )
                 }
             }
         }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        pendingRoute = intent.getStringExtra(EXTRA_OPEN_ROUTE)
-    }
-
-    companion object {
-        /** اکسترای مقصد ناوبری برای لانچ از بیرون (مثلاً نوار ابزار کیبورد). */
-        const val EXTRA_OPEN_ROUTE = "open_route"
-
-        /** مسیر تب «کیبورد هوشمند». */
-        const val ROUTE_SMART_KEYBOARD = "smart_keyboard"
     }
 }
 
@@ -147,24 +118,8 @@ private data class BottomDestination(val route: String, val label: String, val i
 @Composable
 fun BlockerNav(
     onboardingDone: Boolean,
-    pendingRoute: String? = null,
-    onPendingRouteConsumed: () -> Unit = {},
 ) {
     val navController = rememberNavController()
-    // مقصد خواسته‌شده از بیرون (چرخ‌دنده کیبورد → تب کیبورد هوشمند):
-    // فقط بعد از راه‌اندازی و یک بار؛ ویزارد راه‌اندازی را رد نمی‌کند.
-    LaunchedEffect(pendingRoute, onboardingDone) {
-        val route = pendingRoute ?: return@LaunchedEffect
-        if (!onboardingDone) return@LaunchedEffect
-        navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
-            }
-            launchSingleTop = true
-            restoreState = true
-        }
-        onPendingRouteConsumed()
-    }
     val bottomDestinations = listOf(
         BottomDestination("dashboard", "داشبورد", Icons.Filled.Home),
         BottomDestination("apps", "اپ‌ها", Icons.Filled.Apps),
@@ -174,9 +129,6 @@ fun BlockerNav(
         // تب جدا برای بازی‌های کوچک (خواسته سید ۲۰۲۶-۱۱-۱۹) — علاوه بر
         // ورود بازی‌ها از صفحه بلاک؛ همیشه در دسترس و مستقل از سشن/Strict.
         BottomDestination("games", "بازی‌ها", Icons.Filled.SportsEsports),
-        // کیبورد هوشمند سد (خواسته سید ۲۰۲۶-۱۱-۲۱): کیبورد خود سد که
-        // وسط سشن کلمه بلاک‌شده را موقع تایپ پاک می‌کند.
-        BottomDestination("smart_keyboard", "کیبورد هوشمند", Icons.Filled.Keyboard),
     )
     // پس‌زمینه Liquid Glass زیر همه صفحه‌ها؛ Scaffold شفاف است تا گرادیان دیده شود.
     SaddBackdrop {
@@ -267,9 +219,6 @@ fun BlockerNav(
             }
             composable("games") {
                 GamesScreen()
-            }
-            composable("smart_keyboard") {
-                SmartKeyboardScreen()
             }
             composable("scheduling") {
                 SchedulingScreen(

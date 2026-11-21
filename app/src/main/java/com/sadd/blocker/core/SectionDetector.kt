@@ -41,19 +41,11 @@ package com.sadd.blocker.core
  *   تایپ‌شده دارد. صرفِ دیده شدن فیلد جستجو در بالای صفحه (بدون فوکوس
  *   و بدون متن) بلاک نمی‌شود — این همان باگی بود که سید گزارش کرد:
  *   باز کردن تلگرام فقط چون نوار جستجو آنجاست بلاک می‌شد.
- * - instagram_search (com.instagram.android): مثل تلگرام — فیلد جستجو
- *   با hint «Search» / «جستجو» واقعاً فعال است (فوکوس یا متن
- *   تایپ‌شده). تب جستجوی اینستاگرام یک نوار جستجو با placeholder
- *   «Search» دارد. کلیک روی خودِ تب «Search and explore» هرگز شاهد
- *   جستجو نیست (گزارش سید ۲۰۲۶-۱۱-۲۱: زدن روی اکسپلور، با اینکه
- *   قانون اکسپلور خاموش و فقط جستجو روشن بود، بلاک می‌شد — چون متن
- *   تب «Search» داشت و کلیک روی آن «کلیک روی جستجو» حساب می‌شد).
- *   تب‌ها checkable‌اند و از شاهد کلیک حذف شده‌اند
- *   ([isSearchFieldClick])؛ شاهد کلیک فقط فیلد ویرایشی جستجو (خود گره
- *   یا نواده‌اش در زیردرخت) یا نوار جستجوی غیرقابل‌ویرایش با مارکر
- *   جستجوست. (به‌روزرسانی همان روز: معیار «فقط فیلد ویرایشی با hint»
- *   بیش‌ازحد تنگ بود و جستجوی اینستاگرام اصلاً بلاک نمی‌شد؛ مارکر حالا
- *   در hint/متن/توضیح سنجیده می‌شود و زیردرخت هم پیمایش می‌شود.)
+ * - اینستاگرام بخش جستجو ندارد (تصمیم سید ۲۰۲۶-۱۱-۲۱: «سرچشو پاک
+ *   اصن نمیخوامش، همون خودش و اکسپلور و ریلز»)؛ فقط خود اپ، اکسپلور
+ *   و ریلز. (پیش‌تر جستجوی اینستاگرام هم بود و کلیک روی تب «Search
+ *   and explore» به‌اشتباه جستجو حساب می‌شد؛ حذف تب‌های checkable از
+ *   شاهد کلیک در [isSearchFieldClick] برای بقیه اپ‌ها سر جایش است.)
  * - instagram_explore (com.instagram.android): مارکر «explore» /
  *   «اکسپلور» فقط در متن/توضیح گره‌ای که واقعاً
  *   انتخاب شده (تب فعال اکسپلور)؛ و فیلد جستجو فعال نیست. برچسب تب
@@ -166,7 +158,6 @@ object SectionDetector {
     const val SECTION_TELEGRAM_APP = "telegram_app"
     const val SECTION_TELEGRAM_SEARCH = "telegram_search"
     const val SECTION_INSTAGRAM_APP = "instagram_app"
-    const val SECTION_INSTAGRAM_SEARCH = "instagram_search"
     const val SECTION_INSTAGRAM_EXPLORE = "instagram_explore"
     const val SECTION_INSTAGRAM_REELS = "instagram_reels"
     const val SECTION_YOUTUBE_APP = "youtube_app"
@@ -225,7 +216,6 @@ object SectionDetector {
         SectionPreset(TELEGRAM_PACKAGE, SECTION_TELEGRAM_APP, "خود تلگرام", "تلگرام"),
         SectionPreset(TELEGRAM_PACKAGE, SECTION_TELEGRAM_SEARCH, "جستجوی تلگرام", "تلگرام"),
         SectionPreset(INSTAGRAM_PACKAGE, SECTION_INSTAGRAM_APP, "خود اینستاگرام", "اینستاگرام"),
-        SectionPreset(INSTAGRAM_PACKAGE, SECTION_INSTAGRAM_SEARCH, "جستجوی اینستاگرام", "اینستاگرام"),
         SectionPreset(INSTAGRAM_PACKAGE, SECTION_INSTAGRAM_EXPLORE, "اکسپلور اینستاگرام", "اینستاگرام"),
         SectionPreset(INSTAGRAM_PACKAGE, SECTION_INSTAGRAM_REELS, "ریلز اینستاگرام", "اینستاگرام"),
         SectionPreset(YOUTUBE_PACKAGE, SECTION_YOUTUBE_APP, "خود یوتیوب", "یوتیوب"),
@@ -349,7 +339,6 @@ object SectionDetector {
     /** کلیدهای بخش «جستجو» — سرویس برای رویداد تایپ فقط این‌ها را چک می‌کند. */
     private val SEARCH_SECTION_KEYS: Set<String> = setOf(
         SECTION_TELEGRAM_SEARCH,
-        SECTION_INSTAGRAM_SEARCH,
         SECTION_YOUTUBE_SEARCH,
         SECTION_WHATSAPP_SEARCH,
         SECTION_TIKTOK_SEARCH,
@@ -599,9 +588,6 @@ object SectionDetector {
             SECTION_INSTAGRAM_APP -> {
                 if (packageName != INSTAGRAM_PACKAGE) return false
                 return true
-            }
-            SECTION_INSTAGRAM_SEARCH -> {
-                return isSearchShowing(packageName, signals, INSTAGRAM_PACKAGE)
             }
             SECTION_INSTAGRAM_EXPLORE -> {
                 return isFeedShowing(packageName, signals, EXPLORE_MARKERS, INSTAGRAM_PACKAGE)

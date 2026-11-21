@@ -92,17 +92,6 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun instagramSearchDetectedWithEditableSearchField() {
-        assertTrue(
-            SectionDetector.isSectionShowing(
-                "com.instagram.android",
-                SectionDetector.SECTION_INSTAGRAM_SEARCH,
-                searchField("Search"),
-            ),
-        )
-    }
-
-    @Test
     fun instagramExploreNotDetectedByTitleAlone() {
         // عنوان پنجره دیگر شاهد فید نیست (گزارش سید ۲۰۲۶-۱۱-۲۰): فقط
         // تب واقعاً انتخاب‌شده بلاک می‌کند.
@@ -152,20 +141,22 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun instagramHomeWithNoSignalsIsNeitherSearchNorExplore() {
+    fun instagramHomeWithNoSignalsIsNotExplore() {
         val empty = SectionSignals()
-        assertFalse(
-            SectionDetector.isSectionShowing(
-                "com.instagram.android",
-                SectionDetector.SECTION_INSTAGRAM_SEARCH,
-                empty,
-            ),
-        )
         assertFalse(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
                 SectionDetector.SECTION_INSTAGRAM_EXPLORE,
                 empty,
+            ),
+        )
+        // جستجوی اینستاگرام حذف شده است (تصمیم سید ۲۰۲۶-۱۱-۲۱):
+        // کلید قدیمی دیگر هیچ‌وقت روی صفحه نیست.
+        assertFalse(
+            SectionDetector.isSectionShowing(
+                "com.instagram.android",
+                "instagram_search",
+                searchField("Search"),
             ),
         )
     }
@@ -209,7 +200,8 @@ class SectionDetectorTest {
         assertTrue(keys.contains(SectionDetector.SECTION_TELEGRAM_APP))
         assertTrue(keys.contains(SectionDetector.SECTION_TELEGRAM_SEARCH))
         assertTrue(keys.contains(SectionDetector.SECTION_INSTAGRAM_APP))
-        assertTrue(keys.contains(SectionDetector.SECTION_INSTAGRAM_SEARCH))
+        // جستجوی اینستاگرام حذف شده است (تصمیم سید ۲۰۲۶-۱۱-۲۱).
+        assertFalse(keys.contains("instagram_search"))
         assertTrue(keys.contains(SectionDetector.SECTION_INSTAGRAM_EXPLORE))
         assertTrue(keys.contains(SectionDetector.SECTION_INSTAGRAM_REELS))
         assertTrue(keys.contains(SectionDetector.SECTION_YOUTUBE_APP))
@@ -232,8 +224,8 @@ class SectionDetectorTest {
         assertTrue(keys.contains(SectionDetector.SECTION_SNAPCHAT_SPOTLIGHT))
         assertTrue(keys.contains(SectionDetector.SECTION_CHROME_APP))
         assertTrue(keys.contains(SectionDetector.SECTION_CHROME_INCOGNITO))
-        // ۹ قدیمی + ۳ واتساپ + ۳ تیک‌تاک در هر دو پکیج + ۳ ایکس + ۳ فیسبوک + ۳ اسنپ‌چت + ۲ کروم.
-        assertTrue(SectionDetector.PRESETS.size == 29)
+        // ۸ قدیمی (تلگرام ۲ + اینستاگرام ۳ + یوتیوب ۳) + ۳ واتساپ + ۳ تیک‌تاک در هر دو پکیج + ۳ ایکس + ۳ فیسبوک + ۳ اسنپ‌چت + ۲ کروم.
+        assertTrue(SectionDetector.PRESETS.size == 28)
         // تیک‌تاک در هر دو پکیج پیش‌فرض دارد.
         assertTrue(
             SectionDetector.PRESETS.any {
@@ -1006,17 +998,6 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun instagramSearchUntouchedFieldDoesNotBlock() {
-        assertFalse(
-            SectionDetector.isSectionShowing(
-                "com.instagram.android",
-                SectionDetector.SECTION_INSTAGRAM_SEARCH,
-                untouchedSearchField("Search"),
-            ),
-        )
-    }
-
-    @Test
     fun youtubeSearchUntouchedFieldDoesNotBlock() {
         assertFalse(
             SectionDetector.isSectionShowing(
@@ -1052,8 +1033,9 @@ class SectionDetectorTest {
     @Test
     fun isSearchSectionOnlyForSearchKeys() {
         assertTrue(SectionDetector.isSearchSection(SectionDetector.SECTION_TELEGRAM_SEARCH))
-        assertTrue(SectionDetector.isSearchSection(SectionDetector.SECTION_INSTAGRAM_SEARCH))
         assertTrue(SectionDetector.isSearchSection(SectionDetector.SECTION_TIKTOK_SEARCH))
+        // جستجوی اینستاگرام حذف شده است (تصمیم سید ۲۰۲۶-۱۱-۲۱).
+        assertFalse(SectionDetector.isSearchSection("instagram_search"))
         assertFalse(SectionDetector.isSearchSection(SectionDetector.SECTION_TELEGRAM_APP))
         assertFalse(SectionDetector.isSearchSection(SectionDetector.SECTION_INSTAGRAM_REELS))
         assertFalse(SectionDetector.isSearchSection(SectionDetector.SECTION_CHROME_INCOGNITO))
@@ -1222,13 +1204,6 @@ class SectionDetectorTest {
                 SectionSignals(searchFieldClicked = true),
             ),
         )
-        assertTrue(
-            SectionDetector.isSectionShowing(
-                "com.instagram.android",
-                SectionDetector.SECTION_INSTAGRAM_SEARCH,
-                SectionSignals(searchFieldClicked = true),
-            ),
-        )
     }
 
     @Test
@@ -1387,13 +1362,12 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun instagramExploreTabTapDoesNotTriggerSearch() {
-        // رگرسیون گزارش سید ۲۰۲۶-۱۱-۲۱: قانون جستجو روشن، قانون
-        // اکسپلور خاموش؛ زدن روی تب اکسپلور («Search and explore»)
-        // نباید بخش جستجو را بلاک کند. سیگنال‌ها همان چیزی است که
-        // سرویس بعد از کلیک روی تب می‌سازد: تب انتخاب شده، متن
-        // کلیک‌شده «Search and explore»، ولی searchFieldClicked=false
-        // (تب ویرایشی نیست) و فیلد جستجو فوکوس/متن ندارد.
+    fun instagramExploreTabTapTriggersExploreOnly() {
+        // رگرسیون گزارش سید ۲۰۲۶-۱۱-۲۱: زدن روی تب اکسپلور («Search
+        // and explore») ورود به اکسپلور است. جستجوی اینستاگرام همان
+        // روز به خواست سید کلاً حذف شد؛ کلید قدیمی‌اش دیگر هرگز
+        // بلاک نمی‌کند و اکسپلور با همان سیگنال‌ها (اگر قانونش روشن
+        // باشد) بلاک می‌شود.
         val signals = SectionSignals(
             hasEditableTextField = true,
             editableHint = "Search",
@@ -1403,11 +1377,10 @@ class SectionDetectorTest {
         assertFalse(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
-                SectionDetector.SECTION_INSTAGRAM_SEARCH,
+                "instagram_search",
                 signals,
             ),
         )
-        // و اکسپلور با همان سیگنال‌ها (اگر قانونش روشن باشد) بلاک می‌شود.
         assertTrue(
             SectionDetector.isSectionShowing(
                 "com.instagram.android",
@@ -1418,19 +1391,7 @@ class SectionDetectorTest {
     }
 
     @Test
-    fun instagramSearchBlocksWhenTypingIntoSearchField() {
-        // تایپ در فیلد جستجوی اینستاگرام = ورود به جستجو.
-        assertTrue(
-            SectionDetector.isSectionShowing(
-                "com.instagram.android",
-                SectionDetector.SECTION_INSTAGRAM_SEARCH,
-                typedSearchField("Search"),
-            ),
-        )
-    }
-
-    @Test
-    fun instagramSearchDoesNotBlockWhenTypingIntoCommentBox() {
+    fun telegramSearchDoesNotBlockWhenTypingIntoCommentBox() {
         // تایپ در فیلد کامنت (بدون مارکر جستجو) شاهد ورود به جستجو
         // نیست — سرویس برای چنین فیلدی هیچ پرچم جستجویی نمی‌گذارد.
         val signals = SectionSignals(
@@ -1440,8 +1401,8 @@ class SectionDetectorTest {
         )
         assertFalse(
             SectionDetector.isSectionShowing(
-                "com.instagram.android",
-                SectionDetector.SECTION_INSTAGRAM_SEARCH,
+                "org.telegram.messenger",
+                SectionDetector.SECTION_TELEGRAM_SEARCH,
                 signals,
             ),
         )

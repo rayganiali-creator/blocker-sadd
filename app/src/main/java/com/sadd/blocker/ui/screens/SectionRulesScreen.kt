@@ -414,7 +414,6 @@ private fun sectionVisual(sectionKey: String): Pair<ImageVector, Color> {
         SectionDetector.SECTION_CUSTOM_APP,
         -> Icons.Filled.Apps to ChipMint
         SectionDetector.SECTION_TELEGRAM_SEARCH,
-        SectionDetector.SECTION_INSTAGRAM_SEARCH,
         SectionDetector.SECTION_YOUTUBE_SEARCH,
         SectionDetector.SECTION_WHATSAPP_SEARCH,
         SectionDetector.SECTION_TIKTOK_SEARCH,
@@ -442,7 +441,6 @@ private fun sectionDescription(sectionKey: String): String {
         SectionDetector.SECTION_CUSTOM_APP,
         -> "باز شدن اپ وسط سشن بلاک می‌شود"
         SectionDetector.SECTION_TELEGRAM_SEARCH,
-        SectionDetector.SECTION_INSTAGRAM_SEARCH,
         SectionDetector.SECTION_YOUTUBE_SEARCH,
         SectionDetector.SECTION_WHATSAPP_SEARCH,
         SectionDetector.SECTION_TIKTOK_SEARCH,

@@ -107,8 +107,12 @@ object KeywordMatcher {
 
     // ---------- ضدفرار (anti-evasion) ----------
 
-    /** یک حرف نگه‌داشته‌شده در جریان تمیزشده + بازه‌اش در متن اصلی. */
-    private data class KeptChar(val ch: Char, val start: Int, var end: Int)
+    /**
+     * یک حرف نگه‌داشته‌شده در جریان تمیزشده + بازه‌اش در متن اصلی +
+     * تعداد تکرار متوالی‌اش ([count]) — تکرارها فرو می‌ریزند ولی
+     * شمارشان نگه داشته می‌شود تا کلمه ناقص مچ نشود.
+     */
+    private data class KeptChar(val ch: Char, val start: Int, var end: Int, var count: Int = 1)
 
     /**
      * تاشدن حروف هم‌شکل برای مسیر ضدفرار: ي→ی، ك→ک، ة→ه، ؤ→و، ئ→ی،
@@ -143,7 +147,11 @@ object KeywordMatcher {
      * جداکننده‌ها (نقطه، فاصله، خط تیره، زیرخط، نیم‌فاصله، اسلش و…)
      * و اعراب و کشیدگی حذف می‌شوند. تکرار متوالی یک حرف به یک حرف
      * فرو می‌ریزد («پووور» → «پور») ولی بازه حرف نگه‌داشته‌شده تا
-     * آخرین تکرار کش می‌آید تا حذف، کل بازه اصلی را بردارد. اندیس
+     * آخرین تکرار کش می‌آید تا حذف، کل بازه اصلی را بردارد، و تعداد
+     * تکرار ([KeptChar.count]) هم نگه داشته می‌شود: مچ ضدفرار فقط
+     * وقتی است که تکرار هر حرف در متن دست‌کم به اندازه تکرار همان
+     * حرف در کلیدواژه باشد — پس «feeeet» همان «feet» است ولی کلمه
+     * ناقص «fet» هرگز «feet» نیست (گزارش سید ۲۰۲۶-۱۱-۲۱). اندیس
      * اصلی هر حرف نگه داشته می‌شود تا مچ به بازه متن اصلی برگردد.
      */
     private fun cleanedStream(text: String): List<KeptChar> {
@@ -155,8 +163,9 @@ object KeywordMatcher {
             val folded = foldLookalike(raw)
             val last = kept.lastOrNull()
             if (last != null && last.ch == folded) {
-                // تکرار همان حرف: فروبریز، ولی بازه را تا اینجا بکش.
+                // تکرار همان حرف: فروبریز، ولی بازه و شمار را تا اینجا بکش.
                 last.end = i + 1
+                last.count++
             } else {
                 kept.add(KeptChar(folded, i, i + 1))
             }
@@ -164,9 +173,13 @@ object KeywordMatcher {
         return kept
     }
 
-    /** کلیدواژه تمیزشده برای مسیر ضدفرار (همان تاشدن و فروپاشی تکرار). */
-    private fun cleanedKeyword(ruleRaw: String): String {
-        return cleanedStream(ruleRaw).joinToString("") { it.ch.toString() }
+    /**
+     * کلیدواژه تمیزشده برای مسیر ضدفرار: دنباله (حرف، طول تکرار) —
+     * همان تاشدن و فروپاشی تکرار [cleanedStream]، ولی طول هر تکرار
+     * نگه داشته می‌شود تا مچ، کلیدواژه کامل را بخواهد نه پیشوندش را.
+     */
+    private fun cleanedKeywordRuns(ruleRaw: String): List<Pair<Char, Int>> {
+        return cleanedStream(ruleRaw).map { it.ch to it.count }
     }
 
     /**
@@ -208,23 +221,35 @@ object KeywordMatcher {
      * پذیرفته می‌شود که مرز کلمه در متن اصلی برقرار باشد — پس
      * «پور.ن هاب» و «پ و ر ن ه ا ب» و «پووورنهاب» مچ می‌شوند ولی
      * «فوتبال» هرگز «فوت» را نمی‌گیرد.
+     *
+     * کلیدواژه باید کامل در جریان باشد: حرف‌ها یکی‌یکی و طول تکرار هر
+     * حرف در متن دست‌کم به اندازه تکرار همان حرف در کلیدواژه — پس
+     * «feeeet» و «fee,t» و «Fee    t» همان «feet»‌اند، ولی کلمه
+     * ناقص «fet» و پیشوند «fe» هرگز «feet» نیستند (گزارش سید
+     * ۲۰۲۶-۱۱-۲۱: فروپاشی تکرار به‌تنهایی «feet» و «fet» را یکی
+     * می‌کرد و کلمه ناتمام وسط تایپ پاک می‌شد).
      */
     fun findAntiEvasionSpan(text: String, ruleRaw: String): Pair<Int, Int>? {
-        val keyword = cleanedKeyword(ruleRaw)
-        if (keyword.isEmpty()) return null
+        val keywordRuns = cleanedKeywordRuns(ruleRaw)
+        if (keywordRuns.isEmpty()) return null
         val stream = cleanedStream(text)
-        if (stream.size < keyword.length) return null
-        val streamText = stream.joinToString("") { it.ch.toString() }
-        var from = 0
-        while (from <= streamText.length - keyword.length) {
-            val idx = streamText.indexOf(keyword, from)
-            if (idx < 0) return null
-            val spanStart = stream[idx].start
-            val spanEnd = stream[idx + keyword.length - 1].end
+        if (stream.size < keywordRuns.size) return null
+        for (start in 0..stream.size - keywordRuns.size) {
+            var ok = true
+            for (j in keywordRuns.indices) {
+                val kept = stream[start + j]
+                val (kwCh, kwCount) = keywordRuns[j]
+                if (kept.ch != kwCh || kept.count < kwCount) {
+                    ok = false
+                    break
+                }
+            }
+            if (!ok) continue
+            val spanStart = stream[start].start
+            val spanEnd = stream[start + keywordRuns.size - 1].end
             if (isOriginalBoundary(text, spanStart, spanEnd)) {
                 return spanStart to spanEnd
             }
-            from = idx + 1
         }
         return null
     }

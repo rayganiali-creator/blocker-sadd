@@ -62,8 +62,6 @@ class SettingsStore @Inject constructor(
         val GLOBAL_DELAY = intPreferencesKey("global_delay_seconds")
         val APP_THEME = stringPreferencesKey("app_theme")
         val COLOR_THEME = stringPreferencesKey("color_theme")
-        /** تم رنگی کیبورد هوشمند سد (کلید KeyboardTheme)؛ پیش‌فرض «sadd». */
-        val KEYBOARD_THEME = stringPreferencesKey("keyboard_theme")
         val DARK_THEME = booleanPreferencesKey("dark_theme")
         val BLOCK_MODE = stringPreferencesKey("block_mode")
         val PIN_HASH = stringPreferencesKey("pin_hash_hex")
@@ -232,21 +230,6 @@ class SettingsStore @Inject constructor(
     suspend fun setColorTheme(theme: ColorTheme) {
         context.settingsDataStore.edit { prefs ->
             prefs[COLOR_THEME] = theme.name
-        }
-    }
-
-    /**
-     * تم رنگی کیبورد هوشمند سد — کلید خام تم (KeyboardTheme.key)؛
-     * حل‌کردنش به تم واقعی با KeyboardThemes.themeByKey است تا کلید
-     * ناشناخته به پیش‌فرض برگردد. تب «کیبورد هوشمند» و خود کیبورد
-     * (نوار ابزار) هر دو همین یک ترجیح را می‌نویسند.
-     */
-    val keyboardTheme: Flow<String> = safeData
-        .map { prefs -> prefs[KEYBOARD_THEME] ?: "sadd" }
-
-    suspend fun setKeyboardTheme(key: String) {
-        context.settingsDataStore.edit { prefs ->
-            prefs[KEYBOARD_THEME] = key
         }
     }
 

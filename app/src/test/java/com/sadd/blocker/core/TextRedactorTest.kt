@@ -173,4 +173,36 @@ class TextRedactorTest {
         )
         assertNull(TextRedactor.findMatchedKeyword("فوتبال", listOf("فوت")))
     }
+
+    // ---------- کلمه ناقص پاک نمی‌شود (گزارش سید ۲۰۲۶-۱۱-۲۱: «feet») ----------
+
+    @Test
+    fun removeMatchedRuleKeepsIncompleteAndLongerWords() {
+        // وسط تایپ «fe»/«fet» و کلمه‌های بلندتر «federal»/«feetball»/
+        // «coffee time» دست نمی‌خورند.
+        assertEquals("fe", TextRedactor.removeMatchedRule("fe", "feet"))
+        assertEquals("fet", TextRedactor.removeMatchedRule("fet", "feet"))
+        assertEquals("federal", TextRedactor.removeMatchedRule("federal", "feet"))
+        assertEquals("feetball", TextRedactor.removeMatchedRule("feetball", "feet"))
+        assertEquals("coffee time", TextRedactor.removeMatchedRule("coffee time", "feet"))
+        assertNull(TextRedactor.firstMatchRange("federal", "feet"))
+        assertNull(TextRedactor.findMatchedKeyword("fe", listOf("feet")))
+    }
+
+    @Test
+    fun removeMatchedRuleRemovesSpacedEvasionWholeSpan() {
+        // «Fee    t» با فاصله‌های داخلش یکجا پاک می‌شود.
+        assertEquals("", TextRedactor.removeMatchedRule("Fee    t", "feet"))
+        assertEquals(0 to 8, TextRedactor.firstMatchRange("Fee    t", "feet"))
+        assertEquals("", TextRedactor.removeMatchedRule("Poooor   n", "porn"))
+    }
+
+    @Test
+    fun firstMatchRangeCoversFeetInSentence() {
+        assertEquals(6 to 10, TextRedactor.firstMatchRange("I saw feet today", "feet"))
+        assertEquals(
+            "I saw today",
+            TextRedactor.removeMatchedRule("I saw feet today", "feet"),
+        )
+    }
 }

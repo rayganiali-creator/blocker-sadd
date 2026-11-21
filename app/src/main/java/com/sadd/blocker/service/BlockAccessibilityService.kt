@@ -3,11 +3,9 @@ package com.sadd.blocker.service
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.sadd.blocker.core.BlockThrottle
-import com.sadd.blocker.core.KeyboardBlocker
 import com.sadd.blocker.core.KeywordMatcher
 import com.sadd.blocker.core.ProtectionGuardDetector
 import com.sadd.blocker.core.SectionDetector
@@ -175,13 +173,6 @@ class BlockAccessibilityService : AccessibilityService() {
         val keywords: List<KeywordRule>,
         val websites: List<BlockedWebsite>,
         val sections: List<SectionRule>,
-        /**
-         * کیبورد هوشمند سد، کیبورد فعلی سیستم است؟ وقتی بله، بخش
-         * کلمه‌ای متن تایپ‌شده اینجا رد می‌شود (خود کیبورد کلمه
-         * بلاک‌شده را موقع تایپ پاک می‌کند تا دو بار هندل نشود)؛
-         * بلاک اپ/بخش و دامنه مرورگر سر جایشان می‌مانند.
-         */
-        val saddImeCurrent: Boolean = false,
     )
 
     @Volatile
@@ -622,7 +613,6 @@ class BlockAccessibilityService : AccessibilityService() {
                 keywords = keywordRepository.list().filter { it.enabled },
                 websites = websiteRepository.list().filter { it.enabled },
                 sections = sectionRuleRepository.getEnabled(),
-                saddImeCurrent = readSaddImeCurrent(),
             )
         } catch (_: Exception) {
             // fail-open: اگر قوانین خوانده نشدند، هیچ بلاکی صادر نمی‌شود.
@@ -640,38 +630,15 @@ class BlockAccessibilityService : AccessibilityService() {
         return fresh
     }
 
-    /**
-     * آیا کیبورد هوشمند سد، کیبورد فعلی سیستم است؟
-     * (Settings.Secure.DEFAULT_INPUT_METHOD با پکیج خودمان شروع می‌شود.)
-     * هر خطایی یعنی «نه» — fail-open به رفتار همیشگی سرویس.
-     */
-    private fun readSaddImeCurrent(): Boolean {
-        return try {
-            val current = Settings.Secure.getString(
-                contentResolver,
-                Settings.Secure.DEFAULT_INPUT_METHOD,
-            )
-            KeyboardBlocker.isSaddImeCurrent(current, packageName)
-        } catch (_: Exception) {
-            false
-        }
-    }
-
     // ---------- ارزیابی متن تایپ‌شده ----------
 
     private suspend fun evaluateText(packageName: String, text: String) {
         val snapshot = loadSnapshot(forceRefresh = false)
         if (!snapshot.sessionActive) return
         if (SectionDetector.isBrowserPackage(packageName)) {
-            // وقتی کیبورد سد کیبورد فعلی است، بخش کلمه‌ای را خودش موقع
-            // تایپ پاک می‌کند؛ اینجا فقط دامنه چک می‌شود.
-            evaluateBrowserText(packageName, text, snapshot, skipKeyword = snapshot.saddImeCurrent)
+            evaluateBrowserText(packageName, text, snapshot)
             return
         }
-        // کیبورد سد فعال است: کلمه بلاک‌شده را خودش موقع تایپ پاک
-        // می‌کند؛ اینجا دوباره هندل نمی‌شود. بلاک اپ/بخش از مسیرهای
-        // دیگر سر جایش است.
-        if (snapshot.saddImeCurrent) return
         val matched = TextRedactor.findMatchedKeyword(
             text,
             snapshot.keywords.map { it.rawText },
@@ -716,14 +683,11 @@ class BlockAccessibilityService : AccessibilityService() {
 
     /**
      * متن omnibox/جعبه جستجوی مرورگر: اول دامنه، بعد کلمه.
-     * [skipKeyword] وقتی کیبورد سد کیبورد فعلی است: کلمه را خودش موقع
-     * تایپ پاک می‌کند و اینجا فقط دامنه چک می‌شود.
      */
     private suspend fun evaluateBrowserText(
         packageName: String,
         text: String,
         snapshot: Snapshot,
-        skipKeyword: Boolean = false,
     ) {
         val host = TextRedactor.extractHostCandidate(text)
         if (host != null) {
@@ -746,7 +710,6 @@ class BlockAccessibilityService : AccessibilityService() {
                 return
             }
         }
-        if (skipKeyword) return
         val matched = TextRedactor.findMatchedKeyword(
             text,
             snapshot.keywords.map { it.rawText },

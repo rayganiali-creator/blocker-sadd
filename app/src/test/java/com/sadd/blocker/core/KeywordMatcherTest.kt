@@ -189,4 +189,46 @@ class KeywordMatcherTest {
         assertTrue(KeywordMatcher.matches("من فوت کردم", "فوت"))
         assertTrue(KeywordMatcher.matches("پورنهاب", "پورنهاب"))
     }
+
+    // ---------- کلمه ناقص هرگز مچ نیست (گزارش سید ۲۰۲۶-۱۱-۲۱: «feet») ----------
+
+    @Test
+    fun antiEvasionIncompleteWordNeverMatches() {
+        // وسط تایپ، کلمه ناتمام نباید پاک شود: «fe» و «fet» هرگز «feet» نیستند.
+        assertFalse(KeywordMatcher.matches("fe", "feet"))
+        assertFalse(KeywordMatcher.matches("f", "feet"))
+        assertFalse(KeywordMatcher.matches("fee", "feet"))
+        assertFalse(KeywordMatcher.matches("fet", "feet"))
+        assertNull(KeywordMatcher.findAntiEvasionSpan("fet", "feet"))
+    }
+
+    @Test
+    fun antiEvasionLongerWordWithKeywordLettersDoesNotMatch() {
+        // کلمه بلندتر که حروف کلیدواژه را در توالی دارد، مچ نیست.
+        assertFalse(KeywordMatcher.matches("federal", "feet"))
+        assertFalse(KeywordMatcher.matches("feetball", "feet"))
+        // حروف در دو کلمه جدا و از وسط کلمه شروع شده‌اند — مرز کلمه رد می‌کند.
+        assertFalse(KeywordMatcher.matches("coffee time", "feet"))
+    }
+
+    @Test
+    fun antiEvasionFullKeywordEvasionsStillMatch() {
+        // فرار با تکرار اضافه، جداکننده و فاصله، هنوز گرفته می‌شود.
+        assertTrue(KeywordMatcher.matches("feet", "feet"))
+        assertTrue(KeywordMatcher.matches("f.e.e.t", "feet"))
+        assertTrue(KeywordMatcher.matches("feeeet", "feet"))
+        assertTrue(KeywordMatcher.matches("fee,t", "feet"))
+        assertTrue(KeywordMatcher.matches("fee.t", "feet"))
+        assertTrue(KeywordMatcher.matches("Fee    t", "feet"))
+        assertTrue(KeywordMatcher.matches("fee t", "feet"))
+        assertTrue(KeywordMatcher.matches("Poooor   n", "porn"))
+        assertTrue(KeywordMatcher.matches("I saw feet today", "feet"))
+    }
+
+    @Test
+    fun antiEvasionSpacedSpanCoversInnerSpaces() {
+        // بازه «Fee    t» کل کلمه را با فاصله‌های داخلش می‌گیرد.
+        assertEquals(0 to 8, KeywordMatcher.findAntiEvasionSpan("Fee    t", "feet"))
+        assertEquals(0 to 10, KeywordMatcher.findAntiEvasionSpan("Poooor   n", "porn"))
+    }
 }

@@ -6,7 +6,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * دیتابیس Room — نسخه ۶.
+ * دیتابیس Room — نسخه ۷.
  * مهاجرت‌ها از نسخه ۲ به بعد اینجا ثبت می‌شوند (Migration)؛
  * fallbackToDestructiveMigration ممنوع است تا قانون کاربر با آپدیت پاک نشود.
  *
@@ -20,7 +20,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * (واتساپ، تیک‌تاک با دو پکیج، ایکس، فیسبوک، اسنپ‌چت).
  * نسخه ۶: بدون تغییر اسکیما — فقط ۲ پیش‌فرض جدید بخش seed می‌شوند
  * (خود کروم، مرور خصوصی Incognito کروم).
- * ثبت مهاجرت در AppModule لازم است: .addMigrations(..., MIGRATION_5_6).
+ * نسخه ۷: بدون تغییر اسکیما — سطر پیش‌فرض «جستجوی اینستاگرام» حذف
+ * می‌شود (تصمیم سید ۲۰۲۶-۱۱-۲۱: اینستاگرام فقط خود اپ، اکسپلور و
+ * ریلز را دارد).
+ * ثبت مهاجرت در AppModule لازم است: .addMigrations(..., MIGRATION_6_7).
  */
 @Database(
     entities = [
@@ -32,7 +35,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SectionRuleEntity::class,
         BlockEventEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -197,5 +200,23 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
                     "('$pkg', '$key', '$label', 0)",
             )
         }
+    }
+}
+
+/**
+ * مهاجرت ۶ به ۷: بدون تغییر اسکیما — سطر پیش‌فرض «جستجوی
+ * اینستاگرام» از نصب‌های موجود حذف می‌شود (تصمیم سید ۲۰۲۶-۱۱-۲۱:
+ * اینستاگرام فقط خود اپ، اکسپلور و ریلز را دارد؛ جستجویش را
+ * نمی‌خواهد). پیش‌فرض از SectionDetector.PRESETS هم برداشته شده
+ * است، پس نصب تازه هرگز آن را نمی‌سازد؛ این مهاجرت فقط سطر
+ * قدیمی را پاک می‌کند تا در UI دیده نشود و بلاک هم نکند.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "DELETE FROM section_rules " +
+                "WHERE packageName = 'com.instagram.android' " +
+                "AND sectionKey = 'instagram_search'",
+        )
     }
 }
