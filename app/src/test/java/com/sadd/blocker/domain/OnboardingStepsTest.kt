@@ -86,4 +86,32 @@ class OnboardingStepsTest {
         assertFalse(OnboardingSteps.shouldShowTutorial(allStepsDone = true, tutorialDone = true))
         assertFalse(OnboardingSteps.shouldShowTutorial(allStepsDone = false, tutorialDone = true))
     }
+
+    @Test
+    fun storeInstallersAreExemptFromRestrictedSettings() {
+        // فروشگاه‌ها و adb: کلید دسترسی‌پذیری از اول روشن است (مسیر مستقیم).
+        assertFalse(OnboardingSteps.isRestrictedSettingsExpected("com.android.vending"))
+        assertFalse(OnboardingSteps.isRestrictedSettingsExpected("com.farsitel.bazaar"))
+        assertFalse(OnboardingSteps.isRestrictedSettingsExpected("ir.mservices.market"))
+        assertFalse(OnboardingSteps.isRestrictedSettingsExpected("com.android.shell"))
+        assertFalse(OnboardingSteps.isRestrictedSettingsExpected("com.sec.android.app.samsungapps"))
+        assertFalse(OnboardingSteps.isRestrictedSettingsExpected("com.huawei.appmarket"))
+    }
+
+    @Test
+    fun sideloadInstallersExpectRestrictedSettings() {
+        // نصب دستی از مرورگر/فایل‌منیجر/نصب‌کننده سیستمی: قفل اعمال می‌شود.
+        assertTrue(OnboardingSteps.isRestrictedSettingsExpected("com.android.chrome"))
+        assertTrue(OnboardingSteps.isRestrictedSettingsExpected("com.google.android.packageinstaller"))
+        assertTrue(OnboardingSteps.isRestrictedSettingsExpected("com.android.packageinstaller"))
+        assertTrue(OnboardingSteps.isRestrictedSettingsExpected("com.mi.android.globalFileexplorer"))
+    }
+
+    @Test
+    fun unknownInstallerDefaultsToRestrictedSettings() {
+        // پیش‌فرض امن: نامشخص یعنی دنباله کامل کلید خاکستری.
+        assertTrue(OnboardingSteps.isRestrictedSettingsExpected(null))
+        assertTrue(OnboardingSteps.isRestrictedSettingsExpected(""))
+        assertTrue(OnboardingSteps.isRestrictedSettingsExpected("com.example.unknownstore"))
+    }
 }

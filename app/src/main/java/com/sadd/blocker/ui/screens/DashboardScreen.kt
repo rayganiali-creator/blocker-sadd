@@ -1,9 +1,17 @@
 package com.sadd.blocker.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
@@ -36,15 +45,22 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -259,14 +275,13 @@ fun DashboardScreen(
         }
 
         Spacer(Modifier.height(SaddSpacing.Small))
-        SectionTitle("قوانین فعال")
-        if (uiState.activeRules.isEmpty()) {
-            EmptyState("هنوز قانون فعالی نیست. از کلمات، اپ‌ها یا وب‌سایت‌ها قانون اضافه کن.")
-        } else {
-            for (rule in uiState.activeRules) {
-                ActiveRuleRow(rule = rule, onToggle = { viewModel.toggleRule(rule) })
-            }
-        }
+        // همه موارد بلاک‌شده (کلمه/اپ/وب‌سایت) در یک لیست واحد کشویی:
+        // پیش‌فرض بسته است تا داشبورد جمع‌وجور بماند؛ سرتیتر با تعداد
+        // کل و شورون، کل لیست را با هم باز و بسته می‌کند.
+        CollapsibleBlockedItems(
+            rules = uiState.activeRules,
+            onToggle = { rule -> viewModel.toggleRule(rule) },
+        )
 
         Spacer(Modifier.height(SaddSpacing.Large))
         SaddCard(modifier = Modifier.fillMaxWidth()) {
@@ -360,6 +375,66 @@ private fun StatCard(label: String, value: String, icon: ImageVector, color: Col
             Column(modifier = Modifier.weight(1f)) {
                 Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(label, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/**
+ * لیست واحد و کشویی همه موارد بلاک‌شده (کلمه/اپ/وب‌سایت با هم):
+ * سرتیتر «موارد بلاک‌شده (تعداد)» + شورون، با ضربه کل لیست را با
+ * انیمیشن فنری باز و بسته می‌کند. پیش‌فرض بسته است؛ وضعیت باز/بسته
+ * فقط در حافظه UI می‌ماند (rememberSaveable). ردیف‌ها و حالت خالی
+ * دقیقاً همان قبلی‌اند — فقط نمایش عوض شده است.
+ */
+@Composable
+private fun CollapsibleBlockedItems(
+    rules: List<DashboardRule>,
+    onToggle: (DashboardRule) -> Unit,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+        label = "blockedItemsChevron",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { role = Role.Button }
+            .clickable { expanded = !expanded }
+            .padding(top = SaddSpacing.Large, bottom = SaddSpacing.Small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "موارد بلاک‌شده (${rules.size})",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = Icons.Filled.KeyboardArrowDown,
+            contentDescription = if (expanded) "بستن لیست" else "باز کردن لیست",
+            modifier = Modifier.rotate(chevronRotation),
+            tint = saddPrimaryTextColor(),
+        )
+    }
+    AnimatedVisibility(
+        visible = expanded,
+        enter = expandVertically(
+            animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f),
+        ) + fadeIn(animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f)),
+        exit = shrinkVertically(
+            animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f),
+        ) + fadeOut(animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f)),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (rules.isEmpty()) {
+                EmptyState("هنوز قانون فعالی نیست. از کلمات، اپ‌ها یا وب‌سایت‌ها قانون اضافه کن.")
+            } else {
+                for (rule in rules) {
+                    ActiveRuleRow(rule = rule, onToggle = { onToggle(rule) })
+                }
             }
         }
     }

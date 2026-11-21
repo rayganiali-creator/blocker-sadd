@@ -66,11 +66,15 @@ private data class PermissionPart(
  * فعال شود؛ فعال‌شدن سرویس، مدرک انجام‌شدن هر سه مرحله است.
  * (VPN از ویزارد حذف شده — بلاک وب با Accessibility انجام می‌شود، نه VPN.)
  *
- * مرحله محافظت انتخابی است: «فعال کن» تنظیم محافظت را روشن و انتخاب
- * را ثبت می‌کند و صفحه فعال‌سازی مدیر دستگاه همان‌جا با ضربه باز
- * می‌شود (در لایه UI، مثل صفحه حالت بلاک)؛ «الان نه» فقط انتخاب را
- * ثبت می‌کند و ویزارد جلو می‌رود. بعد از همه مرحله‌ها، آموزش
- * آشنایی یک‌بار نشان داده می‌شود (پرچم tutorial_done).
+ * مرحله محافظت انتخابی است: «فعال کن» فقط تنظیم محافظت را روشن
+ * می‌کند و صفحه فعال‌سازی مدیر دستگاه همان‌جا با ضربه باز می‌شود
+ * (در لایه UI، مثل صفحه حالت بلاک)؛ انتخاب در آن لحظه ثبت نمی‌شود —
+ * مرحله وقتی انجام‌شده حساب می‌شود که مدیر دستگاه واقعاً فعال شده
+ * باشد (بعد از برگشت از صفحه سیستمی) یا کاربر «الان نه» را بزند.
+ * ثبت زودهنگام انتخاب، مرحله را همان‌جا تمام و آموزش را جایگزین
+ * کارت می‌کرد؛ نتیجه تلاش فعال‌سازی دیده نمی‌شد و اگر باز شدن صفحه
+ * شکست می‌خورد، راه تلاش دوباره‌ای در ویزارد نمی‌ماند. بعد از همه
+ * مرحله‌ها، آموزش آشنایی یک‌بار نشان داده می‌شود (پرچم tutorial_done).
  */
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
@@ -196,7 +200,8 @@ class OnboardingViewModel @Inject constructor(
                     activationAttempted -> if (active) {
                         "فعال شد ✓ — حذف نصب «سد» مسدود است."
                     } else {
-                        "فعال نشد — هر وقت خواستی از داشبورد ← حالت بلاک ← جلوگیری از حذف نصب انجامش بده."
+                        "فعال نشد — دوباره «فعال کن» را بزن یا از دکمه " +
+                            "«رفتن به Device admin apps» زیر دستی انجام بده."
                     }
                     active -> null
                     else -> it.activationResult
@@ -232,16 +237,21 @@ class OnboardingViewModel @Inject constructor(
     }
 
     /**
-     * «فعال کن» در مرحله محافظت: تنظیم محافظت روشن و انتخاب ثبت
-     * می‌شود (روشن‌کردن همیشه آزاد است). باز کردن صفحه فعال‌سازی
-     * مدیر دستگاه در خود ضربه و در لایه UI انجام می‌شود، مثل صفحه
-     * حالت بلاک — اینجا فقط تنظیم و انتخاب ثبت می‌شود تا refreshِ
-     * بعد از آن پرچم تلاش را زودتر از برگشت کاربر مصرف نکند.
+     * روشن‌کردن تنظیم محافظت (بدون باز کردن صفحه، بدون ثبت انتخاب و
+     * بدون refresh — refreshِ بعد از آن نباید پرچم تلاش فعال‌سازی را
+     * زودتر از برگشت کاربر از صفحه سیستمی مصرف کند). روشن‌کردن همیشه
+     * آزاد است. دقیقاً مثل صفحه حالت بلاک: انتخاب («انجام‌شدن مرحله»)
+     * اینجا ثبت نمی‌شود؛ مرحله با فعال‌شدن واقعی مدیر دستگاه یا با
+     * «الان نه» تمام می‌شود تا کارت تا معلوم‌شدن نتیجه سر جایش بماند.
      */
-    fun enableProtection() {
+    fun ensureProtectionEnabled() {
         viewModelScope.launch {
-            settingsStore.setUninstallProtectionEnabled(true)
-            settingsStore.setProtectionChoiceDone(true)
+            val enabled = runCatching {
+                settingsStore.uninstallProtectionEnabled.first()
+            }.getOrDefault(false)
+            if (!enabled) {
+                settingsStore.setUninstallProtectionEnabled(true)
+            }
         }
     }
 
@@ -266,8 +276,20 @@ class OnboardingViewModel @Inject constructor(
         activationAttempted = false
         _adminState.update {
             it.copy(
-                activationResult = "صفحه فعال‌سازی باز نشد — از تنظیمات گوشی: امنیت ← " +
-                    "Device admin apps ← «سد» را فعال کن.",
+                activationResult = "صفحه فعال‌سازی باز نشد — از دکمه " +
+                    "«رفتن به Device admin apps» زیر دستی انجام بده.",
+            )
+        }
+    }
+
+    /**
+     * فهرست «Device admin apps» مستقیم باز نشد و به تنظیمات امنیتی رفت —
+     * تا کاربر بداند از آنجا باید ادامه بدهد (خط تشخیص هم همین را می‌گوید).
+     */
+    fun noteDeviceAdminListFallback() {
+        _adminState.update {
+            it.copy(
+                activationResult = "فهرست Device admin apps مستقیم باز نشد — تنظیمات امنیتی باز شد؛ از آنجا: Device admin apps ← «سد».",
             )
         }
     }

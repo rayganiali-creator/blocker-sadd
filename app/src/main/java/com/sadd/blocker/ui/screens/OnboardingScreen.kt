@@ -45,6 +45,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.R
+import com.sadd.blocker.data.system.InstallSource
 import com.sadd.blocker.domain.OnboardingSteps
 import com.sadd.blocker.domain.UninstallProtectionGate
 import com.sadd.blocker.ui.OnboardingViewModel
@@ -77,7 +78,10 @@ import kotlinx.coroutines.launch
  * دکمه بزرگ خودش و دکمه «انجام شد، ادامه» دارد؛ تایید دستی مرحله‌های
  * ۱ و ۲ فقط «تأیید شما»ست تا وقتی سرویس واقعاً فعال شود.
  * اندروید برای برنامه‌های نصب‌شده دستی کلید دسترسی‌پذیری را قفل می‌کند
- * تا وقتی این اجازه داده نشود؛ هیچ کدی نمی‌تواند دورش بزند.
+ * تا وقتی این اجازه داده نشود؛ هیچ کدی نمی‌تواند دورش بزند. اگر «سد»
+ * از یک فروشگاه (کافه‌بازار، مایکت، گوگل‌پلی و…) یا با adb نصب شده
+ * باشد، این قفل نیست و مرحله دسترسی‌پذیری تک‌مرحله‌ای و مستقیم
+ * نشان داده می‌شود (منبع نصب هر بار زنده خوانده می‌شود).
  *
  * تیک هیچ مرحله‌ای جعل نمی‌شود: یا سیستم واقعاً آن را تایید کرده،
  * یا کاربر «انجامش دادم» را زده و «تأیید شما» نشان داده می‌شود.
@@ -260,41 +264,109 @@ fun OnboardingScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         if (currentStep.key == OnboardingSteps.KEY_ACCESSIBILITY) {
-                            Spacer(Modifier.height(SaddSpacing.Medium))
-                            Text(
-                                "اندروید برای برنامه‌هایی که دستی نصب شده‌اند، کلید دسترسی‌پذیری را " +
-                                    "قفل می‌کند تا وقتی از اطلاعات برنامه اجازه‌اش را بدهی؛ " +
-                                    "هیچ برنامه‌ای نمی‌تواند این قفل را دور بزند.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.height(SaddSpacing.Medium))
-                            AccessibilityPhases(
-                                currentPhase = accessibilityPhase,
-                                onOpenAccessibilitySettings = {
-                                    requestPermission(context, currentStep, launchers) {
-                                        viewModel.refresh()
-                                    }
-                                },
-                                onOpenAppInfo = { openAppInfoPage(context) },
-                                onConfirmPhase = { viewModel.confirmAccessibilityPhase(it) },
-                                onRefresh = { viewModel.refresh() },
-                            )
+                            // مسیر مرحله به منبع نصب بستگی دارد و هر بار زنده
+                            // خوانده می‌شود: نصب فروشگاهی/adb قفل «تنظیمات
+                            // محدودشده» ندارد و کلید از اول روشن است (مسیر
+                            // مستقیم تک‌مرحله‌ای)؛ نصب دستی دنباله سه‌مرحله‌ای
+                            // کلید خاکستری را می‌خواهد.
+                            val restrictedExpected =
+                                OnboardingSteps.isRestrictedSettingsExpected(
+                                    InstallSource.installerPackage(context),
+                                )
+                            if (restrictedExpected) {
+                                Spacer(Modifier.height(SaddSpacing.Medium))
+                                Text(
+                                    "اندروید برای برنامه‌هایی که دستی نصب شده‌اند، کلید دسترسی‌پذیری را " +
+                                        "قفل می‌کند تا وقتی از اطلاعات برنامه اجازه‌اش را بدهی؛ " +
+                                        "هیچ برنامه‌ای نمی‌تواند این قفل را دور بزند.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(SaddSpacing.Medium))
+                                AccessibilityPhases(
+                                    currentPhase = accessibilityPhase,
+                                    onOpenAccessibilitySettings = {
+                                        requestPermission(context, currentStep, launchers) {
+                                            viewModel.refresh()
+                                        }
+                                    },
+                                    onOpenAppInfo = { openAppInfoPage(context) },
+                                    onConfirmPhase = { viewModel.confirmAccessibilityPhase(it) },
+                                    onRefresh = { viewModel.refresh() },
+                                )
+                            } else {
+                                // مسیر مستقیم (نصب فروشگاهی): یک مرحله، بدون
+                                // تایید دستی — فعال‌شدن سرویس خودکار تشخیص
+                                // داده می‌شود، مثل مرحله ۳ دنباله کامل.
+                                Spacer(Modifier.height(SaddSpacing.Medium))
+                                AccessibilityPhaseBlock(
+                                    number = "۱",
+                                    phase = 1,
+                                    currentPhase = 1,
+                                    title = "«سد» را در دسترسی‌پذیری فعال کن",
+                                    steps = listOf(
+                                        "روی \u2066Installed apps\u2069 بزن.",
+                                        "روی «سد» بزن.",
+                                        "دکمه را روشن کن و \u2066Allow\u2069 کن.",
+                                    ),
+                                    buttonText = "رفتن به تنظیمات دسترسی‌پذیری",
+                                    onButtonClick = {
+                                        requestPermission(context, currentStep, launchers) {
+                                            viewModel.refresh()
+                                        }
+                                    },
+                                    showConfirm = false,
+                                    onConfirm = {},
+                                    onRefresh = { viewModel.refresh() },
+                                )
+                            }
                         } else if (currentStep.key == OnboardingSteps.KEY_PROTECTION) {
                             Spacer(Modifier.height(SaddSpacing.Medium))
-                            // «فعال کن»: تنظیم محافظت روشن و انتخاب ثبت می‌شود و صفحه
-                            // فعال‌سازی مدیر دستگاه همان‌جا با ضربه باز می‌شود (مثل
-                            // صفحه حالت بلاک)؛ شکست باز شدن با Toast و متن نتیجه
-                            // نشان داده می‌شود — هیچ‌وقت بی‌صدا نیست.
+                            // «فعال کن»: فقط تنظیم محافظت روشن می‌شود و صفحه
+                            // فعال‌سازی مدیر دستگاه همان‌جا با ضربه باز می‌شود
+                            // (دقیقاً مثل صفحه حالت بلاک). انتخاب اینجا ثبت
+                            // نمی‌شود تا کارت تا معلوم‌شدن نتیجه سر جایش بماند؛
+                            // مرحله با فعال‌شدن واقعی مدیر دستگاه یا «الان نه»
+                            // تمام می‌شود. شکست باز شدن با Toast و متن نتیجه
+                            // زیر همین دکمه نشان داده می‌شود — هیچ‌وقت بی‌صدا نیست.
                             SaddButton(
                                 text = "فعال کن",
                                 onClick = {
-                                    viewModel.enableProtection()
+                                    viewModel.ensureProtectionEnabled()
                                     viewModel.markActivationAttempted()
                                     if (!openAdminActivationPage(context)) {
                                         viewModel.markActivationLaunchFailed()
                                     }
                                 },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            // نتیجه آخرین تلاش فعال‌سازی — همان‌جا روی کارت،
+                            // تا بعد از برگشت از صفحه سیستمی دیده شود.
+                            uiState.activationResult?.let { result ->
+                                Spacer(Modifier.height(SaddSpacing.Small))
+                                Text(
+                                    result,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (uiState.protectionAdminActive) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        saddErrorTextColor()
+                                    },
+                                )
+                            }
+                            Spacer(Modifier.height(SaddSpacing.Small))
+                            // مسیر جایگزین دستی — مثل صفحه حالت بلاک: فهرست
+                            // «Device admin apps» مستقیم باز می‌شود و اگر
+                            // نشد، تنظیمات امنیتی باز می‌شود و متن نتیجه
+                            // می‌گوید از آنجا ادامه بده.
+                            SaddButton(
+                                text = "رفتن به Device admin apps",
+                                onClick = {
+                                    if (!openDeviceAdminAppsPage(context)) {
+                                        viewModel.noteDeviceAdminListFallback()
+                                    }
+                                },
+                                style = SaddButtonStyle.SECONDARY,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             Spacer(Modifier.height(SaddSpacing.Small))

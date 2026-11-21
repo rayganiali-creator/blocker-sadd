@@ -53,6 +53,32 @@ object OnboardingSteps {
     const val ACCESSIBILITY_PHASE_COUNT = 3
 
     /**
+     * نصب‌کننده‌هایی که قفل «تنظیمات محدودشده» شاملشان نمی‌شود:
+     * فروشگاه‌های شناخته‌شده و adb. اپی که از این‌ها نصب شده باشد،
+     * کلید دسترسی‌پذیری‌اش از اول روشن است.
+     */
+    val KNOWN_STORE_INSTALLERS = setOf(
+        "com.android.vending", // Google Play
+        "com.farsitel.bazaar", // کافه‌بازار
+        "ir.mservices.market", // مایکت
+        "com.android.shell", // adb
+        "com.sec.android.app.samsungapps", // Galaxy Store
+        "com.huawei.appmarket", // AppGallery
+    )
+
+    /**
+     * آیا انتظار می‌رود قفل «تنظیمات محدودشده» روی کلید دسترسی‌پذیری
+     * اعمال شود؟ برای نصب‌کننده‌های فروشگاهی/adb نه (مسیر مستقیم
+     * تک‌مرحله‌ای)؛ برای هر چیز دیگر — از جمله null و نامشخص — بله
+     * (دنباله سه‌مرحله‌ای کلید خاکستری). پیش‌فرض امن همین است: اگر
+     * قفل در واقع اعمال نشود، کاربر در مرحله ۱ کلید را می‌زند و
+     * روشن می‌شود و تشخیص خودکار مرحله را تمام می‌کند؛ برعکسش
+     * (مسیر مستقیم ولی کلید خاکستری) کاربر را گیر می‌اندازد.
+     */
+    fun isRestrictedSettingsExpected(installerPackage: String?): Boolean =
+        installerPackage !in KNOWN_STORE_INSTALLERS
+
+    /**
      * مرحله فعلی دنباله دسترسی‌پذیری؛ 0 یعنی دنباله تمام شده
      * (سرویس فعال است). مقدار ذخیره‌شده به ۱ تا ۳ محدود می‌شود.
      */
