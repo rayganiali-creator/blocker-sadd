@@ -120,47 +120,8 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }
 
-// ── حذف کلاس تکراری پرداخت از AAR مایکت ──────────────────────────────
-// هر دو کتابخانه پرداخت (ir.myket:billing و Poolakey) کلاس‌های
-// com.android.vending.billing.IInAppBillingService* را داخل classes.jar
-// خودشان دارند و :app:checkDebugDuplicateClasses بیلد را رد می‌کند
-// (ران ۲۰۵). این transform فقط روی ماژول مایکت اعمال می‌شود و آن
-// کلاس‌ها را از AAR مایکت حذف می‌کند؛ نسخه Poolakey می‌ماند که
-// ابرمجموعه نسخه مایکت است (همان ۷ متد با کد تراکنش یکسان + ۳ متد
-// اضافه — با javap روی بایت‌کد هر دو AAR راستی‌آزمایی شد). جزئیات و
-// دلیل امن‌بودن در buildSrc/src/main/kotlin/StripVendingBillingClasses.kt
-val vendingStripped = Attribute.of("vending-stripped", Boolean::class.javaObjectType)
-val aarArtifactType = Attribute.of("artifactType", String::class.java)
-
-dependencies {
-    attributesSchema {
-        it.attribute(vendingStripped)
-    }
-    // همه AARها پیش‌فرض «stripped» (true) حساب می‌شوند؛ فقط مایکت false
-    // می‌شود تا transform رویش اجرا شود (پایین). جهت برعکسِ این (نوع=false
-    // و مایکت=true) هرگز کار نمی‌کرد: آرتیفکت مایکت از اول true می‌گرفت و
-    // هیچ‌وقت با from=false transform جور نمی‌شد.
-    artifactTypes.maybeCreate("aar").attributes.attribute(vendingStripped, true)
-    registerTransform(StripVendingBillingClasses::class) {
-        it.from.attribute(vendingStripped, false).attribute(aarArtifactType, "aar")
-        it.to.attribute(vendingStripped, true).attribute(aarArtifactType, "aar")
-    }
-    components {
-        it.withModule("ir.myket:billing") { details ->
-            details.allVariants { variant ->
-                variant.attributes.attribute(vendingStripped, false)
-            }
-        }
-    }
-}
-
-// transformهای Gradle «درخواست‌محور» هستند: فقط وقتی اجرا می‌شوند که مقدار
-// هدف روی کانفیگ قابل‌حل درخواست شده باشد. با درخواست vending-stripped=true
-// روی همه کانفیگ‌های قابل‌حل، تنها AAR مایکت (تنها false) بازنویسی می‌شود و
-// بقیه AARها (true) دست‌نخورده می‌مانند. روی variant selection اثری ندارد
-// چون این attribute روی variantهای تولیدکننده وجود ندارد (غایب = سازگار).
-configurations.configureEach { config ->
-    if (config.isCanBeResolved) {
-        config.attributes.attribute(vendingStripped, true)
-    }
-}
+// حذف کلاس‌های تکراری پرداخت از AAR مایکت (تداخل با Poolakey، ران ۲۰۵):
+// ثبت transform در پلاگین buildSrc انجام می‌شود تا اسکریپت DSL درگیر
+// wiring نشود (ران‌های ۲۰۶ و ۲۰۷ روی همین wiring خطای کامپایل دادند).
+// جزئیات: buildSrc/src/main/kotlin/StripVendingBillingPlugin.kt
+apply<StripVendingBillingPlugin>()
