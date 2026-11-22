@@ -98,7 +98,7 @@ fun DiagnosticsScreen(
                 )
             }
             // چرخ‌دنده تنظیمات داشبورد به اینجا می‌رسد، پس انتخاب تم هم اینجاست.
-            ThemePickerSection(themeViewModel = themeViewModel)
+            ThemePickerSection(themeViewModel = themeViewModel, onNavigate = onNavigate)
             SectionTitle("مجوزها")
         }
         items(uiState.permissions, key = { it.key }) { permission ->

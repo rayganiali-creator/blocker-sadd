@@ -112,8 +112,14 @@ fun BackupScreen(
                 }
                 Spacer(Modifier.height(SaddSpacing.Medium))
                 SaddButton(
-                    text = "خروجی بکاپ (JSON)",
-                    onClick = { exportLauncher.launch("sadd-backup.json") },
+                    text = if (uiState.isPro) "خروجی بکاپ (JSON)" else "خروجی بکاپ (JSON) — پرو",
+                    onClick = {
+                        if (uiState.isPro) {
+                            exportLauncher.launch("sadd-backup.json")
+                        } else {
+                            viewModel.showProPrompt()
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -132,8 +138,14 @@ fun BackupScreen(
                 }
                 Spacer(Modifier.height(SaddSpacing.Medium))
                 SaddButton(
-                    text = "ورود بکاپ از فایل",
-                    onClick = { importLauncher.launch(arrayOf("application/json")) },
+                    text = if (uiState.isPro) "ورود بکاپ از فایل" else "ورود بکاپ از فایل — پرو",
+                    onClick = {
+                        if (uiState.isPro) {
+                            importLauncher.launch(arrayOf("application/json"))
+                        } else {
+                            viewModel.showProPrompt()
+                        }
+                    },
                     style = SaddButtonStyle.SECONDARY,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -165,6 +177,16 @@ fun BackupScreen(
             onUnlocked = { viewModel.confirmStrictUnlocked() },
             onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
             onDismiss = { viewModel.cancelStrictUnlock() },
+        )
+    }
+    if (uiState.proPromptVisible) {
+        ProPromptDialog(
+            text = "پشتیبان‌گیری و ریستور در سد پرو است.",
+            onGoToPro = {
+                viewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { viewModel.dismissProPrompt() },
         )
     }
 }

@@ -44,8 +44,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
 import com.sadd.blocker.data.system.PermissionHealthChecker
 import com.sadd.blocker.data.system.UninstallProtection
+import com.sadd.blocker.domain.ProEntitlement
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
@@ -107,6 +109,10 @@ data class StrictSettingsUiState(
     val adminDeactivatedNotice: Boolean = false,
     /** نتیجه آخرین تلاش فعال‌سازی مدیر دستگاه (فقط در حافظه؛ با تلاش بعدی پاک می‌شود). */
     val activationResult: String? = null,
+    /** سد پرو فعال است؟ (روشن‌کردن محافظت از حذف نصب امکان پرو است.) */
+    val isPro: Boolean = false,
+    /** دیالوگ «این امکان در سد پرو است» باز است. */
+    val proPromptVisible: Boolean = false,
 )
 
 /**
@@ -126,6 +132,7 @@ class StrictSettingsViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val uninstallProtection: UninstallProtection,
     private val permissionHealthChecker: PermissionHealthChecker,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(StrictSettingsUiState())
@@ -163,6 +170,13 @@ class StrictSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             sessionRepository.observeActive().collect { active ->
                 _uiState.update { it.copy(strictSessionActive = active?.strict == true) }
+            }
+        }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                _uiState.update {
+                    it.copy(isPro = ProEntitlement.isPro(state, System.currentTimeMillis()))
+                }
             }
         }
         refreshAdminState()
@@ -377,14 +391,30 @@ class StrictSettingsViewModel @Inject constructor(
     /**
      * روشن‌کردن تنظیم محافظت (بدون باز کردن صفحه و بدون refresh — refreshِ
      * بعد از آن نباید پرچم تلاش فعال‌سازی را زودتر از برگشت کاربر از صفحه
-     * سیستمی مصرف کند). روشن‌کردن همیشه آزاد است.
+     * سیستمی مصرف کند). روشن‌کردن محافظت امکان سد پرو است؛ در رایگان
+     * دیالوگ پرو باز می‌شود و تنظیم دست نمی‌خورد. اگر پرو تمام شود ولی
+     * محافظت از قبل روشن باشد، همان‌طور می‌ماند و بی‌صدا خاموش نمی‌شود؛
+     * فقط روشن‌کردن تازه گیت دارد. خاموش‌کردن هیچ‌وقت گیت پرو ندارد.
      */
     fun ensureProtectionEnabled() {
         val state = _uiState.value
         if (state.uninstallProtectionEnabled) return
         viewModelScope.launch {
+            if (!proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             settingsStore.setUninstallProtectionEnabled(true)
         }
+    }
+
+    /** نشان‌دادن دیالوگ پرو (از مسیرهای فعال‌سازی صفحه، قبل از بازکردن صفحه سیستمی). */
+    fun showProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = true) }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
     }
 
     /**
@@ -676,6 +706,17 @@ fun ModesScreen(
         )
     }
 
+    if (strictState.proPromptVisible) {
+        ProPromptDialog(
+            text = "جلوگیری از حذف نصب در سد پرو است.",
+            onGoToPro = {
+                strictViewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { strictViewModel.dismissProPrompt() },
+        )
+    }
+
     // تایید صریح خاموش‌کردن محافظت — بدون آن، ضربه روی تاگل هرگز مدیر
     // دستگاه را حذف نمی‌کند.
     var showProtectionOffConfirm by remember { mutableStateOf(false) }
@@ -795,14 +836,19 @@ fun ModesScreen(
                         checked = strictState.uninstallAdminActive,
                         onCheckedChange = {
                             if (!strictState.uninstallAdminActive) {
-                                // فعال‌کردن: مستقیم در همین ضربه، صفحه فعال‌سازی
-                                // باز می‌شود (نه با تغییر وضعیت — اگر تنظیم از
-                                // قبل روشن بود، هیچ انتقالی رخ نمی‌داد).
-                                strictViewModel.ensureProtectionEnabled()
-                                strictViewModel.markActivationAttempted()
-                                if (UninstallProtectionGate.shouldLaunchActivation(strictState.uninstallAdminActive)) {
-                                    if (!openAdminActivationPage(context)) {
-                                        strictViewModel.markActivationLaunchFailed()
+                                if (!strictState.isPro) {
+                                    // روشن‌کردن محافظت امکان سد پرو است.
+                                    strictViewModel.showProPrompt()
+                                } else {
+                                    // فعال‌کردن: مستقیم در همین ضربه، صفحه فعال‌سازی
+                                    // باز می‌شود (نه با تغییر وضعیت — اگر تنظیم از
+                                    // قبل روشن بود، هیچ انتقالی رخ نمی‌داد).
+                                    strictViewModel.ensureProtectionEnabled()
+                                    strictViewModel.markActivationAttempted()
+                                    if (UninstallProtectionGate.shouldLaunchActivation(strictState.uninstallAdminActive)) {
+                                        if (!openAdminActivationPage(context)) {
+                                            strictViewModel.markActivationLaunchFailed()
+                                        }
                                     }
                                 }
                             } else {
@@ -813,6 +859,22 @@ fun ModesScreen(
                         },
                         modifier = Modifier.weight(1f),
                         )
+                    }
+                    if (!strictState.isPro && !strictState.uninstallAdminActive) {
+                        Spacer(Modifier.height(SaddSpacing.Small))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Filled.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(SaddSpacing.Medium),
+                            )
+                            Spacer(Modifier.size(SaddSpacing.Small))
+                            Text(
+                                "این امکان در سد پرو است.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                     // اعلان: محافظت روشن بود ولی مدیر دستگاه از تنظیمات سیستم
                     // غیرفعال شد (اپ نمی‌تواند جلوی آن را بگیرد؛ فقط خبر می‌دهد).
@@ -873,10 +935,15 @@ fun ModesScreen(
                         SaddButton(
                             text = "فعال‌سازی مدیر دستگاه",
                             onClick = {
-                                strictViewModel.ensureProtectionEnabled()
-                                strictViewModel.markActivationAttempted()
-                                if (!openAdminActivationPage(context)) {
-                                    strictViewModel.markActivationLaunchFailed()
+                                if (!strictState.isPro) {
+                                    // روشن‌کردن محافظت امکان سد پرو است.
+                                    strictViewModel.showProPrompt()
+                                } else {
+                                    strictViewModel.ensureProtectionEnabled()
+                                    strictViewModel.markActivationAttempted()
+                                    if (!openAdminActivationPage(context)) {
+                                        strictViewModel.markActivationLaunchFailed()
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),

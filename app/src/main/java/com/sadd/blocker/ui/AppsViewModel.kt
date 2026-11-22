@@ -3,8 +3,12 @@ package com.sadd.blocker.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
 import com.sadd.blocker.data.system.InstalledAppInfo
 import com.sadd.blocker.data.system.InstalledAppsProvider
+import com.sadd.blocker.domain.CappableRule
+import com.sadd.blocker.domain.ProEntitlement
+import com.sadd.blocker.domain.ProState
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
@@ -20,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -41,6 +46,12 @@ data class AppsUiState(
     val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
     /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ. */
     val strictCooldownRequest: StrictCooldownRequest? = null,
+    /** سد پرو فعال است؟ (در رایگان سقف ۳ اپ فعال اعمال می‌شود.) */
+    val isPro: Boolean = false,
+    /** دیالوگ سقف رایگان/پرو باز است. */
+    val proPromptVisible: Boolean = false,
+    /** پکیج‌هایی که فعال‌اند ولی به‌خاطر سقف رایگان «متوقف» شده‌اند. */
+    val pausedPackages: Set<String> = emptySet(),
 )
 
 /**
@@ -55,19 +66,33 @@ class AppsViewModel @Inject constructor(
     private val installedAppsProvider: InstalledAppsProvider,
     sessionRepository: SessionRepository,
     private val settingsStore: SettingsStore,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AppsUiState())
     val uiState: StateFlow<AppsUiState> = _uiState.asStateFlow()
     private val strictGuard = StrictSessionGuard(sessionRepository)
     private var lastRemoved: BlockedApp? = null
+    /** آخرین وضعیت پرو برای محاسبه قانون‌های متوقف (سقف رایگان). */
+    private var latestProState: ProState = ProState()
     /** تغییر قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
     private var pendingStrictRuleChange: StrictRuleChange? = null
 
     init {
         viewModelScope.launch {
             repository.observe().collect { list ->
-                _uiState.update { it.copy(blocked = list) }
+                _uiState.update { it.copy(blocked = list, pausedPackages = pausedPackages(list)) }
+            }
+        }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                latestProState = state
+                _uiState.update {
+                    it.copy(
+                        isPro = ProEntitlement.isPro(state, System.currentTimeMillis()),
+                        pausedPackages = pausedPackages(it.blocked),
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -121,9 +146,19 @@ class AppsViewModel @Inject constructor(
     fun addSelected() {
         viewModelScope.launch {
             val packages = _uiState.value.selected.toList()
-            // افزودن قانون وسط سشن Strict آزاد است: فقط بلاک را قوی‌تر
-            // می‌کند (مثل تمدید سشن و افزودن زمان‌بندی). گیت Strict فقط
-            // روی حذف/غیرفعال/ویرایش قانونِ موجود است.
+            // سقف رایگان جدا از گیت Strict است: افزودن وسط سشن Strict
+            // آزاد است، ولی اگر دسته انتخاب‌شده از سقف ۳ اپ فعال رد شود،
+            // کاربر رایگان دیالوگ پرو می‌گیرد و چیزی اضافه نمی‌شود.
+            val state = _uiState.value
+            val enabledPackages = state.blocked.filter { it.enabled }.map { it.packageName }.toSet()
+            val newEnabledCount = packages.count { it !in enabledPackages }
+            val isPro = ProEntitlement.isPro(latestProState, System.currentTimeMillis())
+            if (!isPro && newEnabledCount > 0 &&
+                enabledPackages.size + newEnabledCount > ProEntitlement.FREE_RULE_CAP
+            ) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             applyAddSelected(packages)
         }
     }
@@ -145,6 +180,12 @@ class AppsViewModel @Inject constructor(
 
     fun setEnabled(packageName: String, enabled: Boolean) {
         viewModelScope.launch {
+            // روشن‌کردن اپ چهارم در رایگان دیالوگ پرو می‌گیرد؛
+            // خاموش‌کردن و حذف هیچ‌وقت سقف ندارند.
+            if (enabled && !canEnableMoreNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             // H-2: در سشن Strict نمی‌توان قانون فعال را غیرفعال کرد —
             // مگر بعد از بازگشایی Strict (تایپ متن / انتظار).
             if (!enabled && strictGuard.isStrictSessionActive()) {
@@ -273,5 +314,32 @@ class AppsViewModel @Inject constructor(
 
     fun dismissMessage() {
         _uiState.update { it.copy(message = null) }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
+    }
+
+    /** آیا اپ دیگری را می‌توان فعال کرد؟ (پرو: همیشه؛ رایگان: تا سقف ۳.) وضعیت پرو تازه خوانده می‌شود. */
+    private suspend fun canEnableMoreNow(): Boolean {
+        val enabledCount = _uiState.value.blocked.count { it.enabled }
+        return ProEntitlement.canEnableMore(
+            enabledCount,
+            proManager.proState.first(),
+            System.currentTimeMillis(),
+        )
+    }
+
+    /** اپ‌هایی که فعال‌اند ولی سقف رایگان متوقفشان کرده (ترتیب ساخت: createdAt). */
+    private fun pausedPackages(blocked: List<BlockedApp>): Set<String> {
+        val enforced = ProEntitlement.enforcedRuleIds(
+            blocked.map { CappableRule(it.packageName, it.enabled, it.createdAt) },
+            latestProState,
+            System.currentTimeMillis(),
+        )
+        return blocked
+            .filter { it.enabled && it.packageName !in enforced }
+            .map { it.packageName }
+            .toSet()
     }
 }

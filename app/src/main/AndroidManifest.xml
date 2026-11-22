@@ -16,6 +16,10 @@
     <!-- معافیت باتری: بدون این مجوز، دیالوگ سیستمی ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS باز نمی‌شود. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- پرداخت درون‌برنامه‌ای سد پرو: کافه‌بازار (Poolakey) و مایکت.
+         هر مجوز فقط وقتی اثر دارد که اپ از همان فروشگاه نصب شده باشد. -->
+    <uses-permission android:name="com.farsitel.bazaar.permission.PAY_THROUGH_BAZAAR" />
+    <uses-permission android:name="ir.mservices.market.BILLING" />
 
     <!-- برای resolveActivity صفحه فعال‌سازی مدیر دستگاه (تشخیص در کارت محافظت)
          و صفحه امنیت سیستم. بدون این، روی اندروید ۱۱+ ممکن است null بدهد. -->

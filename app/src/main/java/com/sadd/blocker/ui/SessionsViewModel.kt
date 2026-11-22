@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
 import com.sadd.blocker.data.system.UninstallProtection
+import com.sadd.blocker.domain.ProEntitlement
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictUnlock
@@ -50,6 +52,10 @@ data class SessionsUiState(
     val uninstallProtectionOn: Boolean = false,
     /** «سد» الان مدیر دستگاه فعال است یا نه (وضعیت زنده سیستم). */
     val uninstallAdminActive: Boolean = false,
+    /** سد پرو فعال است؟ (شروع سشن Strict امکان پرو است.) */
+    val isPro: Boolean = false,
+    /** دیالوگ «این امکان در سد پرو است» باز است. */
+    val proPromptVisible: Boolean = false,
 )
 
 /**
@@ -66,6 +72,7 @@ class SessionsViewModel @Inject constructor(
     private val startSessionUseCase: StartSessionUseCase,
     private val settingsStore: SettingsStore,
     private val uninstallProtection: UninstallProtection,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SessionsUiState())
@@ -97,6 +104,13 @@ class SessionsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.uninstallProtectionEnabled.collect { enabled ->
                 _uiState.update { it.copy(uninstallProtectionOn = enabled) }
+            }
+        }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                _uiState.update {
+                    it.copy(isPro = ProEntitlement.isPro(state, System.currentTimeMillis()))
+                }
             }
         }
         refreshAdminState()
@@ -144,10 +158,15 @@ class SessionsViewModel @Inject constructor(
      * شروع سشن — حالت (Strict یا معمولی) را صفحه موقع هر شروع از کاربر
      * می‌پرسد و همین‌جا تحویل می‌دهد؛ دیگر از حالت ذخیره‌شده خوانده
      * نمی‌شود. حالت ذخیره‌شده فقط پیش‌فرضِ پیشنهادی در دیالوگ است.
-     * شروع سشن Strict همیشه آزاد است؛ قفل فقط برای پایان و تغییر است.
+     * شروع سشن Strict امکان سد پرو است؛ سشن معمولی همیشه آزاد است.
+     * (پایان سشن — از هر نوع — هیچ‌وقت گیت پرو ندارد.)
      */
     fun startSession(durationMs: Long, strict: Boolean) {
         viewModelScope.launch {
+            if (strict && !proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             val result = startSessionUseCase.execute(
                 durationMs,
                 strict,
@@ -283,6 +302,10 @@ class SessionsViewModel @Inject constructor(
 
     fun cancelStrictUnlock() {
         _uiState.update { it.copy(strictUnlockVisible = false) }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
     }
 
     fun dismissMessage() {

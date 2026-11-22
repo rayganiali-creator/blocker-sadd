@@ -7,9 +7,12 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.sadd.blocker.core.PinCrypto
 import com.sadd.blocker.domain.DelayMigration
+import com.sadd.blocker.domain.ProEntitlement
+import com.sadd.blocker.domain.ProState
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictUnlock
@@ -131,6 +134,21 @@ class SettingsStore @Inject constructor(
          * دست نخورد.
          */
         val PRESETS_DEFAULT_OFF_MIGRATED = booleanPreferencesKey("presets_default_off_migrated")
+
+        /** زمان نصب اپ (میلی‌ثانیه) — یک‌بار در اولین اجرا ثبت می‌شود؛ مبنای دوره آزمایشی پرو. */
+        val FIRST_INSTALL_AT_MS = longPreferencesKey("first_install_at_ms")
+
+        /** پایان پرو خریداری‌شده (میلی‌ثانیه)؛ ۰ یعنی خرید زمانی فعالی نیست. */
+        val PRO_UNTIL_MS = longPreferencesKey("pro_until_ms")
+
+        /** پلن مادام‌العمر پرو خریده شده است. */
+        val PRO_LIFETIME_OWNED = booleanPreferencesKey("pro_lifetime_owned")
+
+        /** فعال‌سازی پرو با کد توسعه‌دهنده (ژست مخفی روی تصویر خرس). */
+        val PRO_DEV_UNLOCK = booleanPreferencesKey("pro_dev_unlock")
+
+        /** توکن خریدهایی که قبلاً اعمال شده‌اند تا آشتی‌دادن با فروشگاه دوباره حسابشان نکند. */
+        val PRO_PROCESSED_TOKENS = stringSetPreferencesKey("pro_processed_tokens")
 
         /** بعد از ۵ تلاش اشتباه، PIN قفل می‌شود (H-8). */
         const val PIN_MAX_ATTEMPTS = 5
@@ -491,6 +509,52 @@ class SettingsStore @Inject constructor(
             prefs.remove(PIN_HASH_VERSION)
             prefs.remove(PIN_FAILED_ATTEMPTS)
             prefs.remove(PIN_LOCKED_UNTIL)
+        }
+    }
+
+    // ---------- سد پرو ----------
+
+    /** وضعیت ذخیره‌شده پرو (زمان نصب، پایان خرید، مادام‌العمر، کد توسعه‌دهنده، توکن‌ها). */
+    val proState: Flow<ProState> = safeData
+        .map { prefs ->
+            ProState(
+                firstInstallAtMs = prefs[FIRST_INSTALL_AT_MS] ?: 0L,
+                proUntilMs = prefs[PRO_UNTIL_MS] ?: 0L,
+                lifetimeOwned = prefs[PRO_LIFETIME_OWNED] == true,
+                devUnlock = prefs[PRO_DEV_UNLOCK] == true,
+                processedPurchaseTokens = prefs[PRO_PROCESSED_TOKENS] ?: emptySet(),
+            )
+        }
+
+    /**
+     * ثبت یک‌باره زمان نصب: اگر قبلاً ثبت شده دست نمی‌خورد؛ وگرنه زمان
+     * نصب PackageManager و اگر آن هم نبود، زمان اولین اجرا. مبنای دوره
+     * آزمایشی سه‌روزه پرو است.
+     */
+    suspend fun ensureFirstInstallAt(packageFirstInstallMs: Long, nowMs: Long) {
+        val stored = safeData.first()[FIRST_INSTALL_AT_MS] ?: 0L
+        val resolved = ProEntitlement.resolveFirstInstallAt(stored, packageFirstInstallMs, nowMs)
+        if (resolved == stored && stored > 0L) return
+        context.settingsDataStore.edit { prefs ->
+            prefs[FIRST_INSTALL_AT_MS] = resolved
+        }
+    }
+
+    /** ذخیره کل وضعیت پرو (بعد از خرید/آشتی‌دادن/کد توسعه‌دهنده). */
+    suspend fun updateProState(state: ProState) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[FIRST_INSTALL_AT_MS] = state.firstInstallAtMs
+            prefs[PRO_UNTIL_MS] = state.proUntilMs
+            prefs[PRO_LIFETIME_OWNED] = state.lifetimeOwned
+            prefs[PRO_DEV_UNLOCK] = state.devUnlock
+            prefs[PRO_PROCESSED_TOKENS] = state.processedPurchaseTokens
+        }
+    }
+
+    /** روشن/خاموش‌کردن فعال‌سازی توسعه‌دهنده (کد مخفی). */
+    suspend fun setDevUnlock(unlocked: Boolean) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[PRO_DEV_UNLOCK] = unlocked
         }
     }
 }

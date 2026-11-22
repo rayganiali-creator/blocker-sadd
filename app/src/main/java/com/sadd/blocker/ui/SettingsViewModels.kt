@@ -6,6 +6,8 @@ import com.sadd.blocker.core.PinCrypto
 import com.sadd.blocker.data.datastore.AppTheme
 import com.sadd.blocker.data.datastore.ColorTheme
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
+import com.sadd.blocker.domain.ProEntitlement
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
@@ -291,6 +293,10 @@ class DelayViewModel @Inject constructor(
 data class PinUiState(
     val pinSet: Boolean = false,
     val message: String? = null,
+    /** سد پرو فعال است؟ (قفل PIN امکان پرو است؛ حذف PIN همیشه آزاد است.) */
+    val isPro: Boolean = false,
+    /** دیالوگ «این امکان در سد پرو است» باز است. */
+    val proPromptVisible: Boolean = false,
 )
 
 data class ThemeUiState(
@@ -308,11 +314,16 @@ data class ThemeUiState(
     val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
     /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ — مثل بالا، نگه داشته شده. */
     val strictCooldownRequest: StrictCooldownRequest? = null,
+    /** سد پرو فعال است؟ (رنگ‌بندی‌های غیر از پیش‌فرض امکان پرو است.) */
+    val isPro: Boolean = false,
+    /** دیالوگ «این امکان در سد پرو است» باز است. */
+    val proPromptVisible: Boolean = false,
 )
 
 @HiltViewModel
 class ThemeViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ThemeUiState())
@@ -344,6 +355,13 @@ class ThemeViewModel @Inject constructor(
                 _uiState.update { it.copy(strictCooldownRequest = request) }
             }
         }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                _uiState.update {
+                    it.copy(isPro = ProEntitlement.isPro(state, System.currentTimeMillis()))
+                }
+            }
+        }
         // پاک‌سازی یک‌باره درخواست انتظارِ قدیمیِ «تغییر تم/رنگ‌بندی»:
         // این تغییر دیگر گیت ندارد، پس درخواستِ ثبت‌شده قبل از این تغییر
         // در ModesScreen به‌صورت کارت شمارش معکوسِ گیرکرده می‌ماند؛
@@ -373,12 +391,25 @@ class ThemeViewModel @Inject constructor(
         }
     }
 
-    /** تغییر رنگ‌بندی — آزاد مثل [setTheme] (صرفاً ظاهری است). */
+    /**
+     * تغییر رنگ‌بندی — از نظر Strict آزاد مثل [setTheme] (صرفاً ظاهری
+     * است)، ولی رنگ‌بندی‌های غیر از پیش‌فرض (سد) امکان سد پرو است؛ در
+     * رایگان دیالوگ پرو باز می‌شود. رنگ‌بندی پروِ از قبل انتخاب‌شده با
+     * تمام‌شدن پرو سر جایش می‌ماند؛ فقط انتخاب تازه گیت دارد.
+     */
     fun setColorTheme(colorTheme: ColorTheme) {
         viewModelScope.launch {
             if (colorTheme == _uiState.value.colorTheme) return@launch
+            if (colorTheme != ColorTheme.SADD && !proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             settingsStore.setColorTheme(colorTheme)
         }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
     }
 
     /**
@@ -403,6 +434,7 @@ class ThemeViewModel @Inject constructor(
 @HiltViewModel
 class PinViewModel @Inject constructor(
     private val settingsStore: SettingsStore,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PinUiState())
@@ -414,11 +446,22 @@ class PinViewModel @Inject constructor(
                 _uiState.update { it.copy(pinSet = pinSet) }
             }
         }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                _uiState.update {
+                    it.copy(isPro = ProEntitlement.isPro(state, System.currentTimeMillis()))
+                }
+            }
+        }
     }
 
-    /** تنظیم PIN اول. */
+    /** تنظیم PIN اول. قفل PIN امکان سد پرو است؛ حذف PIN همیشه آزاد است. */
     fun setPin(newPin: String, confirmPin: String) {
         viewModelScope.launch {
+            if (!proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             if (newPin != confirmPin) {
                 _uiState.update { it.copy(message = "تکرار PIN با PIN جدید یکی نیست.") }
                 return@launch
@@ -436,9 +479,13 @@ class PinViewModel @Inject constructor(
         }
     }
 
-    /** تغییر PIN — نیازمند PIN فعلی. */
+    /** تغییر PIN — نیازمند PIN فعلی. مثل تنظیم، امکان سد پرو است. */
     fun changePin(oldPin: String, newPin: String, confirmPin: String) {
         viewModelScope.launch {
+            if (!proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             when (val check = settingsStore.verify(oldPin)) {
                 is PinCheckResult.Ok -> Unit
                 is PinCheckResult.Wrong -> {
@@ -491,6 +538,10 @@ class PinViewModel @Inject constructor(
             settingsStore.clearPin()
             _uiState.update { it.copy(message = "PIN حذف شد.") }
         }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
     }
 
     fun dismissMessage() {

@@ -73,6 +73,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -454,6 +455,70 @@ fun SaddDialog(
                 onClick = onDismiss,
                 colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
             ) { Text(cancelText) }
+        },
+    )
+}
+
+/**
+ * دیالوگ مشترک امکانات سد پرو: وقتی کاربر رایگان امکان پرو را می‌زند،
+ * این دیالوگ او را به صفحه «سد پرو» می‌برد. امکانات پرو پنهان
+ * نمی‌شوند — با قفل دیده می‌شوند و ضربه‌شان همین‌جا می‌رسد.
+ */
+@Composable
+fun ProPromptDialog(
+    text: String = "این امکان در سد پرو است.",
+    onGoToPro: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    SaddDialog(
+        title = "سد پرو",
+        text = text,
+        confirmText = "دیدن سد پرو",
+        cancelText = "بعداً",
+        onConfirm = onGoToPro,
+        onDismiss = onDismiss,
+    )
+}
+
+/**
+ * دیالوگ کد فعال‌سازی توسعه‌دهنده — فقط با ژست مخفی روی تصویر خرس
+ * (۷ ضربه در ۳ ثانیه) باز می‌شود. برای کد درست و غلط یکسان بسته
+ * می‌شود و هیچ خطایی نشان نمی‌دهد تا وجود این مسیر از رفتارش لو نرود.
+ * هیچ‌جای UI به این ژست یا کد اشاره‌ای نشده است.
+ */
+@Composable
+fun AdminCodeDialog(
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var code by remember { mutableStateOf("") }
+    val shape = RoundedCornerShape(SaddRadius.Dialog)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.border(SaddGlass.BorderWidth, saddSpecularBorderBrush(), shape),
+        shape = shape,
+        containerColor = saddGlassDialogContainerColor(),
+        title = { Text("فعال‌سازی", fontWeight = FontWeight.Bold) },
+        text = {
+            SaddTextField(
+                value = code,
+                onValueChange = { code = it },
+                label = "کد",
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(code) },
+                colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
+            ) { Text("تایید") }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = saddPrimaryTextColor()),
+            ) { Text("لغو") }
         },
     )
 }

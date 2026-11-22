@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SectionDetector
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
 import com.sadd.blocker.data.system.InstalledAppInfo
 import com.sadd.blocker.data.system.InstalledAppsProvider
+import com.sadd.blocker.domain.ProEntitlement
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
@@ -38,6 +40,10 @@ data class SectionRulesUiState(
     val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
     /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ. */
     val strictCooldownRequest: StrictCooldownRequest? = null,
+    /** سد پرو فعال است؟ (بخش‌های اپ امکان پرو است؛ بلاک کل اپ از صفحه اپ‌ها رایگان است.) */
+    val isPro: Boolean = false,
+    /** دیالوگ «این امکان در سد پرو است» باز است. */
+    val proPromptVisible: Boolean = false,
 )
 
 /**
@@ -59,6 +65,7 @@ class SectionRulesViewModel @Inject constructor(
     private val installedAppsProvider: InstalledAppsProvider,
     sessionRepository: SessionRepository,
     private val settingsStore: SettingsStore,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SectionRulesUiState())
@@ -106,6 +113,13 @@ class SectionRulesViewModel @Inject constructor(
                 _uiState.update { it.copy(strictCooldownRequest = request) }
             }
         }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                _uiState.update {
+                    it.copy(isPro = ProEntitlement.isPro(state, System.currentTimeMillis()))
+                }
+            }
+        }
         // پاک‌سازی یک‌باره درخواست انتظارِ قدیمیِ «افزودن قانون»: افزودن
         // قانون دیگر گیت ندارد (فقط بلاک را قوی‌تر می‌کند)، پس
         // درخواستِ ثبت‌شده قبل از این تغییر نباید در ModesScreen به‌صورت
@@ -121,6 +135,12 @@ class SectionRulesViewModel @Inject constructor(
 
     fun setEnabled(packageName: String, sectionKey: String, enabled: Boolean) {
         viewModelScope.launch {
+            // روشن‌کردن بخش امکان سد پرو است (بلاک کل اپ از صفحه اپ‌ها
+            // رایگان است). خاموش‌کردن و حذف هیچ‌وقت گیت پرو ندارند.
+            if (enabled && !proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             // H-2: در سشن Strict نمی‌توان قانون فعال را غیرفعال کرد —
             // مگر بعد از بازگشایی Strict (تایپ متن / انتظار).
             if (!enabled && strictGuard.isStrictSessionActive()) {
@@ -144,6 +164,12 @@ class SectionRulesViewModel @Inject constructor(
      */
     fun addWholeApp(packageName: String, appLabel: String) {
         viewModelScope.launch {
+            // صفحه بخش‌ها امکان سد پرو است؛ بلاک کل اپ در نسخه رایگان
+            // از صفحه اپ‌ها انجام می‌شود.
+            if (!proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             if (SectionDetector.PRESETS.any { preset ->
                     preset.packageName == packageName &&
                         SectionDetector.isWholeAppSection(preset.sectionKey)
@@ -182,6 +208,10 @@ class SectionRulesViewModel @Inject constructor(
      */
     fun addCustomSection(packageName: String, appLabel: String, name: String, signal: String) {
         viewModelScope.launch {
+            if (!proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             val trimmedName = name.trim()
             if (trimmedName.isEmpty()) {
                 _uiState.update { it.copy(message = "نام بخش را بنویس.") }
@@ -338,6 +368,10 @@ class SectionRulesViewModel @Inject constructor(
     fun cancelStrictUnlock() {
         pendingStrictRuleChange = null
         _uiState.update { it.copy(strictUnlockVisible = false) }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
     }
 
     /** اعمال تغییر قانونِ بازگشایی‌شده (فقط scope همین صفحه). */

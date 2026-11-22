@@ -85,6 +85,17 @@ fun SchedulingScreen(
         )
     }
 
+    if (uiState.proPromptVisible) {
+        ProPromptDialog(
+            text = "زمان‌بندی خودکار در سد پرو است.",
+            onGoToPro = {
+                viewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { viewModel.dismissProPrompt() },
+        )
+    }
+
     var selectedDays by rememberSaveable { mutableStateOf(listOf<String>()) }
     var startText by rememberSaveable { mutableStateOf("08:00") }
     var endText by rememberSaveable { mutableStateOf("22:00") }
@@ -174,7 +185,7 @@ fun SchedulingScreen(
                         )
                         Spacer(Modifier.height(SaddSpacing.Small))
                         SaddButton(
-                            text = "افزودن زمان‌بندی",
+                            text = if (uiState.isPro) "افزودن زمان‌بندی" else "افزودن زمان‌بندی (پرو)",
                             onClick = {
                                 viewModel.addSchedule(selectedDays.toSet(), startText, endText, strict)
                                 selectedDays = emptyList()

@@ -23,6 +23,8 @@ object BlockEventKind {
     const val KEYWORD_TYPED = "keyword_typed"
     /** ورود به بخش بلاک‌شده یک اپ (جستجو/اکسپلور) با BACK برگردانده شد. */
     const val SECTION_OPENED = "section_opened"
+    /** ورود به اپِ کاملاً بلاک‌شده (قانون صفحه اپ‌ها) با BACK برگردانده شد. */
+    const val APP_OPENED = "app_opened"
     /** سایت بلاک‌شده در مرورگر با BACK برگردانده شد. */
     const val WEBSITE_OPENED = "website_opened"
     /** نگهبان حذف نصب/توقف اجباری صفحه محافظت‌شده را رهگیری کرد. */

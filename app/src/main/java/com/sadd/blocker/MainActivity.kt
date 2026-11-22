@@ -53,6 +53,7 @@ import androidx.navigation.compose.rememberNavController
 import com.sadd.blocker.data.datastore.AppTheme
 import com.sadd.blocker.data.datastore.ColorTheme
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
 import com.sadd.blocker.ui.screens.AboutScreen
 import com.sadd.blocker.ui.screens.AppsScreen
 import com.sadd.blocker.ui.screens.BackupScreen
@@ -64,6 +65,7 @@ import com.sadd.blocker.ui.screens.KeywordsScreen
 import com.sadd.blocker.ui.screens.ModesScreen
 import com.sadd.blocker.ui.screens.OnboardingScreen
 import com.sadd.blocker.ui.screens.PinScreen
+import com.sadd.blocker.ui.screens.ProScreen
 import com.sadd.blocker.ui.screens.SchedulingScreen
 import com.sadd.blocker.ui.screens.SectionRulesScreen
 import com.sadd.blocker.ui.screens.SessionsScreen
@@ -91,10 +93,22 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var settingsStore: SettingsStore
 
+    @Inject
+    lateinit var proManager: ProManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // مهاجرت یک‌باره تاخیر پیش‌فرض به فوری (نصب‌های قدیمی با ۵ ثانیه ذخیره‌شده).
         lifecycleScope.launch { settingsStore.migrateDelayDefaultIfNeeded() }
+        // سد پرو: ثبت یک‌باره زمان نصب (مبنای دوره آزمایشی) و آشتی‌دادن
+        // با خریدهای فروشگاه (بازیابی بعد از نصب دوباره). خطا بی‌صداست —
+        // وضعیت ذخیره‌شده DataStore همچنان معتبر می‌ماند.
+        lifecycleScope.launch {
+            runCatching {
+                proManager.ensureFirstInstallAt()
+                proManager.reconcile()
+            }
+        }
         setContent {
             val theme by settingsStore.theme.collectAsStateWithLifecycle(initialValue = AppTheme.DARK)
             val colorTheme by settingsStore.colorTheme.collectAsStateWithLifecycle(initialValue = ColorTheme.SADD)
@@ -258,6 +272,12 @@ fun BlockerNav(
             }
             composable("about") {
                 AboutScreen(
+                    onNavigate = { navController.navigate(it) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable("pro") {
+                ProScreen(
                     onNavigate = { navController.navigate(it) },
                     onBack = { navController.popBackStack() },
                 )

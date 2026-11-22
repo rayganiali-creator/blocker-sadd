@@ -143,6 +143,17 @@ fun SessionsScreen(
         )
     }
 
+    if (uiState.proPromptVisible) {
+        ProPromptDialog(
+            text = "شروع سشن سخت‌گیرانه (Strict) در سد پرو است.",
+            onGoToPro = {
+                viewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { viewModel.dismissProPrompt() },
+        )
+    }
+
     // انتخاب حالت موقع هر شروع سشن — بدون گزینه «به خاطر بسپار»؛
     // حالت ذخیره‌شده فقط پیش‌فرضِ پیشنهادی است.
     val pendingDuration = pendingStartDuration
@@ -150,9 +161,14 @@ fun SessionsScreen(
         StartModeDialog(
             durationLabel = TimeFormat.durationLabel(pendingDuration),
             defaultStrict = uiState.blockMode == BlockMode.STRICT,
+            strictLocked = !uiState.isPro,
             onPick = { strict ->
                 pendingStartDuration = null
                 viewModel.startSession(pendingDuration, strict)
+            },
+            onStrictLocked = {
+                pendingStartDuration = null
+                onNavigate("pro")
             },
             onDismiss = { pendingStartDuration = null },
         )
@@ -371,13 +387,16 @@ fun SessionsScreen(
  * دیالوگ انتخاب حالت موقع شروع سشن — موقع هر شروع نشان داده می‌شود،
  * بدون گزینه «به خاطر بسپار». گزینه پیش‌فرض (از صفحه «حالت بلاک»)
  * با برچسب «پیش‌فرض» مشخص است، ولی شروع فقط با زدن یکی از دو گزینه
- * انجام می‌شود. شروع سشن Strict آزاد است؛ قفل فقط برای پایان و تغییر است.
+ * انجام می‌شود. شروع سشن Strict امکان سد پرو است؛ در رایگان گزینه‌اش
+ * برچسب «پرو» دارد و ضربه‌اش به صفحه پرو می‌رود. سشن معمولی آزاد است.
  */
 @Composable
 private fun StartModeDialog(
     durationLabel: String,
     defaultStrict: Boolean,
+    strictLocked: Boolean,
     onPick: (Boolean) -> Unit,
+    onStrictLocked: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     // شیشه‌ای مثل SaddDialog: سطح نیمه‌شفاف + حاشیه درخشان، شعاع ۲۸dp.
@@ -402,7 +421,8 @@ private fun StartModeDialog(
                     icon = Icons.Filled.Lock,
                     iconColor = ChipYellow,
                     isDefault = defaultStrict,
-                    onClick = { onPick(true) },
+                    locked = strictLocked,
+                    onClick = { if (strictLocked) onStrictLocked() else onPick(true) },
                 )
                 Spacer(Modifier.height(SaddSpacing.Small))
                 StartModeOption(
@@ -411,6 +431,7 @@ private fun StartModeDialog(
                     icon = Icons.Filled.PlayArrow,
                     iconColor = ChipMint,
                     isDefault = !defaultStrict,
+                    locked = false,
                     onClick = { onPick(false) },
                 )
             }
@@ -425,7 +446,7 @@ private fun StartModeDialog(
     )
 }
 
-/** یک گزینه حالت در دیالوگ شروع سشن به سبک Liquid Glass: چیپ آیکون رنگی + عنوان و توضیح + برچسب پیش‌فرض؛ سطح شیشه‌ای و حاشیه پیش‌فرض primary توپر، بقیه حاشیه درخشان. */
+/** یک گزینه حالت در دیالوگ شروع سشن به سبک Liquid Glass: چیپ آیکون رنگی + عنوان و توضیح + برچسب پیش‌فرض؛ سطح شیشه‌ای و حاشیه پیش‌فرض primary توپر، بقیه حاشیه درخشان. گزینه قفل‌دار برچسب «پرو» می‌گیرد. */
 @Composable
 private fun StartModeOption(
     title: String,
@@ -433,6 +454,7 @@ private fun StartModeOption(
     icon: ImageVector,
     iconColor: Color,
     isDefault: Boolean,
+    locked: Boolean,
     onClick: () -> Unit,
 ) {
     Row(
@@ -461,7 +483,14 @@ private fun StartModeOption(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
-                if (isDefault) {
+                if (locked) {
+                    Text(
+                        "پرو",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = saddPrimaryTextColor(),
+                    )
+                } else if (isDefault) {
                     Text(
                         "پیش‌فرض",
                         style = MaterialTheme.typography.bodySmall,

@@ -48,6 +48,7 @@ import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddGlass
 import com.sadd.blocker.ui.theme.SaddSpacing
 import com.sadd.blocker.ui.theme.saddGlassSurfaceColor
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 import com.sadd.blocker.ui.theme.saddSelectedContainerColor
 import com.sadd.blocker.ui.theme.saddSpecularBorderColor
 
@@ -73,6 +74,17 @@ fun KeywordsScreen(
             onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
             onUnlocked = { viewModel.confirmStrictUnlocked() },
             onDismiss = { viewModel.cancelStrictUnlock() },
+        )
+    }
+
+    if (uiState.proPromptVisible) {
+        ProPromptDialog(
+            text = "در نسخه رایگان حداکثر ۳ کلمه فعال می‌شود. با سد پرو کلمه نامحدود داری.",
+            onGoToPro = {
+                viewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { viewModel.dismissProPrompt() },
         )
     }
 
@@ -236,6 +248,13 @@ fun KeywordsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                if (rule.id in uiState.pausedRuleIds) {
+                                    Text(
+                                        "متوقف — در نسخه رایگان فقط ۳ کلمه اول فعال است (سد پرو).",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = saddPrimaryTextColor(),
+                                    )
+                                }
                             }
                             Switch(
                                 checked = rule.enabled,

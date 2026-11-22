@@ -48,6 +48,7 @@ import com.sadd.blocker.ui.screens.StrictUnlockDialog
 @Composable
 fun ThemePickerSection(
     themeViewModel: ThemeViewModel = hiltViewModel(),
+    onNavigate: (String) -> Unit = {},
 ) {
     val themeState by themeViewModel.uiState.collectAsStateWithLifecycle()
     SectionTitle("تم")
@@ -78,6 +79,7 @@ fun ThemePickerSection(
             PaletteCard(
                 selected = themeState.colorTheme == palette,
                 palette = palette,
+                locked = palette != ColorTheme.SADD && !themeState.isPro,
                 onClick = { themeViewModel.setColorTheme(palette) },
             )
         }
@@ -98,11 +100,21 @@ fun ThemePickerSection(
             onDismiss = { themeViewModel.cancelStrictUnlock() },
         )
     }
+    if (themeState.proPromptVisible) {
+        ProPromptDialog(
+            text = "این رنگ‌بندی در سد پرو است.",
+            onGoToPro = {
+                themeViewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { themeViewModel.dismissProPrompt() },
+        )
+    }
 }
 
-/** کارت نرم و بالشتی یک رنگ‌بندی: سه نقطه رنگ + نام فارسی؛ انتخاب‌شده قاب دارد. */
+/** کارت نرم و بالشتی یک رنگ‌بندی: سه نقطه رنگ + نام فارسی؛ انتخاب‌شده قاب دارد. رنگ‌بندی پرو در رایگان آیکون قفل دارد. */
 @Composable
-private fun PaletteCard(selected: Boolean, palette: ColorTheme, onClick: () -> Unit) {
+private fun PaletteCard(selected: Boolean, palette: ColorTheme, locked: Boolean, onClick: () -> Unit) {
     // نقطه‌ها از نسخه روشن پالت می‌آیند تا در هر دو حالت تم خوانا باشند.
     val scheme = colorSchemeFor(palette, dark = false)
     val dots = listOf(scheme.primary, scheme.secondary, scheme.tertiary)
@@ -150,6 +162,15 @@ private fun PaletteCard(selected: Boolean, palette: ColorTheme, onClick: () -> U
                     MaterialTheme.colorScheme.onSurface
                 },
             )
+            if (locked) {
+                Spacer(Modifier.size(SaddSpacing.Small))
+                androidx.compose.material3.Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Filled.Lock,
+                    contentDescription = "سد پرو",
+                    modifier = Modifier.size(SaddSpacing.Medium),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

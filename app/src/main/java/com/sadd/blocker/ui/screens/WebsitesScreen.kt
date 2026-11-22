@@ -40,6 +40,7 @@ import com.sadd.blocker.ui.theme.ChipPink
 import com.sadd.blocker.ui.theme.ChipPurple
 import com.sadd.blocker.ui.theme.ChipYellow
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 
 /**
  * بلاک وب‌سایت‌ها.
@@ -64,6 +65,17 @@ fun WebsitesScreen(
             onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
             onUnlocked = { viewModel.confirmStrictUnlocked() },
             onDismiss = { viewModel.cancelStrictUnlock() },
+        )
+    }
+
+    if (uiState.proPromptVisible) {
+        ProPromptDialog(
+            text = "در نسخه رایگان حداکثر ۳ وب‌سایت فعال می‌شود. با سد پرو نامحدود است.",
+            onGoToPro = {
+                viewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { viewModel.dismissProPrompt() },
         )
     }
 
@@ -166,6 +178,13 @@ fun WebsitesScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                if (site.id in uiState.pausedRuleIds) {
+                                    Text(
+                                        "متوقف — در نسخه رایگان فقط ۳ وب‌سایت اول فعال است (سد پرو).",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = saddPrimaryTextColor(),
+                                    )
+                                }
                             }
                             Switch(
                                 checked = site.enabled,

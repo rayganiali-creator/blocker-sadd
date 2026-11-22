@@ -50,6 +50,17 @@ fun PinScreen(
     var newPin by rememberSaveable { mutableStateOf("") }
     var confirmPin by rememberSaveable { mutableStateOf("") }
 
+    if (uiState.proPromptVisible) {
+        ProPromptDialog(
+            text = "قفل PIN در سد پرو است.",
+            onGoToPro = {
+                viewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { viewModel.dismissProPrompt() },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -122,7 +133,12 @@ fun PinScreen(
         )
         Spacer(Modifier.height(SaddSpacing.Medium))
         SaddButton(
-            text = if (uiState.pinSet) "تغییر PIN" else "تنظیم PIN",
+            text = when {
+                uiState.pinSet && uiState.isPro -> "تغییر PIN"
+                uiState.pinSet -> "تغییر PIN (پرو)"
+                uiState.isPro -> "تنظیم PIN"
+                else -> "تنظیم PIN (پرو)"
+            },
             onClick = {
                 if (uiState.pinSet) {
                     viewModel.changePin(oldPin, newPin, confirmPin)

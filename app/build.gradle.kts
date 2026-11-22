@@ -89,6 +89,12 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
+    // پرداخت درون‌برنامه‌ای سد پرو — کافه‌بازار (Poolakey از JitPack) و مایکت.
+    // هشدار: مختصات و نسخه این دو در این جلسه از وب راستی‌آزمایی نشدند؛
+    // قبل از انتشار با مستندات رسمی هر فروشگاه تطبیق داده شوند.
+    implementation("com.github.cafebazaar.Poolakey:poolakey:2.2.0")
+    implementation("ir.mservices.market:billing:1.6")
+
     // Tests (unit)
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")

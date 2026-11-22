@@ -2,6 +2,8 @@ package com.sadd.blocker.di
 
 import android.content.Context
 import androidx.room.Room
+import com.sadd.blocker.data.billing.BillingGateway
+import com.sadd.blocker.data.billing.BillingGatewayFactory
 import com.sadd.blocker.data.db.AppDatabase
 import com.sadd.blocker.data.db.BlockedAppDao
 import com.sadd.blocker.data.db.BlockedWebsiteDao
@@ -146,5 +148,16 @@ object AppModule {
         transaction: RestoreTransaction,
     ): RestoreBackupUseCase {
         return RestoreBackupUseCase(apps, websites, keywords, schedules, transaction)
+    }
+
+    /**
+     * درگاه پرداخت سد پرو — بر اساس نصب‌کننده اپ انتخاب می‌شود
+     * (بازار/مایکت/در دسترس نیست). ProManager خودش با @Inject ساخته
+     * می‌شود و همین درگاه را می‌گیرد.
+     */
+    @Provides
+    @Singleton
+    fun provideBillingGateway(@ApplicationContext context: Context): BillingGateway {
+        return BillingGatewayFactory.create(context)
     }
 }

@@ -3,6 +3,10 @@ package com.sadd.blocker.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
+import com.sadd.blocker.domain.CappableRule
+import com.sadd.blocker.domain.ProEntitlement
+import com.sadd.blocker.domain.ProState
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
@@ -18,6 +22,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -34,6 +39,12 @@ data class WebsitesUiState(
     val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
     /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ. */
     val strictCooldownRequest: StrictCooldownRequest? = null,
+    /** سد پرو فعال است؟ (در رایگان سقف ۳ وب‌سایت فعال اعمال می‌شود.) */
+    val isPro: Boolean = false,
+    /** دیالوگ سقف رایگان/پرو باز است. */
+    val proPromptVisible: Boolean = false,
+    /** شناسه وب‌سایت‌هایی که فعال‌اند ولی به‌خاطر سقف رایگان «متوقف» شده‌اند. */
+    val pausedRuleIds: Set<Long> = emptySet(),
 )
 
 @HiltViewModel
@@ -42,19 +53,33 @@ class WebsitesViewModel @Inject constructor(
     private val addUseCase: AddWebsiteUseCase,
     sessionRepository: SessionRepository,
     private val settingsStore: SettingsStore,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WebsitesUiState())
     val uiState: StateFlow<WebsitesUiState> = _uiState.asStateFlow()
     private val strictGuard = StrictSessionGuard(sessionRepository)
     private var lastRemoved: BlockedWebsite? = null
+    /** آخرین وضعیت پرو برای محاسبه قانون‌های متوقف (سقف رایگان). */
+    private var latestProState: ProState = ProState()
     /** تغییر قانونِ در انتظار بازگشایی Strict (فقط در حافظه؛ کد آن در DataStore است). */
     private var pendingStrictRuleChange: StrictRuleChange? = null
 
     init {
         viewModelScope.launch {
             repository.observe().collect { list ->
-                _uiState.update { it.copy(websites = list) }
+                _uiState.update { it.copy(websites = list, pausedRuleIds = pausedIds(list)) }
+            }
+        }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                latestProState = state
+                _uiState.update {
+                    it.copy(
+                        isPro = ProEntitlement.isPro(state, System.currentTimeMillis()),
+                        pausedRuleIds = pausedIds(it.websites),
+                    )
+                }
             }
         }
         viewModelScope.launch {
@@ -87,9 +112,12 @@ class WebsitesViewModel @Inject constructor(
 
     fun addWebsite(rawHost: String, matchSubdomains: Boolean) {
         viewModelScope.launch {
-            // افزودن قانون وسط سشن Strict آزاد است: فقط بلاک را قوی‌تر
-            // می‌کند (مثل تمدید سشن و افزودن زمان‌بندی). گیت Strict فقط
-            // روی حذف/غیرفعال/ویرایش قانونِ موجود است.
+            // سقف رایگان جدا از گیت Strict است: افزودن وسط سشن Strict
+            // آزاد است، ولی کاربر رایگانِ به‌سقف‌رسیده دیالوگ پرو می‌گیرد.
+            if (!canEnableMoreNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             applyAddWebsite(rawHost, matchSubdomains)
         }
     }
@@ -110,6 +138,12 @@ class WebsitesViewModel @Inject constructor(
 
     fun setEnabled(id: Long, enabled: Boolean) {
         viewModelScope.launch {
+            // روشن‌کردن قانون چهارم در رایگان دیالوگ پرو می‌گیرد؛
+            // خاموش‌کردن و حذف هیچ‌وقت سقف ندارند.
+            if (enabled && !canEnableMoreNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             // H-2: در سشن Strict نمی‌توان قانون فعال را غیرفعال کرد —
             // مگر بعد از بازگشایی Strict (تایپ متن / انتظار).
             if (!enabled && strictGuard.isStrictSessionActive()) {
@@ -243,5 +277,32 @@ class WebsitesViewModel @Inject constructor(
 
     fun dismissMessage() {
         _uiState.update { it.copy(message = null) }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
+    }
+
+    /** آیا قانون دیگری را می‌توان فعال کرد؟ (پرو: همیشه؛ رایگان: تا سقف ۳.) وضعیت پرو تازه خوانده می‌شود. */
+    private suspend fun canEnableMoreNow(): Boolean {
+        val enabledCount = _uiState.value.websites.count { it.enabled }
+        return ProEntitlement.canEnableMore(
+            enabledCount,
+            proManager.proState.first(),
+            System.currentTimeMillis(),
+        )
+    }
+
+    /** وب‌سایت‌هایی که فعال‌اند ولی سقف رایگان متوقفشان کرده (ترتیب ساخت: id). */
+    private fun pausedIds(websites: List<BlockedWebsite>): Set<Long> {
+        val enforced = ProEntitlement.enforcedRuleIds(
+            websites.map { CappableRule(it.id.toString(), it.enabled, it.id) },
+            latestProState,
+            System.currentTimeMillis(),
+        )
+        return websites
+            .filter { it.enabled && it.id.toString() !in enforced }
+            .map { it.id }
+            .toSet()
     }
 }

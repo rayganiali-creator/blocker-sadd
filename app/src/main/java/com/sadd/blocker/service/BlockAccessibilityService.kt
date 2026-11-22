@@ -12,13 +12,17 @@ import com.sadd.blocker.core.SectionDetector
 import com.sadd.blocker.core.TextRedactor
 import com.sadd.blocker.data.datastore.SettingsStore
 import com.sadd.blocker.data.system.UninstallProtection
+import com.sadd.blocker.domain.CappableRule
+import com.sadd.blocker.domain.ProEntitlement
 import com.sadd.blocker.domain.UninstallProtectionGate
 import com.sadd.blocker.domain.model.BlockEventKind
+import com.sadd.blocker.domain.model.BlockedApp
 import com.sadd.blocker.domain.model.BlockedWebsite
 import com.sadd.blocker.domain.model.DelayOptions
 import com.sadd.blocker.domain.model.KeywordRule
 import com.sadd.blocker.domain.model.SectionRule
 import com.sadd.blocker.domain.repository.BlockEventRepository
+import com.sadd.blocker.domain.repository.BlockedAppRepository
 import com.sadd.blocker.domain.repository.KeywordRepository
 import com.sadd.blocker.domain.repository.SectionRuleRepository
 import com.sadd.blocker.domain.repository.SessionRepository
@@ -116,6 +120,9 @@ class BlockAccessibilityService : AccessibilityService() {
     lateinit var keywordRepository: KeywordRepository
 
     @Inject
+    lateinit var blockedAppRepository: BlockedAppRepository
+
+    @Inject
     lateinit var websiteRepository: WebsiteRepository
 
     @Inject
@@ -173,6 +180,8 @@ class BlockAccessibilityService : AccessibilityService() {
         val keywords: List<KeywordRule>,
         val websites: List<BlockedWebsite>,
         val sections: List<SectionRule>,
+        /** قانون‌های «کل اپ» از صفحه اپ‌ها (سقف رایگان اعمال شده). */
+        val apps: List<BlockedApp>,
     )
 
     @Volatile
@@ -602,6 +611,34 @@ class BlockAccessibilityService : AccessibilityService() {
         val fresh = try {
             val session = sessionRepository.getActive(now)
             val globalDelay = settingsStore.globalDelaySeconds.first()
+            // سد پرو: سقف نسخه رایگان روی قانون‌های فعال هر نوع (کلمه/اپ/
+            // وب‌سایت) اعمال می‌شود — قانون اضافه حذف نمی‌شود، فقط تا
+            // پروشدن «متوقف» می‌ماند و موتور نادیده‌اش می‌گیرد. بخش‌های
+            // اپ امکان پرو است و در رایگان اعمال نمی‌شود — مگر سشن فعال
+            // Strict باشد: سشن Strict در حال اجرا با تمام‌شدن پرو وسط
+            // کار ضعیف نمی‌شود (کاربر رایگان اصلاً نمی‌تواند Strict
+            // شروع کند؛ این فقط انقضای آزمایشی وسط سشن را پوشش می‌دهد).
+            // خود سشن هم هیچ‌وقت به‌خاطر پرو زود تمام نمی‌شود.
+            val proState = settingsStore.proState.first()
+            val isPro = ProEntitlement.isPro(proState, now)
+            val allKeywords = keywordRepository.list()
+            val enforcedKeywordIds = ProEntitlement.enforcedRuleIds(
+                allKeywords.map { CappableRule(it.id.toString(), it.enabled, it.id) },
+                proState,
+                now,
+            )
+            val allWebsites = websiteRepository.list()
+            val enforcedWebsiteIds = ProEntitlement.enforcedRuleIds(
+                allWebsites.map { CappableRule(it.id.toString(), it.enabled, it.id) },
+                proState,
+                now,
+            )
+            val allApps = blockedAppRepository.list()
+            val enforcedAppPackages = ProEntitlement.enforcedRuleIds(
+                allApps.map { CappableRule(it.packageName, it.enabled, it.createdAt) },
+                proState,
+                now,
+            )
             Snapshot(
                 sessionActive = session != null,
                 // سخت‌گیرانه بودن فقط از خود سشن فعال می‌آید — حالتی که
@@ -610,9 +647,14 @@ class BlockAccessibilityService : AccessibilityService() {
                 // اثری ندارد.
                 strict = session?.strict == true,
                 globalDelaySeconds = globalDelay,
-                keywords = keywordRepository.list().filter { it.enabled },
-                websites = websiteRepository.list().filter { it.enabled },
-                sections = sectionRuleRepository.getEnabled(),
+                keywords = allKeywords.filter { it.id.toString() in enforcedKeywordIds },
+                websites = allWebsites.filter { it.id.toString() in enforcedWebsiteIds },
+                sections = if (isPro || session?.strict == true) {
+                    sectionRuleRepository.getEnabled()
+                } else {
+                    emptyList()
+                },
+                apps = allApps.filter { it.packageName in enforcedAppPackages },
             )
         } catch (_: Exception) {
             // fail-open: اگر قوانین خوانده نشدند، هیچ بلاکی صادر نمی‌شود.
@@ -623,6 +665,7 @@ class BlockAccessibilityService : AccessibilityService() {
                 keywords = emptyList(),
                 websites = emptyList(),
                 sections = emptyList(),
+                apps = emptyList(),
             )
         }
         snapshotCache = fresh
@@ -848,6 +891,23 @@ class BlockAccessibilityService : AccessibilityService() {
     ) {
         val snapshot = loadSnapshot(forceRefresh = false)
         if (!snapshot.sessionActive) return
+        // قانون «کل اپ» از صفحه اپ‌ها: خودِ پیش‌زمینه بودن اپ کافی است و
+        // بخش‌ها را هم دربر می‌گیرد (مثل قانون کل‌اپِ بخش‌ها)؛ پس قبل از
+        // ارزیابی بخش‌ها چک می‌شود و اگر مچ شد همان یک بلاک کافی است.
+        val appRule = snapshot.apps.firstOrNull { it.packageName == packageName }
+        if (appRule != null) {
+            val delaySeconds = TextRedactor.resolveDelay(
+                appRule.delaySeconds,
+                snapshot.globalDelaySeconds,
+            )
+            scheduleBlock(
+                key = "app:$packageName",
+                delaySeconds = delaySeconds,
+            ) {
+                actOnApp(packageName, appRule, delaySeconds, snapshot.strict)
+            }
+            return
+        }
         val root = activeRootOrNull() ?: return
         val signals = mergeInteractionSignals(collectSignals(root, windowClassName), interactionSignals)
         if (SectionDetector.isBrowserPackage(packageName)) {
@@ -1054,6 +1114,37 @@ class BlockAccessibilityService : AccessibilityService() {
                 "section=${rule.sectionKey} pkg=$packageName strict=$strict",
             )
             showBlocked("بخش «${rule.labelFa}» بلاک شد", null, delaySeconds)
+            return true
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    /**
+     * ورود به اپِ کاملاً بلاک‌شده (قانون صفحه اپ‌ها): BACK + صفحه بلاک.
+     * موقع اجرا دوباره چک می‌شود اپ هنوز پیش‌زمینه باشد تا بلاک دیرکرده
+     * روی صفحه دیگری BACK نزند. true یعنی بلاک واقعاً شد.
+     */
+    private suspend fun actOnApp(
+        packageName: String,
+        rule: BlockedApp,
+        delaySeconds: Int,
+        strict: Boolean,
+    ): Boolean {
+        val root = activeRootOrNull() ?: return false
+        try {
+            val currentPkg = try {
+                root.packageName?.toString()
+            } catch (_: Exception) {
+                null
+            }
+            if (currentPkg != packageName) return false
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            logBlock(
+                BlockEventKind.APP_OPENED,
+                "app=$packageName strict=$strict",
+            )
+            showBlocked("اپ «${rule.label}» بلاک شد", null, delaySeconds)
             return true
         } catch (_: Exception) {
             return false

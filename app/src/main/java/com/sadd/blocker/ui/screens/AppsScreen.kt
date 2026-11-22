@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.ui.AppsViewModel
 import com.sadd.blocker.ui.theme.Navy
 import com.sadd.blocker.ui.theme.SaddSpacing
+import com.sadd.blocker.ui.theme.saddPrimaryTextColor
 
 /**
  * بلاک اپ‌ها.
@@ -66,6 +67,17 @@ fun AppsScreen(
             onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
             onUnlocked = { viewModel.confirmStrictUnlocked() },
             onDismiss = { viewModel.cancelStrictUnlock() },
+        )
+    }
+
+    if (uiState.proPromptVisible) {
+        ProPromptDialog(
+            text = "در نسخه رایگان حداکثر ۳ اپ فعال می‌شود. با سد پرو نامحدود است.",
+            onGoToPro = {
+                viewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { viewModel.dismissProPrompt() },
         )
     }
 
@@ -216,6 +228,13 @@ fun AppsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                                if (app.packageName in uiState.pausedPackages) {
+                                    Text(
+                                        "متوقف — در نسخه رایگان فقط ۳ اپ اول فعال است (سد پرو).",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = saddPrimaryTextColor(),
+                                    )
+                                }
                             }
                             Switch(
                                 checked = app.enabled,

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Icon
@@ -92,6 +93,17 @@ fun SectionRulesScreen(
             onRecordCooldownRequest = { viewModel.recordStrictCooldownRequest() },
             onUnlocked = { viewModel.confirmStrictUnlocked() },
             onDismiss = { viewModel.cancelStrictUnlock() },
+        )
+    }
+
+    if (uiState.proPromptVisible) {
+        ProPromptDialog(
+            text = "بلاک بخش‌های اپ در سد پرو است. بلاک کل اپ از صفحه اپ‌ها رایگان است.",
+            onGoToPro = {
+                viewModel.dismissProPrompt()
+                onNavigate("pro")
+            },
+            onDismiss = { viewModel.dismissProPrompt() },
         )
     }
 
@@ -223,6 +235,15 @@ fun SectionRulesScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                            }
+                            if (!uiState.isPro) {
+                                Icon(
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = "سد پرو",
+                                    modifier = Modifier.size(SaddSpacing.Medium),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.width(SaddSpacing.Small))
                             }
                             Switch(
                                 checked = rule.enabled,

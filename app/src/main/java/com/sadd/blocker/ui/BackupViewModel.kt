@@ -5,8 +5,10 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
 import com.sadd.blocker.domain.BackupCodec
 import com.sadd.blocker.domain.BackupData
+import com.sadd.blocker.domain.ProEntitlement
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictUnlock
@@ -42,6 +44,10 @@ data class BackupUiState(
     val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
     /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ. */
     val strictCooldownRequest: StrictCooldownRequest? = null,
+    /** سد پرو فعال است؟ (پشتیبان‌گیری و ریستور امکان پرو است.) */
+    val isPro: Boolean = false,
+    /** دیالوگ «این امکان در سد پرو است» باز است. */
+    val proPromptVisible: Boolean = false,
 )
 
 @HiltViewModel
@@ -54,6 +60,7 @@ class BackupViewModel @Inject constructor(
     private val restoreUseCase: RestoreBackupUseCase,
     sessionRepository: SessionRepository,
     private val settingsStore: SettingsStore,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     companion object {
@@ -81,6 +88,13 @@ class BackupViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.strictCooldownRequest.collect { request ->
                 _uiState.update { it.copy(strictCooldownRequest = request) }
+            }
+        }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                _uiState.update {
+                    it.copy(isPro = ProEntitlement.isPro(state, System.currentTimeMillis()))
+                }
             }
         }
     }
@@ -137,6 +151,11 @@ class BackupViewModel @Inject constructor(
      */
     fun importJson(json: String) {
         viewModelScope.launch {
+            // ریستور امکان سد پرو است؛ در رایگان دیالوگ پرو باز می‌شود.
+            if (!proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             if (strictGuard.isStrictSessionActive()) {
                 // درخواست انتظارِ ثبت‌شده و گذشته (بعد از ری‌استارت اپ و
                 // انتخاب دوباره فایل) مستقیم اعمال می‌شود.
@@ -212,6 +231,15 @@ class BackupViewModel @Inject constructor(
     fun cancelStrictUnlock() {
         pendingRestoreJson = null
         _uiState.update { it.copy(strictUnlockVisible = false) }
+    }
+
+    /** نشان‌دادن دیالوگ پرو (از دکمه‌های خروجی/ورودی صفحه، قبل از بازکردن فایل‌گیر). */
+    fun showProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = true) }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
     }
 
     private suspend fun applyRestore(json: String) {

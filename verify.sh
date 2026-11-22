@@ -47,6 +47,10 @@ $KOTLINC \
   app/src/main/java/com/sadd/blocker/domain/JalaliDate.kt \
   app/src/main/java/com/sadd/blocker/domain/RuleValidation.kt \
   app/src/main/java/com/sadd/blocker/domain/BackupCodec.kt \
+  app/src/main/java/com/sadd/blocker/domain/ProEntitlement.kt \
+  app/src/main/java/com/sadd/blocker/domain/AdminCode.kt \
+  app/src/main/java/com/sadd/blocker/domain/SecretTapCounter.kt \
+  app/src/main/java/com/sadd/blocker/domain/BillingStore.kt \
   app/src/main/java/com/sadd/blocker/domain/model/Models.kt \
   app/src/main/java/com/sadd/blocker/domain/model/SectionRule.kt \
   app/src/main/java/com/sadd/blocker/domain/repository/RuleRepositories.kt \
@@ -78,6 +82,10 @@ $KOTLINC \
   app/src/test/java/com/sadd/blocker/domain/UninstallProtectionGateTest.kt \
   app/src/test/java/com/sadd/blocker/domain/JalaliDateTest.kt \
   app/src/test/java/com/sadd/blocker/domain/BackupCodecTest.kt \
+  app/src/test/java/com/sadd/blocker/domain/ProEntitlementTest.kt \
+  app/src/test/java/com/sadd/blocker/domain/AdminCodeTest.kt \
+  app/src/test/java/com/sadd/blocker/domain/SecretTapCounterTest.kt \
+  app/src/test/java/com/sadd/blocker/domain/BillingStoreTest.kt \
   app/src/test/java/com/sadd/blocker/data/FakeRepositories.kt \
   app/src/test/java/com/sadd/blocker/data/RepositoryTest.kt \
   app/src/test/java/com/sadd/blocker/domain/UseCaseTest.kt \
@@ -109,6 +117,10 @@ $JAVA -cp "$OUT/test-classes:$TB/junit.jar:$TB/hamcrest.jar:$COROUTINES_JAR:$TB/
   com.sadd.blocker.domain.UninstallProtectionGateTest \
   com.sadd.blocker.domain.JalaliDateTest \
   com.sadd.blocker.domain.BackupCodecTest \
+  com.sadd.blocker.domain.ProEntitlementTest \
+  com.sadd.blocker.domain.AdminCodeTest \
+  com.sadd.blocker.domain.SecretTapCounterTest \
+  com.sadd.blocker.domain.BillingStoreTest \
   com.sadd.blocker.data.RepositoryTest \
   com.sadd.blocker.domain.UseCaseTest
 echo "ALL CHECKS PASSED"

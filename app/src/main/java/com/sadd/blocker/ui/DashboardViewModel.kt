@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.core.SessionCalculator
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
 import com.sadd.blocker.data.system.PermissionHealthChecker
+import com.sadd.blocker.domain.ProEntitlement
+import com.sadd.blocker.domain.ProStatus
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
@@ -79,6 +82,10 @@ data class DashboardUiState(
     val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
     /** درخواست انتظار ثبت‌شده برای پایان سشن، اگر هست. */
     val strictCooldownRequest: StrictCooldownRequest? = null,
+    /** وضعیت سد پرو برای کارت پرو داشبورد. */
+    val proStatus: ProStatus = ProStatus.Free,
+    /** روزهای باقی‌مانده دوره آزمایشی پرو (فقط در Trial). */
+    val proTrialDaysLeft: Int = 0,
 )
 
 /**
@@ -101,6 +108,7 @@ class DashboardViewModel @Inject constructor(
     private val endSessionUseCase: EndSessionUseCase,
     private val permissionHealth: PermissionHealthChecker,
     private val settingsStore: SettingsStore,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DashboardUiState())
@@ -133,6 +141,17 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             settingsStore.strictCooldownRequest.collect { request ->
                 _uiState.update { it.copy(strictCooldownRequest = request) }
+            }
+        }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                val now = System.currentTimeMillis()
+                _uiState.update {
+                    it.copy(
+                        proStatus = ProEntitlement.evaluate(state, now),
+                        proTrialDaysLeft = ProEntitlement.trialDaysLeft(state, now),
+                    )
+                }
             }
         }
         // تعداد قوانین: فقط موقع تغییر جدول به‌روز می‌شود، نه هر ثانیه.
@@ -414,6 +433,18 @@ class DashboardViewModel @Inject constructor(
 
     fun dismissMessage() {
         _uiState.update { it.copy(message = null) }
+    }
+
+    /**
+     * اعمال کد فعال‌سازی توسعه‌دهنده (از دیالوگ ژست مخفی روی خرس).
+     * نتیجه عمداً به UI برنمی‌گردد تا رفتار دیالوگ برای کد درست و غلط
+     * یکسان بماند؛ اگر درست باشد، کارت پرو داشبورد خودش «مادام‌العمر»
+     * را نشان می‌دهد.
+     */
+    fun applyAdminCode(code: String) {
+        viewModelScope.launch {
+            proManager.applyAdminCode(code)
+        }
     }
 
     private suspend fun refresh() {

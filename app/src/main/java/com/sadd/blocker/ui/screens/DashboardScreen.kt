@@ -12,6 +12,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AssistChip
@@ -46,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,6 +72,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sadd.blocker.R
+import com.sadd.blocker.domain.JalaliDate
+import com.sadd.blocker.domain.ProStatus
+import com.sadd.blocker.domain.SecretTapCounter
 import com.sadd.blocker.ui.DashboardRule
 import com.sadd.blocker.ui.DashboardRuleKind
 import com.sadd.blocker.ui.DashboardViewModel
@@ -126,6 +132,21 @@ fun DashboardScreen(
         )
     }
 
+    // ژست مخفی فعال‌سازی توسعه‌دهنده: ۷ ضربه روی خرس در ۳ ثانیه.
+    // هیچ نشانه‌ای در UI به آن اشاره نمی‌کند و دیالوگ برای کد درست و
+    // غلط یکسان بسته می‌شود.
+    val bearTapCounter = remember { SecretTapCounter() }
+    var adminCodeDialogVisible by remember { mutableStateOf(false) }
+    if (adminCodeDialogVisible) {
+        AdminCodeDialog(
+            onConfirm = { code ->
+                viewModel.applyAdminCode(code)
+                adminCodeDialogVisible = false
+            },
+            onDismiss = { adminCodeDialogVisible = false },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -142,7 +163,16 @@ fun DashboardScreen(
                 Image(
                     painter = painterResource(id = R.drawable.sadd_bear),
                     contentDescription = "خرس سد",
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            if (bearTapCounter.onTap(System.currentTimeMillis())) {
+                                adminCodeDialogVisible = true
+                            }
+                        },
                 )
                 Spacer(Modifier.size(SaddSpacing.Small))
                 Text(
@@ -216,6 +246,36 @@ fun DashboardScreen(
                         text = "شروع جلسه",
                         onClick = { onNavigate("sessions") },
                         modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(SaddSpacing.Large))
+        // کارت سد پرو: وضعیت فعلی + ورود به صفحه پرو.
+        SaddCard(modifier = Modifier.fillMaxWidth(), onClick = { onNavigate("pro") }) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(SaddSpacing.Medium),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SaddIconChip(icon = Icons.Filled.Star, color = ChipYellow)
+                Spacer(Modifier.size(SaddSpacing.Small))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "سد پرو",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = when (val status = uiState.proStatus) {
+                            ProStatus.Free -> "نسخه رایگان — برای امکانات بیشتر ببین"
+                            is ProStatus.Trial ->
+                                "دوره آزمایشی: ${JalaliDate.toPersianDigits(uiState.proTrialDaysLeft.toString())} روز مانده"
+                            is ProStatus.Active -> "فعال تا ${JalaliDate.formatDate(status.untilMs)}"
+                            ProStatus.Lifetime -> "مادام‌العمر فعال است"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

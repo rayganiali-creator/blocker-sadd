@@ -3,6 +3,8 @@ package com.sadd.blocker.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sadd.blocker.data.datastore.SettingsStore
+import com.sadd.blocker.data.pro.ProManager
+import com.sadd.blocker.domain.ProEntitlement
 import com.sadd.blocker.domain.StrictCooldownRequest
 import com.sadd.blocker.domain.StrictPendingKind
 import com.sadd.blocker.domain.StrictRuleChange
@@ -33,6 +35,10 @@ data class SchedulingUiState(
     val strictCooldownHours: Int = StrictUnlock.DEFAULT_COOLDOWN_HOURS,
     /** درخواست انتظار ثبت‌شده (اگر هست) برای دیالوگ. */
     val strictCooldownRequest: StrictCooldownRequest? = null,
+    /** سد پرو فعال است؟ (زمان‌بندی امکان پرو است.) */
+    val isPro: Boolean = false,
+    /** دیالوگ «این امکان در سد پرو است» باز است. */
+    val proPromptVisible: Boolean = false,
 )
 
 /**
@@ -45,6 +51,7 @@ class SchedulingViewModel @Inject constructor(
     private val repository: ScheduleRepository,
     sessionRepository: SessionRepository,
     private val settingsStore: SettingsStore,
+    private val proManager: ProManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SchedulingUiState())
@@ -75,6 +82,13 @@ class SchedulingViewModel @Inject constructor(
                 _uiState.update { it.copy(strictCooldownRequest = request) }
             }
         }
+        viewModelScope.launch {
+            proManager.proState.collect { state ->
+                _uiState.update {
+                    it.copy(isPro = ProEntitlement.isPro(state, System.currentTimeMillis()))
+                }
+            }
+        }
         // پاک‌سازی یک‌باره درخواست انتظارِ قدیمیِ «افزودن زمان‌بندی»:
         // افزودن زمان‌بندی دیگر گیت ندارد، پس درخواستِ ثبت‌شده قبل از
         // این تغییر در ModesScreen به‌صورت کارت شمارش معکوسِ گیرکرده
@@ -89,6 +103,13 @@ class SchedulingViewModel @Inject constructor(
 
     fun addSchedule(daysOfWeek: Set<String>, startText: String, endText: String, strict: Boolean) {
         viewModelScope.launch {
+            // زمان‌بندی امکان سد پرو است؛ در رایگان دیالوگ پرو باز می‌شود.
+            // (این گیت جدا از گیت Strict است: افزودن وسط سشن Strict برای
+            // کاربر پرو همچنان آزاد است.)
+            if (!proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             val start = TimeFormat.parseMinuteOfDay(startText)
             val end = TimeFormat.parseMinuteOfDay(endText)
             if (daysOfWeek.isEmpty()) {
@@ -141,6 +162,12 @@ class SchedulingViewModel @Inject constructor(
 
     fun setEnabled(id: Long, enabled: Boolean) {
         viewModelScope.launch {
+            // روشن‌کردن زمان‌بندی امکان سد پرو است؛ خاموش‌کردن و حذف
+            // هیچ‌وقت گیت پرو ندارند (فقط گیت Strict خودشان را دارند).
+            if (enabled && !proManager.isProNow()) {
+                _uiState.update { it.copy(proPromptVisible = true) }
+                return@launch
+            }
             // H-2: در سشن Strict نمی‌توان زمان‌بندی فعال را غیرفعال کرد —
             // مگر بعد از بازگشایی Strict (تایپ متن / انتظار).
             if (!enabled && strictGuard.isStrictSessionActive()) {
@@ -230,6 +257,10 @@ class SchedulingViewModel @Inject constructor(
     fun cancelStrictUnlock() {
         pendingStrictRuleChange = null
         _uiState.update { it.copy(strictUnlockVisible = false) }
+    }
+
+    fun dismissProPrompt() {
+        _uiState.update { it.copy(proPromptVisible = false) }
     }
 
     /** اعمال تغییر قانونِ بازگشایی‌شده (فقط scope همین صفحه). */
