@@ -130,20 +130,37 @@ dependencies {
 // اضافه — با javap روی بایت‌کد هر دو AAR راستی‌آزمایی شد). جزئیات و
 // دلیل امن‌بودن در buildSrc/src/main/kotlin/StripVendingBillingClasses.kt
 val vendingStripped = Attribute.of("vending-stripped", Boolean::class.javaObjectType)
+val aarArtifactType = Attribute.of("artifactType", String::class.java)
 
 dependencies {
-    artifactTypes.maybeCreate("aar") {
-        attributes.attribute(vendingStripped, false)
+    attributesSchema {
+        it.attribute(vendingStripped)
     }
+    // همه AARها پیش‌فرض «stripped» (true) حساب می‌شوند؛ فقط مایکت false
+    // می‌شود تا transform رویش اجرا شود (پایین). جهت برعکسِ این (نوع=false
+    // و مایکت=true) هرگز کار نمی‌کرد: آرتیفکت مایکت از اول true می‌گرفت و
+    // هیچ‌وقت با from=false transform جور نمی‌شد.
+    artifactTypes.maybeCreate("aar").attributes.attribute(vendingStripped, true)
     registerTransform(StripVendingBillingClasses::class) {
-        from.attribute(vendingStripped, false)
-        to.attribute(vendingStripped, true)
+        it.from.attribute(vendingStripped, false).attribute(aarArtifactType, "aar")
+        it.to.attribute(vendingStripped, true).attribute(aarArtifactType, "aar")
     }
     components {
-        withModule("ir.myket:billing") {
-            allVariants {
-                attributes.attribute(vendingStripped, true)
+        it.withModule("ir.myket:billing") { details ->
+            details.allVariants { variant ->
+                variant.attributes.attribute(vendingStripped, false)
             }
         }
+    }
+}
+
+// transformهای Gradle «درخواست‌محور» هستند: فقط وقتی اجرا می‌شوند که مقدار
+// هدف روی کانفیگ قابل‌حل درخواست شده باشد. با درخواست vending-stripped=true
+// روی همه کانفیگ‌های قابل‌حل، تنها AAR مایکت (تنها false) بازنویسی می‌شود و
+// بقیه AARها (true) دست‌نخورده می‌مانند. روی variant selection اثری ندارد
+// چون این attribute روی variantهای تولیدکننده وجود ندارد (غایب = سازگار).
+configurations.configureEach { config ->
+    if (config.isCanBeResolved) {
+        config.attributes.attribute(vendingStripped, true)
     }
 }
