@@ -119,3 +119,31 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }
+
+// ── حذف کلاس تکراری پرداخت از AAR مایکت ──────────────────────────────
+// هر دو کتابخانه پرداخت (ir.myket:billing و Poolakey) کلاس‌های
+// com.android.vending.billing.IInAppBillingService* را داخل classes.jar
+// خودشان دارند و :app:checkDebugDuplicateClasses بیلد را رد می‌کند
+// (ران ۲۰۵). این transform فقط روی ماژول مایکت اعمال می‌شود و آن
+// کلاس‌ها را از AAR مایکت حذف می‌کند؛ نسخه Poolakey می‌ماند که
+// ابرمجموعه نسخه مایکت است (همان ۷ متد با کد تراکنش یکسان + ۳ متد
+// اضافه — با javap روی بایت‌کد هر دو AAR راستی‌آزمایی شد). جزئیات و
+// دلیل امن‌بودن در buildSrc/src/main/kotlin/StripVendingBillingClasses.kt
+val vendingStripped = Attribute.of("vending-stripped", Boolean::class.javaObjectType)
+
+dependencies {
+    artifactTypes.maybeCreate("aar") {
+        attributes.attribute(vendingStripped, false)
+    }
+    registerTransform(StripVendingBillingClasses::class) {
+        from.attribute(vendingStripped, false)
+        to.attribute(vendingStripped, true)
+    }
+    components {
+        withModule("ir.myket:billing") {
+            allVariants {
+                attributes.attribute(vendingStripped, true)
+            }
+        }
+    }
+}
