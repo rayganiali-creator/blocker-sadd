@@ -17,6 +17,17 @@ android {
         versionCode = 1
         versionName = "3.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // کتابخانه پرداخت مایکت (ir.myket:billing) در مانیفست خودش این
+        // placeholderها را می‌خواهد؛ مقادیر ثابت مایکت‌اند (مستندات رسمی
+        // مایکت و پلاگین رسمی myket_iap). Poolakey placeholder نمی‌خواهد.
+        manifestPlaceholders.putAll(
+            mapOf(
+                "marketApplicationId" to "ir.mservices.market",
+                "marketBindAddress" to "ir.mservices.market.InAppBillingService.BIND",
+                "marketPermission" to "ir.mservices.market.BILLING",
+            )
+        )
     }
 
     buildTypes {
@@ -36,6 +47,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        // کتابخانه پرداخت مایکت (ir.myket:billing) با Kotlin 2.2 کامپایل شده
+        // ولی پروژه روی Kotlin 2.0.21 است؛ بدون این پرچم کامپایلر متادیتای
+        // 2.2.0 را رد می‌کند. API مایکت کلاس‌های جاواست و این پرچم فقط چک
+        // نسخه متادیتا را رد می‌کند. با ارتقای Kotlin پروژه به 2.2+ حذف شود.
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
 
     buildFeatures {
@@ -90,10 +106,11 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     // پرداخت درون‌برنامه‌ای سد پرو — کافه‌بازار (Poolakey از JitPack) و مایکت.
-    // هشدار: مختصات و نسخه این دو در این جلسه از وب راستی‌آزمایی نشدند؛
-    // قبل از انتشار با مستندات رسمی هر فروشگاه تطبیق داده شوند.
+    // مختصات مایکت از پلاگین رسمی myket_iap (نسخه 2.0.1، فایل
+    // android/build.gradle.kts در گیت‌هاب myketstore/billing-sample-flutter)
+    // راستی‌آزمایی شد: ir.myket:billing:2.2 روی https://maven.myket.ir
     implementation("com.github.cafebazaar.Poolakey:poolakey:2.2.0")
-    implementation("ir.mservices.market:billing:1.6")
+    implementation("ir.myket:billing:2.2")
 
     // Tests (unit)
     testImplementation("junit:junit:4.13.2")

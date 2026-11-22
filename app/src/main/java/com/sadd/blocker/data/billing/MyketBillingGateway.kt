@@ -2,174 +2,174 @@ package com.sadd.blocker.data.billing
 
 import android.app.Activity
 import android.content.Context
-import ir.mservices.market.billing.BillingClient
-import ir.mservices.market.billing.BillingClientStateListener
-import ir.mservices.market.billing.BillingFlowParams
-import ir.mservices.market.billing.BillingResult
-import ir.mservices.market.billing.ConsumeParams
-import ir.mservices.market.billing.Purchase
-import ir.mservices.market.billing.PurchasesUpdatedListener
-import ir.mservices.market.billing.SkuDetailsParams
+import ir.myket.billingclient.IabHelper
+import ir.myket.billingclient.util.Inventory
+import ir.myket.billingclient.util.Purchase
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 /**
- * درگاه پرداخت مایکت با کتابخانه پرداخت مایکت (API هم‌شکل Play Billing).
+ * درگاه پرداخت مایکت با کتابخانه رسمی مایکت (ir.myket:billing:2.2 از
+ * مخزن https://maven.myket.ir) — API از نوع IabHelper کلاسیک
+ * (init با کلید RSA، queryInventory، launchPurchaseFlow، consume).
+ * امضاها از سورس پلاگین رسمی myket_iap و خود AAR راستی‌آزمایی شدند.
  *
  * همه کد وابسته به کتابخانه مایکت فقط در همین فایل است. محصولات
  * یک‌بارخرید (INAPP) هستند؛ پلن‌های زمانی بعد از اعمال مدت consume
  * می‌شوند و مادام‌العمر هرگز consume نمی‌شود.
  *
- * هشدار: مختصات وابستگی و سطح API این کتابخانه در این جلسه از وب
- * راستی‌آزمایی نشد (جست‌وجوی وب خطا داد). قبل از انتشار باید با
- * مستندات رسمی مایکت تطبیق داده شود — اگر امضای متدها فرق داشت،
- * فقط همین فایل نیاز به اصلاح دارد.
+ * TODO(انتشار): [MYKET_RSA_PUBLIC_KEY] باید با کلید عمومی RSA پنل
+ * توسعه‌دهنده مایکت سید پر شود. کتابخانه امضای خرید را همیشه با همین
+ * کلید راستی‌آزمایی می‌کند و کلید خالی یعنی خرید با خطای
+ * IABHELPER_VERIFICATION_FAILED رد می‌شود (کرش نمی‌کند؛ اتصال و
+ * استعلام قیمت کار می‌کنند). کلید را سید از پنل مایکت می‌گیرد.
  */
 class MyketBillingGateway(context: Context) : BillingGateway {
 
     private val appContext: Context = context.applicationContext
 
-    /** ادامه‌دارِ خرید در جریان؛ نتیجه خرید از PurchasesUpdatedListener می‌آید. */
     @Volatile
-    private var pendingPurchase: ((PurchaseOutcome) -> Unit)? = null
-
-    private val purchasesUpdatedListener = PurchasesUpdatedListener { billingResult, purchases ->
-        val callback = pendingPurchase ?: return@PurchasesUpdatedListener
-        pendingPurchase = null
-        val outcome = when (billingResult.responseCode) {
-            BillingClient.BillingResponseCode.OK -> {
-                val purchase = purchases?.firstOrNull()
-                if (purchase != null) {
-                    PurchaseOutcome.Success(purchase.toOwnedPurchase())
-                } else {
-                    PurchaseOutcome.Failed(billingResult.debugMessage)
-                }
-            }
-            BillingClient.BillingResponseCode.USER_CANCELED -> PurchaseOutcome.Canceled
-            else -> PurchaseOutcome.Failed(billingResult.debugMessage)
-        }
-        callback(outcome)
-    }
-
-    private val billingClient: BillingClient = BillingClient.newBuilder(appContext)
-        .setListener(purchasesUpdatedListener)
-        .build()
+    private var helper: IabHelper? = null
 
     @Volatile
     private var connected: Boolean = false
+
+    /**
+     * کش توکن ← Purchase: consume مایکت خودِ آبجکت Purchase را می‌خواهد
+     * نه فقط توکن؛ از استعلام موجودی و نتیجه خرید پر می‌شود.
+     */
+    private val purchasesByToken = mutableMapOf<String, Purchase>()
 
     override val isAvailable: Boolean = true
 
     override val storeNameFa: String = "مایکت"
 
+    private fun obtainHelper(): IabHelper {
+        val existing = helper
+        if (existing != null) return existing
+        val created = IabHelper(appContext, MYKET_RSA_PUBLIC_KEY)
+        helper = created
+        return created
+    }
+
     override suspend fun connect(): Boolean {
         if (connected) return true
+        val iabHelper = obtainHelper()
         return suspendCancellableCoroutine { cont ->
-            billingClient.startConnection(object : BillingClientStateListener {
-                override fun onBillingSetupFinished(billingResult: BillingResult) {
-                    connected = billingResult.responseCode == BillingClient.BillingResponseCode.OK
-                    if (cont.isActive) cont.resume(connected)
-                }
-
-                override fun onBillingServiceDisconnected() {
-                    connected = false
-                }
-            })
+            iabHelper.startSetup { result ->
+                connected = result.isSuccess()
+                if (cont.isActive) cont.resume(connected)
+            }
         }
     }
 
     override suspend fun queryProducts(productIds: List<String>): List<StoreProduct> {
         if (!connect()) return emptyList()
-        val params = SkuDetailsParams.newBuilder()
-            .setSkusList(productIds)
-            .setType(BillingClient.SkuType.INAPP)
-            .build()
-        return suspendCancellableCoroutine { cont ->
-            billingClient.querySkuDetailsAsync(params) { billingResult, skuDetailsList ->
-                val products = if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    skuDetailsList.orEmpty().map { details ->
-                        StoreProduct(
-                            productId = details.sku,
-                            priceText = details.price,
-                            title = details.title,
-                        )
-                    }
-                } else {
-                    emptyList()
-                }
-                if (cont.isActive) cont.resume(products)
+        val inventory = queryInventory(querySkuDetails = true, skus = productIds)
+            ?: return emptyList()
+        return inventory.getAllProducts()
+            .filter { it.sku in productIds }
+            .map { details ->
+                StoreProduct(
+                    productId = details.sku,
+                    priceText = details.price,
+                    title = details.title,
+                )
             }
-        }
     }
 
     override suspend fun launchPurchase(activity: Activity, productId: String): PurchaseOutcome {
         if (!connect()) return PurchaseOutcome.Unavailable
-        // جریان خرید مایکت (مثل Play Billing) اول SkuDetails می‌خواهد.
-        val params = SkuDetailsParams.newBuilder()
-            .setSkusList(listOf(productId))
-            .setType(BillingClient.SkuType.INAPP)
-            .build()
-        val skuDetails = suspendCancellableCoroutine { cont ->
-            billingClient.querySkuDetailsAsync(params) { billingResult, skuDetailsList ->
-                val found = if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    skuDetailsList?.firstOrNull()
-                } else {
-                    null
-                }
-                if (cont.isActive) cont.resume(found)
-            }
-        } ?: return PurchaseOutcome.Failed("محصول در فروشگاه پیدا نشد.")
-
+        val iabHelper = obtainHelper()
         return suspendCancellableCoroutine { cont ->
-            pendingPurchase = { outcome ->
-                if (cont.isActive) cont.resume(outcome)
-            }
-            val flowParams = BillingFlowParams.newBuilder()
-                .setSkuDetails(skuDetails)
-                .build()
-            val result = billingClient.launchBillingFlow(activity, flowParams)
-            if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-                pendingPurchase = null
-                if (cont.isActive) cont.resume(PurchaseOutcome.Failed(result.debugMessage))
-            }
+            iabHelper.launchPurchaseFlow(
+                activity,
+                productId,
+                IabHelper.OnIabPurchaseFinishedListener { result, purchase ->
+                    if (!cont.isActive) return@OnIabPurchaseFinishedListener
+                    val outcome = when {
+                        result.isSuccess() && purchase != null -> {
+                            cachePurchase(purchase)
+                            PurchaseOutcome.Success(purchase.toOwnedPurchase())
+                        }
+                        result.response == IabHelper.BILLING_RESPONSE_RESULT_USER_CANCELED ||
+                            result.response == IabHelper.IABHELPER_USER_CANCELLED ->
+                            PurchaseOutcome.Canceled
+                        else -> PurchaseOutcome.Failed(result.message)
+                    }
+                    cont.resume(outcome)
+                },
+                /* payload = */ "",
+            )
         }
     }
 
     override suspend fun queryOwnedPurchases(): List<OwnedPurchase> {
         if (!connect()) return emptyList()
-        return suspendCancellableCoroutine { cont ->
-            billingClient.queryPurchasesAsync(BillingClient.SkuType.INAPP) { billingResult, purchases ->
-                val owned = if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    purchases.orEmpty().map { it.toOwnedPurchase() }
-                } else {
-                    emptyList()
-                }
-                if (cont.isActive) cont.resume(owned)
-            }
-        }
+        val inventory = queryInventory(querySkuDetails = false, skus = emptyList())
+            ?: return emptyList()
+        val purchases = inventory.getAllPurchases()
+        purchases.forEach { cachePurchase(it) }
+        return purchases.map { it.toOwnedPurchase() }
     }
 
     override suspend fun consume(purchaseToken: String): Boolean {
         if (!connect()) return false
-        val params = ConsumeParams.newBuilder()
-            .setPurchaseToken(purchaseToken)
-            .build()
+        val purchase = purchasesByToken[purchaseToken] ?: run {
+            // کش خالی است (مثلاً بعد از ری‌استارت اپ): یک استعلام موجودی
+            // تا آبجکت Purchase پیدا شود.
+            val inventory = queryInventory(querySkuDetails = false, skus = emptyList())
+            val found = inventory?.getAllPurchases()?.firstOrNull { it.token == purchaseToken }
+            if (found != null) cachePurchase(found)
+            found
+        } ?: return false
+        val iabHelper = obtainHelper()
         return suspendCancellableCoroutine { cont ->
-            billingClient.consumeAsync(params) { billingResult, _ ->
-                val ok = billingResult.responseCode == BillingClient.BillingResponseCode.OK
-                if (cont.isActive) cont.resume(ok)
+            iabHelper.consumeAsync(purchase) { _, result ->
+                if (result.isSuccess()) purchasesByToken.remove(purchaseToken)
+                if (cont.isActive) cont.resume(result.isSuccess())
             }
         }
     }
 
     override fun disconnect() {
-        runCatching { billingClient.endConnection() }
+        runCatching { helper?.dispose() }
+        helper = null
         connected = false
+        purchasesByToken.clear()
+    }
+
+    private suspend fun queryInventory(
+        querySkuDetails: Boolean,
+        skus: List<String>,
+    ): Inventory? {
+        val iabHelper = obtainHelper()
+        return suspendCancellableCoroutine { cont ->
+            iabHelper.queryInventoryAsync(querySkuDetails, skus) { result, inventory ->
+                if (cont.isActive) {
+                    cont.resume(if (result.isSuccess()) inventory else null)
+                }
+            }
+        }
+    }
+
+    private fun cachePurchase(purchase: Purchase) {
+        val token = purchase.token
+        if (!token.isNullOrEmpty()) purchasesByToken[token] = purchase
     }
 
     private fun Purchase.toOwnedPurchase(): OwnedPurchase = OwnedPurchase(
         productId = sku,
         purchaseTimeMs = purchaseTime,
-        purchaseToken = purchaseToken,
+        purchaseToken = token.orEmpty(),
     )
+
+    companion object {
+        /**
+         * TODO(انتشار): کلید عمومی RSA پنل توسعه‌دهنده مایکت سید اینجا
+         * گذاشته شود. فعلاً خالی است — خرید تا وقتی پر نشود با خطای
+         * راستی‌آزمایی امضا رد می‌شود (اتصال و استعلام قیمت کار می‌کنند).
+         */
+        const val MYKET_RSA_PUBLIC_KEY: String = ""
+    }
 }

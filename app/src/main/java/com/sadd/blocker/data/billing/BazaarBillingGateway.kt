@@ -2,6 +2,8 @@ package com.sadd.blocker.data.billing
 
 import android.app.Activity
 import android.content.Context
+import androidx.activity.ComponentActivity
+import ir.cafebazaar.poolakey.Connection
 import ir.cafebazaar.poolakey.Payment
 import ir.cafebazaar.poolakey.config.PaymentConfiguration
 import ir.cafebazaar.poolakey.config.SecurityCheck
@@ -32,6 +34,10 @@ class BazaarBillingGateway(context: Context) : BillingGateway {
     @Volatile
     private var connected: Boolean = false
 
+    /** اتصال برگشتی از connect — قطع اتصال فقط از همین آبجکت ممکن است. */
+    @Volatile
+    private var connection: Connection? = null
+
     override val isAvailable: Boolean = true
 
     override val storeNameFa: String = "کافه‌بازار"
@@ -39,7 +45,7 @@ class BazaarBillingGateway(context: Context) : BillingGateway {
     override suspend fun connect(): Boolean {
         if (connected) return true
         return suspendCancellableCoroutine { cont ->
-            payment.connect {
+            connection = payment.connect {
                 connectionSucceed {
                     connected = true
                     if (cont.isActive) cont.resume(true)
@@ -78,9 +84,12 @@ class BazaarBillingGateway(context: Context) : BillingGateway {
 
     override suspend fun launchPurchase(activity: Activity, productId: String): PurchaseOutcome {
         if (!connect()) return PurchaseOutcome.Unavailable
+        // Poolakey 2.2.0 به‌جای خود Activity، ActivityResultRegistry می‌گیرد.
+        val registry = (activity as? ComponentActivity)?.activityResultRegistry
+            ?: return PurchaseOutcome.Failed("اکتیویتی نامعتبر برای جریان خرید بازار.")
         return suspendCancellableCoroutine { cont ->
             payment.purchaseProduct(
-                activity,
+                registry,
                 PurchaseRequest(
                     productId = productId,
                     payload = "",
@@ -133,7 +142,8 @@ class BazaarBillingGateway(context: Context) : BillingGateway {
     }
 
     override fun disconnect() {
-        runCatching { payment.disconnect() }
+        runCatching { connection?.disconnect() }
+        connection = null
         connected = false
     }
 
